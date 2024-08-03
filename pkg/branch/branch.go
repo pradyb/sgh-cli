@@ -1,69 +1,50 @@
 package branch
 
 import (
-	"errors"
-
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
-func CreateNewBranchFromCommit(ctx *context.Context, orgName, newBranchName, commitSHA string, repoName string) []model.CommonResponse {
+func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranchName, commitSHA string) []model.RefUIResponse {
 	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+
 	response, err := service.CreateNewBranchFromCommit(ctx, orgName, actualRepoNames[0], newBranchName, commitSHA)
 	if err != nil {
-		var ge *apperrors.GitHubError
-		if errors.As(err, &ge) {
-			return []model.CommonResponse{{OrgName: orgName, RepositoryName: actualRepoNames[0], ItemName: newBranchName, ItemType: "BRANCH", ErrorMessage: ge.Message}}
-		}
-		return []model.CommonResponse{{OrgName: orgName, RepositoryName: actualRepoNames[0], ItemName: newBranchName, ItemType: "BRANCH", ErrorMessage: err.Error()}}
+		return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], newBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", err.Error())}
 	}
-	return []model.CommonResponse{{OrgName: orgName, RepositoryName: actualRepoNames[0], ItemName: newBranchName, ItemType: "BRANCH", SuccessMessage: response.Object.SHA}}
+	return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], newBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", response.Object.SHA)}
 }
 
-func CreateNewBranches(ctx *context.Context, orgName, newBranchName, refBranchName string, repoNames []string) []model.CommonResponse {
-	branchResponses := make([]model.CommonResponse, 0)
+func CreateNewBranches(ctx *context.Context, orgName string, repoNames []string, newBranchName, refBranchName string) []model.RefUIResponse {
+	responses := make([]model.RefUIResponse, 0)
 
-	requestData := processor.RepoOperationData[processor.BranchOperationData]{OperationType: "Creating Branch", Message: "Creating Branches"}
-
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, requestData,
-		func(ctx *context.Context, orgName, repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData]) (model.NewItemResponse, error) {
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreateBranch,
+		func(ctx *context.Context, orgName, repoName string) (model.RefResponse, error) {
 			return service.CreateNewBranch(ctx, orgName, repoName, newBranchName, refBranchName)
 		},
-		func(repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData], result processor.RepoOperationResult[model.NewItemResponse]) {
-			branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: newBranchName, ItemType: "BRANCH", SuccessMessage: result.Result.Object.SHA})
+		func(repoName string, result processor.RepoOperationResult[model.RefResponse]) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, newBranchName, "CREATE_BRANCH", result.Result.Object.SHA, ""))
 		},
-		func(repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData], err error) {
-			var ge *apperrors.GitHubError
-			if errors.As(err, &ge) {
-				branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: newBranchName, ItemType: "BRANCH", ErrorMessage: ge.Message})
-			} else {
-				branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: newBranchName, ItemType: "BRANCH", ErrorMessage: err.Error()})
-			}
+		func(repoName string, err error) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, newBranchName, "CREATE_BRANCH", "", err.Error()))
 		})
-	return branchResponses
+	return responses
 }
 
-func DeleteBranches(ctx *context.Context, orgName, branchName string, repoNames []string) []model.CommonResponse {
-	branchResponses := make([]model.CommonResponse, 0)
-	requestData := processor.RepoOperationData[processor.BranchOperationData]{OperationType: "Deleting Branch", Message: "Deleting Branches"}
+func DeleteBranches(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.RefUIResponse {
+	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, requestData,
-		func(ctx *context.Context, orgName, repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData]) (bool, error) {
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationDeleteBranch,
+		func(ctx *context.Context, orgName, repoName string) (bool, error) {
 			return service.DeleteBranch(ctx, orgName, repoName, branchName)
 		},
-		func(repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData], result processor.RepoOperationResult[bool]) {
-			branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: branchName, ItemType: "BRANCH", SuccessMessage: "Branch deleted"})
+		func(repoName string, result processor.RepoOperationResult[bool]) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_BRANCH", "Branch deleted", ""))
 		},
-		func(repoName string, additionalData processor.RepoOperationData[processor.BranchOperationData], err error) {
-			var ge *apperrors.GitHubError
-			if errors.As(err, &ge) {
-				branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: branchName, ItemType: "BRANCH", ErrorMessage: ge.Message})
-			} else {
-				branchResponses = append(branchResponses, model.CommonResponse{OrgName: orgName, RepositoryName: repoName, ItemName: branchName, ItemType: "BRANCH", ErrorMessage: err.Error()})
-			}
+		func(repoName string, err error) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_BRANCH", "", err.Error()))
 		})
-	return branchResponses
+	return responses
 }

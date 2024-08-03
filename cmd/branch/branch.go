@@ -57,16 +57,12 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				return
 			}
 			if commitSHA != "" {
-				branchResponses := branch.CreateNewBranchFromCommit(ctx, orgName, branchName, commitSHA, repoNames[0])
-				if len(branchResponses) > 0 {
-					ui.PrintResponses(branchResponses)
-				}
+				branchResponses := branch.CreateNewBranchFromCommit(ctx, orgName, repoNames[0], branchName, commitSHA)
+				ui.PrintResponses(branchResponses)
 				return
 			}
-			branchResponses := branch.CreateNewBranches(ctx, orgName, branchName, refBranchName, repoNames)
-			if len(branchResponses) > 0 {
-				ui.PrintResponses(branchResponses)
-			}
+			branchResponses := branch.CreateNewBranches(ctx, orgName, repoNames, branchName, refBranchName)
+			ui.PrintResponses(branchResponses)
 		},
 	}
 
@@ -100,10 +96,8 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			branchResponses := branch.DeleteBranches(ctx, orgName, branchName, repos)
-			if len(branchResponses) > 0 {
-				ui.PrintResponses(branchResponses)
-			}
+			branchResponses := branch.DeleteBranches(ctx, orgName, repos, branchName)
+			ui.PrintResponses(branchResponses)
 		},
 	}
 

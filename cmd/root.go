@@ -7,6 +7,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/config"
+	"github.com/prady-lab/sgh-cli/cmd/pr"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -36,6 +37,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(repo.NewRepoCommand(ctx))
 	rootCmd.AddCommand(branch.NewBranchCommand(ctx))
 	rootCmd.AddCommand(tag.NewTagCommand(ctx))
+	rootCmd.AddCommand(pr.NewPRCommand(ctx))
 
 	return rootCmd
 }

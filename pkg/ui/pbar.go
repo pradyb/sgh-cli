@@ -13,6 +13,7 @@ func NewProgressBar(maxSize int, description string) *progressbar.ProgressBar {
 		progressbar.OptionShowCount(),
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetDescription(description),
+		progressbar.OptionSpinnerType(14),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "[green]=[reset]",
 			SaucerHead:    "[green]>[reset]",

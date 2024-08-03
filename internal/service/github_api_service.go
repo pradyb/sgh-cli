@@ -57,48 +57,48 @@ type refResponse struct {
 	} `json:"object"`
 }
 
-func CreateNewBranch(ctx *context.Context, orgName, repoName, newBranchName, refBranchName string) (model.NewItemResponse, error) {
+func CreateNewBranch(ctx *context.Context, orgName, repoName, newBranchName, refBranchName string) (model.RefResponse, error) {
 	commitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	var refResponse refResponse
 	if err := json.Unmarshal(commitSHAResponse, &refResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 
 	branchRequest := model.BranchRequest{Ref: "refs/heads/" + newBranchName, SHA: refResponse.Object.SHA}
 	jsonBody, err := json.Marshal(branchRequest)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
-	var branchResponse model.NewItemResponse
+	var branchResponse model.RefResponse
 	if err := json.Unmarshal(branchResponseByte, &branchResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	return branchResponse, nil
 }
 
-func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranchName, commitSHA string) (model.NewItemResponse, error) {
+func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranchName, commitSHA string) (model.RefResponse, error) {
 	branchRequest := model.BranchRequest{Ref: "refs/heads/" + newBranchName, SHA: commitSHA}
 	jsonBody, err := json.Marshal(branchRequest)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
-	var branchResponse model.NewItemResponse
+	var branchResponse model.RefResponse
 	if err := json.Unmarshal(branchResponseByte, &branchResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	return branchResponse, nil
 }
@@ -115,90 +115,90 @@ type refTagResponse struct {
 	SHA string `json:"sha"`
 }
 
-func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchName, message string) (model.NewItemResponse, error) {
+func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
 	refCommitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	var refResponse refResponse
 	if err := json.Unmarshal(refCommitSHAResponse, &refResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 
 	tagRequest := model.TagRequest{Tag: tagName, Object: refResponse.Object.SHA, Message: message, Type: "commit", Tagger: model.Tagger{Name: ctx.Config.TaggerName(orgName), Email: ctx.Config.TaggerEmail(orgName)}}
 	jsonBody, err := json.Marshal(tagRequest)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	tagCommitSHAResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/git/tags", GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	var tagCommitResponse refTagResponse
 	if err := json.Unmarshal(tagCommitSHAResponse, &tagCommitResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag commit sha response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 
 	tagNewRequest := model.BranchRequest{Ref: "refs/tags/" + tagName, SHA: tagCommitResponse.SHA}
 	tagByteRequest, err := json.Marshal(tagNewRequest)
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 	tagByteResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(tagByteRequest))
 	if err != nil {
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
-	var tagResponse model.NewItemResponse
+	var tagResponse model.RefResponse
 	if err := json.Unmarshal(tagByteResponse, &tagResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag response body")
-		return model.NewItemResponse{}, err
+		return model.RefResponse{}, err
 	}
 
 	return tagResponse, nil
 }
 
-func DeleteTag(ctx *context.Context, orgName, repoName, tagName string) (interface{}, error) {
+func DeleteTag(ctx *context.Context, orgName, repoName, tagName string) (bool, error) {
 	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/tags/%s", GITHUB_BASE_URL, orgName, repoName, tagName), nil)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	return fmt.Sprintf("Tag %s deleted successfully", tagName), nil
+	return true, nil
 }
 
-func CreateNewPullRequest(ctx *context.Context, orgName, repoName, title, body, targetBranch, sourceBranch string) (model.PRResponse, error) {
+func CreateNewPullRequest(ctx *context.Context, orgName, repoName, title, body, baseRef, headRef string) (model.PullRequestResponse, error) {
 	prRequest := map[string]interface{}{
 		"title": title,
 		"body":  body,
-		"head":  sourceBranch,
-		"base":  targetBranch,
+		"head":  headRef,
+		"base":  baseRef,
 	}
 	jsonBody, err := json.Marshal(prRequest)
 	if err != nil {
-		return model.PRResponse{}, err
+		return model.PullRequestResponse{}, err
 	}
 	prResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls", GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
-		return model.PRResponse{}, err
+		return model.PullRequestResponse{}, err
 	}
-	var prResponse model.PRResponse
+	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
-		return model.PRResponse{}, err
+		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
 }
 
-func GetPullRequestInfo(ctx *context.Context, orgName, repoName string, prNumber int) (model.PRResponse, error) {
+func GetPullRequestInfo(ctx *context.Context, orgName, repoName string, prNumber int) (model.PullRequestResponse, error) {
 	prResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
 	if err != nil {
-		return model.PRResponse{}, err
+		return model.PullRequestResponse{}, err
 	}
-	var prResponse model.PRResponse
+	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
-		return model.PRResponse{}, err
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body while getting the PR info")
+		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
 }
@@ -216,4 +216,42 @@ func AddIssueAssignees(ctx *context.Context, orgName, repoName string, prNumber 
 		return nil, err
 	}
 	return fmt.Sprintf("Assignees %s added successfully", assignees), nil
+}
+
+func AddReviewers(ctx *context.Context, orgName, repoName string, prNumber int, reviewers []string) (interface{}, error) {
+	reviewersRequest := map[string]interface{}{
+		"reviewers": reviewers,
+	}
+	jsonBody, err := json.Marshal(reviewersRequest)
+	if err != nil {
+		return nil, err
+	}
+	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/requested_reviewers", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf("Reviewers %s added successfully", reviewers), nil
+}
+
+func ListPullRequests(ctx *context.Context, orgName, repoName string, baseRef, headRef string, all bool) ([]model.PullRequestResponse, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=50", GITHUB_BASE_URL, orgName, repoName)
+	if baseRef != "" {
+		url = fmt.Sprintf("%s&base=%s", url, baseRef)
+	}
+	if headRef != "" {
+		url = fmt.Sprintf("%s&head=%s:%s", url, orgName, headRef)
+	}
+	if all {
+		url = fmt.Sprintf("%s&state=all", url)
+	}
+	response, err := invokeAPI(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var prResponses []model.PullRequestResponse
+	if err := json.Unmarshal(response, &prResponses); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+		return nil, err
+	}
+	return prResponses, nil
 }

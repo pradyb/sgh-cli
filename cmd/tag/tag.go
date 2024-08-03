@@ -47,10 +47,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.CreateNewTags(ctx, orgName, tagName, refBranchName, repoNames, message)
-			if len(responses) > 0 {
-				ui.PrintResponses(responses)
-			}
+			responses := tag.CreateNewTags(ctx, orgName, repoNames, tagName, refBranchName, message)
+			ui.PrintResponses(responses)
 		},
 	}
 
@@ -82,10 +80,8 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.DeleteTags(ctx, orgName, tagName, repoNames)
-			if len(responses) > 0 {
-				ui.PrintResponses(responses)
-			}
+			responses := tag.DeleteTags(ctx, orgName, repoNames, tagName)
+			ui.PrintResponses(responses)
 		},
 	}
 	createCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
