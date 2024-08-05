@@ -123,3 +123,77 @@ func CreateNewCommonResponse(repoName, ref, refType, successMessage, errorMessag
 		ErrorMessage:   errorMessage,
 	}
 }
+
+type ProtectedBranch struct {
+	RepositoryName                 string
+	LockBranch                     BoolData `json:"lock_branch"`
+	EnforceAdmins                  BoolData `json:"enforce_admins"`
+	RequiredConversationResolution BoolData `json:"required_conversation_resolution"`
+	RequiredPullRequestReviews     struct {
+		DismissStaleReviews          bool     `json:"dismiss_stale_reviews"`
+		RequireCodeOwnerReviews      bool     `json:"require_code_owner_reviews"`
+		RequiredApprovingReviewCount int      `json:"required_approving_review_count"`
+		RequireLastPushApproval      bool     `json:"require_last_push_approval"`
+		BypassPullRequestAllowances  UserTeam `json:"bypass_pull_request_allowances"`
+	} `json:"required_pull_request_reviews"`
+	RequiredStatusChecks struct {
+		Strict   bool     `json:"strict"`
+		Contexts []string `json:"contexts"`
+		Checks   []Check  `json:"checks"`
+	} `json:"required_status_checks"`
+	Restrictions Restriction `json:"restrictions"`
+	ErrorMessage string
+}
+
+type UserTeam struct {
+	Users []User `json:"users"`
+}
+
+type Restriction struct {
+	Users []User `json:"users"`
+}
+
+type Check struct {
+	Context string `json:"context"`
+	AppId   int    `json:"app_id"`
+}
+
+type BoolData struct {
+	Enabled bool `json:"enabled"`
+}
+
+type ProtectedBranchRequest struct {
+	RequiredStatusChecks struct {
+		Strict bool           `json:"strict"`
+		Checks []CheckRequest `json:"checks"`
+	} `json:"required_status_checks"`
+	RequiredPullRequestReviews struct {
+		DismissStaleReviews          bool `json:"dismiss_stale_reviews"`
+		RequireCodeOwnerReviews      bool `json:"require_code_owner_reviews"`
+		RequiredApprovingReviewCount int  `json:"required_approving_review_count"`
+		RequireLastPushApproval      bool `json:"require_last_push_approval"`
+		BypassPullRequestAllowances  struct {
+			Users []string `json:"users"`
+			Teams []string `json:"teams"`
+		} `json:"bypass_pull_request_allowances"`
+	} `json:"required_pull_request_reviews"`
+	RequiredSignatures             bool `json:"required_signatures"`
+	EnforceAdmins                  bool `json:"enforce_admins"`
+	RequiredLinearHistory          bool `json:"required_linear_history"`
+	AllowForcePushes               bool `json:"allow_force_pushes"`
+	AllowDeletions                 bool `json:"allow_deletions"`
+	RequiredConversationResolution bool `json:"required_conversation_resolution"`
+	LockBranch                     bool `json:"lock_branch"`
+	AllowForkSyncing               bool `json:"allow_fork_syncing"`
+	Restrictions                   struct {
+		Users []string `json:"users"`
+		Teams []string `json:"teams"`
+		Apps  []string `json:"apps"`
+	} `json:"restrictions"`
+	BlockCreations bool `json:"block_creations"`
+}
+
+type CheckRequest struct {
+	Context string `json:"context"`
+	AppID   int    `json:"app_id"`
+}

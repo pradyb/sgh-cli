@@ -8,6 +8,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/config"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
+	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protected_branch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -38,6 +39,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(branch.NewBranchCommand(ctx))
 	rootCmd.AddCommand(tag.NewTagCommand(ctx))
 	rootCmd.AddCommand(pr.NewPRCommand(ctx))
+	rootCmd.AddCommand(protectedbranch.NewProtectedBranchCommand(ctx))
 
 	return rootCmd
 }

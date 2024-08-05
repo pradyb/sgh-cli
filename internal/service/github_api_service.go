@@ -15,6 +15,7 @@ import (
 
 const GITHUB_BASE_URL = "https://api.github.com"
 const UPDATE_REF_URI = "%s/repos/%s/%s/git/refs"
+const PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
 
 func invokeAPI(ctx *context.Context, method, url string, reqBody io.Reader) ([]byte, error) {
 	req, err := http.NewRequest(method, url, reqBody)
@@ -79,7 +80,7 @@ func CreateNewBranch(ctx *context.Context, orgName, repoName, newBranchName, ref
 	}
 	var branchResponse model.RefResponse
 	if err := json.Unmarshal(branchResponseByte, &branchResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the new branch response body")
 		return model.RefResponse{}, err
 	}
 	return branchResponse, nil
@@ -184,7 +185,7 @@ func CreateNewPullRequest(ctx *context.Context, orgName, repoName, title, body, 
 	}
 	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the new PR response body")
 		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
@@ -295,4 +296,40 @@ func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber i
 		return model.MergeResponse{}, err
 	}
 	return mergeResponse, nil
+}
+
+func ListProtectedBranches(ctx *context.Context, orgName, repoName, branchName string) (model.ProtectedBranch, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), nil)
+	if err != nil {
+		return model.ProtectedBranch{}, err
+	}
+	var branch model.ProtectedBranch
+	if err := json.Unmarshal(response, &branch); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branches response body")
+		return model.ProtectedBranch{}, err
+	}
+	branch.RepositoryName = repoName
+	return branch, nil
+}
+
+func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
+	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), bytes.NewReader(payload))
+	if err != nil {
+		return model.ProtectedBranch{}, err
+	}
+	var branch model.ProtectedBranch
+	if err := json.Unmarshal(response, &branch); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
+		return model.ProtectedBranch{}, err
+	}
+	branch.RepositoryName = repoName
+	return branch, nil
+}
+
+func DeleteProtectedBranch(ctx *context.Context, orgName, repoName, branchName string) (bool, error) {
+	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), nil)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

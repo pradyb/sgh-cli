@@ -14,27 +14,35 @@ import (
 const DefaultFilename = "sgh.json"
 
 type Config struct {
-	Verbose       bool
-	Organizations []Organization
+	Verbose       bool           `json:"verbose"`
+	Organizations []Organization `json:"organizations"`
 	orgData       map[string]Organization
 }
 
 type Organization struct {
-	Name                 string
-	Repositories         []string
-	RepoPatterns         IncludeExcludePattern
-	PullRequestAssignees []string
-	Tagger               Tagger
+	Name                 string                `json:"name"`
+	Repositories         []string              `json:"repositories"`
+	RepoPatterns         IncludeExcludePattern `json:"repo_patterns"`
+	PullRequestAssignees []string              `json:"pull_request_assignees"`
+	Tagger               Tagger                `json:"tagger"`
+	ProtectedBranch      ProtectedBranch       `json:"protected_branch"`
 }
 
 type IncludeExcludePattern struct {
-	Exclude []string
-	Include []string
+	Exclude []string `json:"exclude"`
+	Include []string `json:"include"`
 }
 
 type Tagger struct {
-	Name  string
-	Email string
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type ProtectedBranch struct {
+	IgnoreBuildStatusCheckRepos []string `json:"ignore_build_status_check_repos"`
+	BypassPullRequestUsers      []string `json:"bypass_pull_request_users"`
+	AllowedRestrictionsUsers    []string `json:"allowed_restrictions_users"`
+	ApprovingReviewCount        int      `json:"approving_review_count"`
 }
 
 func Init() (*Config, error) {
@@ -73,6 +81,10 @@ func (config *Config) TaggerEmail(orgName string) string {
 	return config.orgData[strings.ToLower(orgName)].Tagger.Email
 }
 
+func (config *Config) ProtectedBranchDetail(orgName string) ProtectedBranch {
+	return config.orgData[strings.ToLower(orgName)].ProtectedBranch
+}
+
 func (config *Config) IsOrganizationPresent(orgName string) bool {
 	_, ok := config.orgData[strings.ToLower(orgName)]
 	return ok
@@ -90,6 +102,15 @@ func (config *Config) IsRepositoryPresent(orgName, repoName string) bool {
 func (config *Config) IsPullRequestAssigneePresent(orgName, assignee string) bool {
 	for _, a := range config.PullRequestAssignees(orgName) {
 		if strings.EqualFold(a, assignee) {
+			return true
+		}
+	}
+	return false
+}
+
+func (config *Config) IsRepoPresentInIgnoreForStatusCheck(orgName, repoName string) bool {
+	for _, a := range config.ProtectedBranchDetail(orgName).IgnoreBuildStatusCheckRepos {
+		if strings.EqualFold(a, repoName) {
 			return true
 		}
 	}

@@ -21,6 +21,11 @@ const (
 	OperationDeleteTag
 	OperationCreatePullRequest
 	OperationListPullRequest
+	OperationUpdatePullRequest
+	OperationMergePullRequest
+	OperationListProtectedBranch
+	OperationUpdateProtectedBranch
+	OperationDeleteProtectedBranch
 )
 
 var RepoOperationConfig = map[OperationEnum]map[string]string{
@@ -42,10 +47,25 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationListPullRequest: {
 		"message": "Listing Pull Requests",
 	},
+	OperationUpdatePullRequest: {
+		"message": "Updating Pull Request",
+	},
+	OperationMergePullRequest: {
+		"message": "Merging Pull Request",
+	},
+	OperationListProtectedBranch: {
+		"message": "Listing Protected Branch",
+	},
+	OperationUpdateProtectedBranch: {
+		"message": "Updating Protected Branch",
+	},
+	OperationDeleteProtectedBranch: {
+		"message": "Deleting Protected Branch",
+	},
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch
 }
 
 type RepoOperationResult[R OperationResultType] struct {

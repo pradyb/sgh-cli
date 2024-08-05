@@ -97,3 +97,41 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 	}
 	t.Render()
 }
+
+func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
+	fmt.Println()
+	t := table.New(os.Stdout)
+	t.SetHeaders("Project Name", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetLineStyle(table.StyleBrightWhite)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetFooters(tml.Sprintf(cyanFormat, "Total Protected Branches"), tml.Sprintf(cyanFormat, strconv.Itoa(len(pbResponses))))
+
+	for _, pb := range pbResponses {
+		var bypassUsers []string
+		var restrictionUsers []string
+		for _, user := range pb.RequiredPullRequestReviews.BypassPullRequestAllowances.Users {
+			bypassUsers = append(bypassUsers, user.Login)
+		}
+		for _, user := range pb.Restrictions.Users {
+			restrictionUsers = append(restrictionUsers, user.Login)
+		}
+		if pb.ErrorMessage != "" {
+			t.AddRow(pb.RepositoryName, pb.ErrorMessage)
+			// t.SetColSpans(i, 0, 9)
+		} else {
+			t.AddRow(
+				tml.Sprintf(greenFormat, pb.RepositoryName),
+				strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
+				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
+				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
+				strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
+				strings.Join(pb.RequiredStatusChecks.Contexts, ","),
+				strconv.FormatBool(pb.LockBranch.Enabled),
+				strings.Join(bypassUsers, ","),
+				strings.Join(restrictionUsers, ","),
+			)
+		}
+	}
+	t.Render()
+}
