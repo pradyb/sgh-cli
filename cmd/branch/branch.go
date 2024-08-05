@@ -38,9 +38,9 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Create a new branch from a existing branch for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh branch create --branch Release-1.1 --head Release-1.0 --org sample-org
-			$ sgh branch create --branch Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 --org sample-org --repo sample-repo1
-			$ sgh branch create --branch Release-1.1 --head Release-1.0 --org sample-org -r sample-repo1 -r sample-repo2
+			$ sgh branch create --new Release-1.1 --ref Release-1.0 --org sample-org
+			$ sgh branch create --new Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 --org sample-org --repo sample-repo1
+			$ sgh branch create --new Release-1.1 --ref Release-1.0 --org sample-org -r sample-repo1 -r sample-repo2
 		`),
 
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -66,13 +66,13 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	createCmd.Flags().StringVarP(&branchName, "branch", "B", "", "The new `branch` which you want to be created")
-	createCmd.Flags().StringVarP(&refBranchName, "head", "H", "", "The `branch` from which you want to use as reference")
+	createCmd.Flags().StringVarP(&branchName, "new", "N", "", "The new `branch` which you want to be created")
+	createCmd.Flags().StringVarP(&refBranchName, "ref", "R", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringVarP(&commitSHA, "commit", "c", "", "The `commit sha` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
-	createCmd.MarkFlagRequired("branch")
-	createCmd.MarkFlagsOneRequired("head", "commit")
-	createCmd.MarkFlagsMutuallyExclusive("head", "commit")
+	createCmd.MarkFlagRequired("new")
+	createCmd.MarkFlagsOneRequired("ref", "commit")
+	createCmd.MarkFlagsMutuallyExclusive("ref", "commit")
 
 	return createCmd
 }

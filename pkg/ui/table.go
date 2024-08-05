@@ -18,6 +18,8 @@ const greenFormat = "<green>%s</green>"
 const blueFormat = "<blue>%s</blue>"
 const yellowFormat = "<yellow>%s</yellow>"
 
+const hyperLinkFormat = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
+
 func PrintRepositories(repos []model.Repository) {
 	fmt.Println()
 	t := table.New(os.Stdout)
@@ -63,7 +65,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 	t.SetHeaderStyle(table.StyleBold)
 	t.SetLineStyle(table.StyleBrightWhite)
 	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters(tml.Sprintf(cyanFormat, "Total Pull Requests"), tml.Sprintf(cyanFormat, strconv.Itoa(len(prResponses))))
+	t.SetFooters("", tml.Sprintf(cyanFormat, "Total Pull Requests"), tml.Sprintf(cyanFormat, strconv.Itoa(len(prResponses))))
 	//t.SetFooterColSpans(0, 5, 3)
 
 	for _, pr := range prResponses {
@@ -75,8 +77,23 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 		if pr.ErrorMessage != "" {
 			t.AddRow(pr.RepositoryName(), pr.ErrorMessage)
 		} else {
-			t.AddRow(strconv.Itoa(pr.PRNumber), tml.Sprintf(greenFormat, pr.RepositoryName()), pr.Title, pr.UserName(), pr.AssigneesName(), pr.ReviewersName(), status, refs, pr.HTMLUrl)
+			t.AddRow(strconv.Itoa(pr.PRNumber), tml.Sprintf(greenFormat, pr.RepositoryName()), pr.Title, pr.UserName(), pr.AssigneesName(), pr.ReviewersName(), status, refs, tml.Sprintf(hyperLinkFormat, pr.HTMLUrl, "Open"))
 		}
+	}
+	t.Render()
+}
+
+func PrintMergeResponses(mergeResponses []model.MergeResponse) {
+	fmt.Println()
+	t := table.New(os.Stdout)
+	t.SetHeaders("Merged", "Message", "Sha")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetLineStyle(table.StyleBrightWhite)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetFooters("", tml.Sprintf(cyanFormat, "Total Merge Requests"), tml.Sprintf(cyanFormat, strconv.Itoa(len(mergeResponses))))
+
+	for _, merge := range mergeResponses {
+		t.AddRow(strconv.FormatBool(merge.Merged), merge.Message, merge.SHA)
 	}
 	t.Render()
 }

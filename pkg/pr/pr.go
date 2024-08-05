@@ -35,10 +35,9 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreatePullRequest,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListPullRequest,
 		func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
 			return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
-
 		},
 		func(repoName string, result processor.RepoOperationResult[[]model.PullRequestResponse]) {
 			responses = append(responses, result.Result...)
@@ -47,4 +46,20 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 			responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
 		})
 	return responses
+}
+
+func UpdatePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, state string) model.PullRequestResponse {
+	response, err := service.UpdatePullRequest(ctx, orgName, repoName, prNumber, state)
+	if err != nil {
+		return model.PullRequestResponse{ErrorMessage: err.Error()}
+	}
+	return response
+}
+
+func MergePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, title, body string) model.MergeResponse {
+	response, err := service.MergePullRequest(ctx, orgName, repoName, prNumber, title, body)
+	if err != nil {
+		return model.MergeResponse{ErrorMessage: err.Error()}
+	}
+	return response
 }

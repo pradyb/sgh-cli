@@ -255,3 +255,44 @@ func ListPullRequests(ctx *context.Context, orgName, repoName string, baseRef, h
 	}
 	return prResponses, nil
 }
+
+func UpdatePullRequest(ctx *context.Context, orgName, repoName string, prNumber int, state string) (model.PullRequestResponse, error) {
+	prRequest := map[string]interface{}{
+		"state": state,
+	}
+	jsonBody, err := json.Marshal(prRequest)
+	if err != nil {
+		return model.PullRequestResponse{}, err
+	}
+	prResponseByte, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	if err != nil {
+		return model.PullRequestResponse{}, err
+	}
+	var prResponse model.PullRequestResponse
+	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+		return model.PullRequestResponse{}, err
+	}
+	return prResponse, nil
+}
+
+func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber int, title, body string) (model.MergeResponse, error) {
+	mergeRequest := map[string]interface{}{
+		"commit_title":   title,
+		"commit_message": body,
+	}
+	jsonBody, err := json.Marshal(mergeRequest)
+	if err != nil {
+		return model.MergeResponse{}, err
+	}
+	mergeResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	if err != nil {
+		return model.MergeResponse{}, err
+	}
+	var mergeResponse model.MergeResponse
+	if err := json.Unmarshal(mergeResponseByte, &mergeResponse); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Merge response body")
+		return model.MergeResponse{}, err
+	}
+	return mergeResponse, nil
+}

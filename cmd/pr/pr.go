@@ -1,9 +1,11 @@
 package pr
 
 import (
+	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
@@ -19,6 +21,8 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 
 	prCmd.AddCommand(CreateCommand(ctx))
 	prCmd.AddCommand(ListCommand(ctx))
+	prCmd.AddCommand(UpdateCommand(ctx))
+	prCmd.AddCommand(MergeCommand(ctx))
 	return prCmd
 }
 
@@ -81,10 +85,78 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		},
 	}
 
+	listCmd.MarkFlagRequired("org")
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
-	listCmd.MarkFlagRequired("org")
+
 	return listCmd
+}
+
+var prNumber int
+var action string
+var repoName string
+
+func UpdateCommand(ctx *context.Context) *cobra.Command {
+	var updateCmd = &cobra.Command{
+		Use:     "update",
+		Short:   "Update a pull request",
+		Long:    `Update a pull request on GitHub for given repo`,
+		Aliases: []string{"edit"},
+		Example: heredoc.Doc(`
+			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action close 
+			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action open
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			if action != "close" && action != "open" {
+				logger.Glog.Error().Msgf("Invalid action provided. Please provide either close or open")
+				cmd.Help()
+				return
+			}
+			response := pr.UpdatePullRequest(ctx, orgName, repoName, prNumber, action)
+			ui.PrintPullRequestResponses([]model.PullRequestResponse{response})
+		},
+	}
+
+	updateCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
+	updateCmd.Flags().StringVarP(&action, "action", "a", "", "The `action` you want to perform on the PR. Possible values are close or open")
+	updateCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
+
+	updateCmd.MarkFlagRequired("org")
+	updateCmd.MarkFlagRequired("repository")
+	updateCmd.MarkFlagRequired("pr")
+	updateCmd.MarkFlagRequired("action")
+
+	return updateCmd
+}
+
+func MergeCommand(ctx *context.Context) *cobra.Command {
+	var mergeCmd = &cobra.Command{
+		Use:     "merge",
+		Short:   "merge a pull request",
+		Long:    `merge a pull request on GitHub for given repo`,
+		Aliases: []string{"edit"},
+		Example: heredoc.Doc(`
+			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge" 
+			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge" --body "This PR is for post release merge"
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			response := pr.MergePullRequest(ctx, orgName, repoName, prNumber, title, body)
+			ui.PrintMergeResponses([]model.MergeResponse{response})
+		},
+	}
+
+	mergeCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
+	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "Title for the automatic commit message")
+	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "Extra detail to append to automatic commit message")
+
+	mergeCmd.MarkFlagRequired("org")
+	mergeCmd.MarkFlagRequired("repository")
+	mergeCmd.MarkFlagRequired("pr")
+	mergeCmd.MarkFlagRequired("title")
+
+	return mergeCmd
 }

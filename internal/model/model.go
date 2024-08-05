@@ -61,14 +61,14 @@ func (pr PullRequestResponse) AssigneesName() string {
 	for _, assignee := range pr.Assignees {
 		assignees = append(assignees, assignee.Login)
 	}
-	return strings.Join(assignees, ",")
+	return strings.Join(assignees, "\n")
 }
 func (pr PullRequestResponse) ReviewersName() string {
 	reviewers := make([]string, 0)
 	for _, reviewer := range pr.Reviewers {
 		reviewers = append(reviewers, reviewer.Login)
 	}
-	return strings.Join(reviewers, ",")
+	return strings.Join(reviewers, "\n")
 }
 
 type User struct {
@@ -82,6 +82,13 @@ type PRBranch struct {
 	Ref   string     `json:"ref"`
 	Sha   string     `json:"sha"`
 	Repo  Repository `json:"repo"`
+}
+
+type MergeResponse struct {
+	Merged       bool   `json:"merged"`
+	Message      string `json:"message"`
+	SHA          string `json:"sha"`
+	ErrorMessage string
 }
 
 type RefResponse struct {

@@ -79,29 +79,29 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", message, orgName)
 		repoNames = append(repoNames, actualRepoNames...)
 	}
-
 	return process(ctx, orgName, repoNames, operation, operationHandler, resultHandler, errorHandler)
 }
 
 func process[R OperationResultType](ctx *context.Context, orgName string, repoNames []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
 	jobQueue := async.NewASyncJobQueue[any, any](len(repoNames))
 	message := RepoOperationConfig[operation]["message"]
+
+	bar := ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
+
 	for i, repoName := range repoNames {
 		jobQueue.AddJob(async.ASyncJob[any]{Id: i, JobData: repoName})
 	}
 	jobQueue.Close()
 
-	bar := ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
-
 	jobQueue.Start(
 		func(job async.ASyncJob[any]) (interface{}, error) {
-			bar.Describe(fmt.Sprintf("Processing %s", job.JobData.(string)))
-			return operationHandler(ctx, orgName, job.JobData.(string))
-		}, func(result async.ASyncJobResult[any, any]) {
+			response, err := operationHandler(ctx, orgName, job.JobData.(string))
+			bar.Describe(fmt.Sprintf("Processed %s", job.JobData.(string)))
 			bar.Add(1)
+			return response, err
+		}, func(result async.ASyncJobResult[any, any]) {
 			resultHandler(result.JobData.(string), RepoOperationResult[R]{Result: result.Result.(R)})
 		}, func(err async.ASyncJobError[any]) {
-			bar.Add(1)
 			errorHandler(err.JobData.(string), err.Error)
 		})
 	return nil
