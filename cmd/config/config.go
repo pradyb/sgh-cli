@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/prady-lab/sgh-cli/pkg/config"
@@ -110,7 +109,6 @@ func setCommand(ctx *context.Context) *cobra.Command {
 		Short: "Set a configuration for sgh",
 		Long:  `Set attribute values`,
 		Example: heredoc.Doc(`
-			$ sgh config set verbose true
 			$ sgh config set tagger-name "John Doe"
 			$ sgh config set tagger-email "john.doe@sample.com"
 		`),
@@ -131,14 +129,6 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 
 			switch strings.ToLower(key) {
-			case "verbose":
-				verbose, err := strconv.ParseBool(value)
-				if err != nil {
-					logger.Glog.Error().Msgf("Invalid value for verbose: %s", value)
-					return
-				}
-				config.SetVerbose(ctx, verbose)
-				return
 			case "tagger-name":
 				config.SetTaggerName(ctx, orgName, value)
 				return

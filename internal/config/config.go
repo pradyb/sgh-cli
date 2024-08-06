@@ -14,35 +14,34 @@ import (
 const DefaultFilename = "sgh.json"
 
 type Config struct {
-	Verbose       bool           `json:"verbose"`
-	Organizations []Organization `json:"organizations"`
-	orgData       map[string]Organization
+	Organizations []Organization          `json:"organizations"`
+	orgData       map[string]Organization `json:"-"`
 }
 
 type Organization struct {
 	Name                 string                `json:"name"`
-	Repositories         []string              `json:"repositories"`
-	RepoPatterns         IncludeExcludePattern `json:"repo_patterns"`
-	PullRequestAssignees []string              `json:"pull_request_assignees"`
-	Tagger               Tagger                `json:"tagger"`
-	ProtectedBranch      ProtectedBranch       `json:"protected_branch"`
+	Repositories         []string              `json:"repositories,omitempty"`
+	RepoPatterns         IncludeExcludePattern `json:"repo_patterns,omitempty"`
+	PullRequestAssignees []string              `json:"pull_request_assignees,omitempty"`
+	Tagger               Tagger                `json:"tagger,omitempty"`
+	ProtectedBranch      ProtectedBranch       `json:"protected_branch,omitempty"`
 }
 
 type IncludeExcludePattern struct {
-	Exclude []string `json:"exclude"`
-	Include []string `json:"include"`
+	Exclude []string `json:"exclude,omitempty"`
+	Include []string `json:"include,omitempty"`
 }
 
 type Tagger struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
 }
 
 type ProtectedBranch struct {
-	IgnoreBuildStatusCheckRepos []string `json:"ignore_build_status_check_repos"`
-	BypassPullRequestUsers      []string `json:"bypass_pull_request_users"`
-	AllowedRestrictionsUsers    []string `json:"allowed_restrictions_users"`
-	ApprovingReviewCount        int      `json:"approving_review_count"`
+	IgnoreBuildStatusCheckRepos []string `json:"ignore_build_status_check_repos,omitempty"`
+	BypassPullRequestUsers      []string `json:"bypass_pull_request_users,omitempty"`
+	AllowedRestrictionsUsers    []string `json:"allowed_restrictions_users,omitempty"`
+	ApprovingReviewCount        int      `json:"approving_review_count,omitempty"`
 }
 
 func Init() (*Config, error) {
@@ -228,10 +227,6 @@ func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string)
 		}
 	}
 	return false
-}
-
-func (config *Config) SetVerbose(verbose bool) {
-	config.Verbose = verbose
 }
 
 func (config *Config) SetTaggerName(orgName, taggerName string) {

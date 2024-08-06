@@ -9,8 +9,10 @@ import (
 )
 
 type Context struct {
-	Config     *config.Config
-	HttpClient *client.HttpClient
+	Config      *config.Config
+	HttpClient  *client.HttpClient
+	Verbose     bool
+	LogResponse bool
 }
 
 func Init() (*Context, error) {
@@ -22,7 +24,16 @@ func Init() (*Context, error) {
 	}
 
 	ctx.Config = config
-	ctx.HttpClient = &client.HttpClient{Client: http.Client{Timeout: time.Duration(30) * time.Second}, Verbose: config.Verbose}
+	ctx.HttpClient = &client.HttpClient{Client: http.Client{Timeout: time.Duration(30) * time.Second}}
 
 	return &ctx, nil
+}
+
+func (c *Context) SetVerbose(verbose bool) {
+	c.Verbose = verbose
+	c.HttpClient.Verbose = verbose
+}
+
+func (c *Context) SetLogResponse(logResponse bool) {
+	c.HttpClient.LogResponse = logResponse
 }

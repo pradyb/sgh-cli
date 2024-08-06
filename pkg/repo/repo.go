@@ -8,7 +8,6 @@ import (
 )
 
 func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Repository, error) {
-
 	repositories, err := service.GetReposWithOrg(ctx, orgName)
 	if err != nil {
 		return nil, err

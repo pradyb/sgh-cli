@@ -10,8 +10,9 @@ import (
 )
 
 type HttpClient struct {
-	Client  http.Client
-	Verbose bool
+	Client      http.Client
+	Verbose     bool
+	LogResponse bool
 }
 
 func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
@@ -28,7 +29,7 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 
 	res, err := c.Client.Do(req)
 
-	if c.Verbose {
+	if c.LogResponse {
 		respDump, err := httputil.DumpResponse(res, true)
 		if err != nil {
 			logger.Glog.Error().Err(err).Msg("Error in print the response")

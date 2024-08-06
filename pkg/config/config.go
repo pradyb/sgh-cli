@@ -53,11 +53,6 @@ func SaveRepositoryNamesForFuzzySearch(ctx *context.Context, orgName string, rep
 	saveConfig(ctx)
 }
 
-func SetVerbose(ctx *context.Context, verbose bool) {
-	ctx.Config.SetVerbose(verbose)
-	saveConfig(ctx)
-}
-
 func SetTaggerName(ctx *context.Context, orgName, taggerName string) {
 	ctx.Config.SetTaggerName(orgName, taggerName)
 	saveConfig(ctx)
