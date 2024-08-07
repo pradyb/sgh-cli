@@ -6,106 +6,204 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/prady-lab/sgh-cli/internal/model"
-
-	"github.com/aquasecurity/table"
-	"github.com/liamg/tml"
 )
 
-const cyanFormat = "<cyan>%s</cyan>"
-const redFormat = "<red>%s</red>"
-const greenFormat = "<green>%s</green>"
-const blueFormat = "<blue>%s</blue>"
-const yellowFormat = "<yellow>%s</yellow>"
+const (
+	hyperLinkFormat = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
 
-const hyperLinkFormat = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
+	white     = lipgloss.Color("#FFFFFF")
+	gray      = lipgloss.Color("#CCC9C9")
+	lightGray = lipgloss.Color("#959393")
+	turquoise = lipgloss.Color("#5DE2E7")
+	red       = lipgloss.Color("#FF0000")
+)
+
+var (
+	re = lipgloss.NewRenderer(os.Stdout)
+
+	HeaderStyle  = re.NewStyle().Foreground(white).Bold(true).Align(lipgloss.Center)
+	CellStyle    = re.NewStyle().Padding(0, 1)
+	OddRowStyle  = CellStyle.Foreground(gray)
+	EvenRowStyle = CellStyle.Foreground(lightGray)
+	BorderStyle  = lipgloss.NewStyle().Foreground(white)
+)
+
+func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.Style {
+	var style lipgloss.Style
+	switch {
+	case row == 0:
+		return HeaderStyle
+	case row%2 == 0:
+		style = EvenRowStyle
+	default:
+		style = OddRowStyle
+	}
+
+	if col == 1 {
+		//style = style.Width(22)
+		style = style.Foreground(lipgloss.Color("#00B500"))
+	}
+
+	if isFooterPresent && row == totalRows+1 {
+		if col == 1 {
+			style = style.Foreground(lipgloss.Color(turquoise))
+		}
+		if col == 2 {
+			style = style.Foreground(lipgloss.Color(turquoise))
+		}
+	}
+
+	return style
+}
 
 func PrintRepositories(repos []model.Repository) {
-	fmt.Println()
-	t := table.New(os.Stdout)
-	t.SetHeaders("Id", "Name", "Description", "Language", "SSH URL", "Open Issues", "Size")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetLineStyle(table.StyleBrightWhite)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters(tml.Sprintf(cyanFormat, "Total Repositories"), tml.Sprintf(cyanFormat, strconv.Itoa(len(repos))))
+
+	rows := make([][]string, 0, len(repos)+1)
 
 	for _, repo := range repos {
-		openIssues := strconv.Itoa(repo.OpenIssuesCount)
-		if repo.OpenIssuesCount > 0 {
-			openIssues = tml.Sprintf(redFormat, openIssues)
-		}
-		t.AddRow(strconv.Itoa(repo.Id), tml.Sprintf(greenFormat, repo.Name), repo.Description, repo.Language, repo.SSHUrl, openIssues, strconv.Itoa(repo.Size))
+		rows = append(rows, []string{
+			strconv.Itoa(repo.Id),
+			repo.Name,
+			repo.Description,
+			repo.Language,
+			repo.SSHUrl,
+			strconv.Itoa(repo.OpenIssuesCount),
+			strconv.Itoa(repo.Size),
+		})
 	}
-	t.Render()
+	rows = append(rows, []string{"", "Total Repositories", strconv.Itoa(len(repos))})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(repos), true)
+
+			if row != 0 && row < len(rows) {
+				if col == 5 && rows[row-1][col] != "0" {
+					style = style.Foreground(lipgloss.Color(red))
+				}
+			}
+			return style
+		}).
+		Headers("Id", "Name", "Description", "Language", "SSH URL", "Open Issues", "Size").
+		Rows(rows...)
+
+	fmt.Println(t)
 }
 
 func PrintResponses(responses []model.RefUIResponse) {
-	fmt.Println()
-	t := table.New(os.Stdout)
-	t.SetHeaders("Repository", "Status Message")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetLineStyle(table.StyleBrightWhite)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters(tml.Sprintf(cyanFormat, "Total Repositories"), tml.Sprintf(cyanFormat, strconv.Itoa(len(responses))))
 
+	rows := make([][]string, 0, len(responses))
 	for _, response := range responses {
-		message := tml.Sprintf(greenFormat, response.SuccessMessage)
+		message := response.SuccessMessage
 		if response.ErrorMessage != "" {
-			message = tml.Sprintf(redFormat, response.ErrorMessage)
+			message = response.ErrorMessage
 		}
-		t.AddRow(response.RepositoryName, message)
+		rows = append(rows, []string{
+			response.RepositoryName,
+			message,
+		})
 	}
-	t.Render()
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(responses), false)
+
+			if row != 0 && row < len(rows)+1 {
+				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
+					style = style.Foreground(lipgloss.Color(red))
+				}
+			}
+			return style
+		}).
+		Headers("Repository", "Status Message").
+		Rows(rows...)
+
+	fmt.Println(t)
 }
 
 func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
-	fmt.Println()
-	t := table.New(os.Stdout)
-	t.SetHeaders("Id", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetLineStyle(table.StyleBrightWhite)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters("", tml.Sprintf(cyanFormat, "Total Pull Requests"), tml.Sprintf(cyanFormat, strconv.Itoa(len(prResponses))))
-	//t.SetFooterColSpans(0, 5, 3)
-
+	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
-		status := tml.Sprintf(yellowFormat, pr.Status)
-		if strings.EqualFold("closed", pr.Status) {
-			status = tml.Sprintf(greenFormat, status)
-		}
 		refs := fmt.Sprintf("%s <- %s", pr.Base.Ref, pr.Head.Ref)
 		if pr.ErrorMessage != "" {
-			t.AddRow(pr.RepositoryName(), pr.ErrorMessage)
+			rows = append(rows, []string{pr.RepositoryName(), pr.ErrorMessage})
 		} else {
-			t.AddRow(strconv.Itoa(pr.PRNumber), tml.Sprintf(greenFormat, pr.RepositoryName()), pr.Title, pr.UserName(), pr.AssigneesName(), pr.ReviewersName(), status, refs, tml.Sprintf(hyperLinkFormat, pr.HTMLUrl, "Open"))
+			rows = append(rows, []string{
+				strconv.Itoa(pr.PRNumber),
+				pr.RepositoryName(),
+				pr.Title,
+				pr.UserName(),
+				pr.AssigneesName(),
+				pr.ReviewersName(),
+				pr.Status,
+				refs,
+				fmt.Sprintf(hyperLinkFormat, pr.HTMLUrl, "Open"),
+			})
 		}
 	}
-	t.Render()
+	rows = append(rows, []string{"", "Total Pull Requests", strconv.Itoa(len(prResponses))})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(prResponses), true)
+
+			if row != 0 && row < len(rows) {
+				if col == 6 && rows[row-1][6] == "closed" {
+					style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
+				} else if col == 6 {
+					style = style.Foreground(lipgloss.Color("#DFC57B"))
+				}
+			}
+			return style
+		}).
+		Headers("Id", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
+		Rows(rows...)
+
+	fmt.Println(t)
 }
 
 func PrintMergeResponses(mergeResponses []model.MergeResponse) {
-	fmt.Println()
-	t := table.New(os.Stdout)
-	t.SetHeaders("Merged", "Message", "Sha")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetLineStyle(table.StyleBrightWhite)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters("", tml.Sprintf(cyanFormat, "Total Merge Requests"), tml.Sprintf(cyanFormat, strconv.Itoa(len(mergeResponses))))
-
+	rows := make([][]string, 0, len(mergeResponses)+1)
 	for _, merge := range mergeResponses {
-		t.AddRow(strconv.FormatBool(merge.Merged), merge.Message, merge.SHA)
+		rows = append(rows, []string{
+			strconv.FormatBool(merge.Merged), merge.Message, merge.SHA,
+		})
 	}
-	t.Render()
+	rows = append(rows, []string{"", "Total Merge Requests", strconv.Itoa(len(mergeResponses))})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(mergeResponses), true)
+			return style
+		}).
+		Headers("Merged", "Message", "Sha").
+		Rows(rows...)
+
+	fmt.Println(t)
 }
 
 func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
-	fmt.Println()
-	t := table.New(os.Stdout)
-	t.SetHeaders("Project Name", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetLineStyle(table.StyleBrightWhite)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetFooters(tml.Sprintf(cyanFormat, "Total Protected Branches"), tml.Sprintf(cyanFormat, strconv.Itoa(len(pbResponses))))
+	rows := make([][]string, 0, len(pbResponses)+1)
+	failedRows := make([][]string, 0)
 
 	for _, pb := range pbResponses {
 		var bypassUsers []string
@@ -116,12 +214,9 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		for _, user := range pb.Restrictions.Users {
 			restrictionUsers = append(restrictionUsers, user.Login)
 		}
-		if pb.ErrorMessage != "" {
-			t.AddRow(pb.RepositoryName, pb.ErrorMessage)
-			// t.SetColSpans(i, 0, 9)
-		} else {
-			t.AddRow(
-				tml.Sprintf(greenFormat, pb.RepositoryName),
+		if pb.ErrorMessage == "" {
+			rows = append(rows, []string{
+				pb.RepositoryName,
 				strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
@@ -130,8 +225,62 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 				strconv.FormatBool(pb.LockBranch.Enabled),
 				strings.Join(bypassUsers, ","),
 				strings.Join(restrictionUsers, ","),
-			)
+			})
+		} else {
+			failedRows = append(failedRows, []string{pb.RepositoryName, pb.ErrorMessage})
 		}
 	}
-	t.Render()
+	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(pbResponses))})
+
+	fmt.Println()
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(pbResponses), true)
+
+			if col == 1 {
+				style = style.UnsetForeground()
+			}
+			if col == 0 && row != 0 {
+				style = style.Foreground(lipgloss.Color("#00B500"))
+			}
+
+			if row == len(rows) {
+				if col == 0 {
+					style = style.Foreground(lipgloss.Color(turquoise))
+				}
+				if col == 1 {
+					style = style.Foreground(lipgloss.Color(turquoise))
+				}
+			}
+
+			return style
+		}).
+		Headers("Project Name", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users").
+		Rows(rows...)
+
+	fmt.Println(t)
+
+	if len(failedRows) > 0 {
+		fmt.Println()
+		fmt.Println("Failed to fetch details the following repositories")
+		t = table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				var style lipgloss.Style
+				if col == 1 && row != 0 {
+					style = style.Foreground(lipgloss.Color(red))
+				}
+				return style
+			}).
+			Headers("Project Name", "Error Message").
+			Rows(failedRows...)
+
+		fmt.Println(t)
+	}
 }

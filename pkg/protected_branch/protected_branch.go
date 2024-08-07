@@ -20,7 +20,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 			responses = append(responses, result.Result)
 		},
 		func(repoName string, err error) {
-			responses = append(responses, model.ProtectedBranch{ErrorMessage: err.Error()})
+			responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()})
 		})
 	return responses
 }
