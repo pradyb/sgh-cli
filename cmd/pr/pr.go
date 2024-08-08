@@ -58,7 +58,6 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.MarkFlagRequired("title")
 	createCmd.MarkFlagRequired("branch")
 	createCmd.MarkFlagRequired("head")
-	createCmd.MarkFlagRequired("org")
 	return createCmd
 }
 
@@ -85,7 +84,6 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		},
 	}
 
-	listCmd.MarkFlagRequired("org")
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
@@ -124,7 +122,6 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringVarP(&action, "action", "a", "", "The `action` you want to perform on the PR. Possible values are close or open")
 	updateCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
-	updateCmd.MarkFlagRequired("org")
 	updateCmd.MarkFlagRequired("repository")
 	updateCmd.MarkFlagRequired("pr")
 	updateCmd.MarkFlagRequired("action")
@@ -153,7 +150,6 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "Title for the automatic commit message")
 	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "Extra detail to append to automatic commit message")
 
-	mergeCmd.MarkFlagRequired("org")
 	mergeCmd.MarkFlagRequired("repository")
 	mergeCmd.MarkFlagRequired("pr")
 	mergeCmd.MarkFlagRequired("title")

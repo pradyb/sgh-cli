@@ -12,16 +12,7 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 
 	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
-			prResponse, err := service.CreateNewPullRequest(ctx, orgName, repoName, title, body, baseRef, headRef)
-			if err != nil {
-				return model.PullRequestResponse{}, err
-			}
-			assignees := ctx.Config.PullRequestAssignees(orgName)
-			if len(assignees) > 0 {
-				service.AddIssueAssignees(ctx, orgName, repoName, prResponse.PRNumber, assignees)
-				service.AddReviewers(ctx, orgName, repoName, prResponse.PRNumber, assignees)
-			}
-			return service.GetPullRequestInfo(ctx, orgName, repoName, prResponse.PRNumber)
+			return CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.PullRequestResponse]) {
 			responses = append(responses, result.Result)
@@ -30,6 +21,19 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 			responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
 		})
 	return responses
+}
+
+func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName, baseRef, headRef, title, body string) (model.PullRequestResponse, error) {
+	prResponse, err := service.CreateNewPullRequest(ctx, orgName, repoName, title, body, baseRef, headRef)
+	if err != nil {
+		return model.PullRequestResponse{}, err
+	}
+	assignees := ctx.Config.PullRequestAssignees(orgName)
+	if len(assignees) > 0 {
+		service.AddIssueAssignees(ctx, orgName, repoName, prResponse.PRNumber, assignees)
+		service.AddReviewers(ctx, orgName, repoName, prResponse.PRNumber, assignees)
+	}
+	return service.GetPullRequestInfo(ctx, orgName, repoName, prResponse.PRNumber)
 }
 
 func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {

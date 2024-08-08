@@ -26,6 +26,8 @@ const (
 	OperationListProtectedBranch
 	OperationUpdateProtectedBranch
 	OperationDeleteProtectedBranch
+	OperationPostRelease
+	OperationListCommits
 )
 
 var RepoOperationConfig = map[OperationEnum]map[string]string{
@@ -62,10 +64,16 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationDeleteProtectedBranch: {
 		"message": "Deleting Protected Branch",
 	},
+	OperationPostRelease: {
+		"message": "Post Release",
+	},
+	OperationListCommits: {
+		"message": "Listing Commits",
+	},
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse
 }
 
 type RepoOperationResult[R OperationResultType] struct {

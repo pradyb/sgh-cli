@@ -6,9 +6,11 @@ package cmd
 import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
+	"github.com/prady-lab/sgh-cli/cmd/commit"
 	"github.com/prady-lab/sgh-cli/cmd/config"
+	postrelease "github.com/prady-lab/sgh-cli/cmd/post_release"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
-	pb "github.com/prady-lab/sgh-cli/cmd/protected_branch"
+	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protected_branch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -41,6 +43,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
+	rootCmd.MarkPersistentFlagRequired("org")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "Log HTTP response")
 
@@ -49,7 +52,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(branch.NewBranchCommand(ctx))
 	rootCmd.AddCommand(tag.NewTagCommand(ctx))
 	rootCmd.AddCommand(pr.NewPRCommand(ctx))
-	rootCmd.AddCommand(pb.NewProtectedBranchCommand(ctx))
+	rootCmd.AddCommand(protectedbranch.NewProtectedBranchCommand(ctx))
+	rootCmd.AddCommand(postrelease.NewPostReleaseCommand(ctx))
+	rootCmd.AddCommand(commit.NewCommitCommand(ctx))
 
 	return rootCmd
 }

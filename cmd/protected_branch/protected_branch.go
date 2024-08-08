@@ -44,7 +44,6 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	listCmd.MarkFlagRequired("org")
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to list the protected branches. If not provided, it will list for all the repositories in the organization")
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to list the protected branches")
 	listCmd.MarkFlagRequired("branch")
@@ -74,7 +73,6 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	updateCmd.MarkFlagRequired("org")
 	updateCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to update the protected branch")
 	updateCmd.MarkFlagRequired("branch")
 	updateCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to update the protected branches. If not provided, it will update for all the repositories in the organization")
@@ -100,7 +98,6 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	deleteCmd.MarkFlagRequired("org")
 	deleteCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to delete the protected branch")
 	deleteCmd.MarkFlagRequired("branch")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the protected branches. If not provided, it will delete for all the repositories in the organization")

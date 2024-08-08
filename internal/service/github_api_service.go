@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/apperrors"
@@ -332,4 +333,21 @@ func DeleteProtectedBranch(ctx *context.Context, orgName, repoName, branchName s
 		return false, err
 	}
 	return true, nil
+}
+
+func ListCommits(ctx *context.Context, orgName, repoName, branchName string, noOfDays int) ([]model.CommitResponse, error) {
+	currentTime := time.Now()
+	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.Local)
+	midnight = midnight.AddDate(0, 0, -noOfDays)
+	since := midnight.Format("2006-01-02T15:04:05Z")
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits?since=%s&sha=%s", GITHUB_BASE_URL, orgName, repoName, since, branchName), nil)
+	if err != nil {
+		return nil, err
+	}
+	var commits []model.CommitResponse
+	if err := json.Unmarshal(response, &commits); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the commits response body")
+		return nil, err
+	}
+	return commits, nil
 }

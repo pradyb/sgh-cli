@@ -1,6 +1,8 @@
 package model
 
-import "strings"
+import (
+	"strings"
+)
 
 type Repositories struct {
 	Repositories []Repository
@@ -196,4 +198,54 @@ type ProtectedBranchRequest struct {
 type CheckRequest struct {
 	Context string `json:"context"`
 	AppID   int    `json:"app_id"`
+}
+
+type PostReleaseResponse struct {
+	RepositoryName string
+	PRNumber       int
+	PRHtmlUrl      string
+	TagHtmlUrl     string
+	TagCommitSHA   string
+	ErrorMessage   string
+}
+
+type CommitResponse struct {
+	RepositoryName string
+	NodeID         string `json:"node_id"`
+	Sha            string `json:"sha"`
+	HtmlUrl        string `json:"html_url"`
+	CommitUrl      string `json:"commit_url"`
+	Author         User   `json:"author"`
+	Committer      User   `json:"committer"`
+	Commit         struct {
+		Author struct {
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Date  string `json:"date"`
+		} `json:"author"`
+		Committer struct {
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Date  string `json:"date"`
+		} `json:"committer"`
+		Message string `json:"message"`
+		Tree    struct {
+			Sha string `json:"sha"`
+			Url string `json:"url"`
+		} `json:"tree"`
+		CommentCount int `json:"comment_count"`
+		Verification struct {
+			Verified  bool   `json:"verified"`
+			Reason    string `json:"reason"`
+			Signature string `json:"signature"`
+			Payload   string `json:"payload"`
+		} `json:"verification"`
+	} `json:"commit"`
+	ErrorMessage string
+}
+
+func (cr CommitResponse) RepoName() string {
+	str := cr.HtmlUrl
+	str1 := str[0:strings.Index(str, "/commit")]
+	return str1[strings.LastIndex(str1, "/")+1:]
 }

@@ -23,6 +23,10 @@ func CreateNewTags(ctx *context.Context, orgName string, repoNames []string, tag
 	return responses
 }
 
+func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
+	return service.CreateNewTag(ctx, orgName, repoName, tagName, refBranchName, message)
+}
+
 func DeleteTags(ctx *context.Context, orgName string, repoNames []string, tagName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
