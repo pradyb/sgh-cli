@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -276,6 +277,29 @@ func UpdatePullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
+}
+
+func ReviewPullRequest(ctx *context.Context, orgName, repoName, action string, prNumber int, body string) (model.ReviewPullRequestResponse, error) {
+	reviewRequest := map[string]interface{}{
+		"event": strings.ToUpper(action),
+		"body":  body,
+	}
+	jsonBody, err := json.Marshal(reviewRequest)
+	if err != nil {
+		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
+	}
+	reviewResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	if err != nil {
+		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
+	}
+	var reviewResponse model.ReviewPullRequestResponse
+	if err := json.Unmarshal(reviewResponseByte, &reviewResponse); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
+		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
+	}
+	reviewResponse.RepositoryName = repoName
+	reviewResponse.PRNumber = prNumber
+	return reviewResponse, nil
 }
 
 func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber int, title, body string) (model.MergeResponse, error) {

@@ -22,6 +22,7 @@ const (
 	OperationCreatePullRequest
 	OperationListPullRequest
 	OperationUpdatePullRequest
+	OperationReviewPullRequest
 	OperationMergePullRequest
 	OperationListProtectedBranch
 	OperationUpdateProtectedBranch
@@ -52,6 +53,9 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationUpdatePullRequest: {
 		"message": "Updating Pull Request",
 	},
+	OperationReviewPullRequest: {
+		"message": "Reviewing Pull Request",
+	},
 	OperationMergePullRequest: {
 		"message": "Merging Pull Request",
 	},
@@ -73,7 +77,7 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | mpdel.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse
 }
 
 type RepoOperationResult[R OperationResultType] struct {

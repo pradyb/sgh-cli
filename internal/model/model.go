@@ -94,6 +94,18 @@ type MergeResponse struct {
 	ErrorMessage   string
 }
 
+type ReviewPullRequestResponse struct {
+	RepositoryName string
+	PRNumber       int
+	Id             int    `json:"id"`
+	User           User   `json:"user"`
+	State          string `json:"state"`
+	Body           string `json:"body"`
+	SubmittedAt    string `json:"submitted_at"`
+	CommitId       string `json:"commit_id"`
+	ErrorMessage   string
+}
+
 type RefResponse struct {
 	Ref    string `json:"ref"`
 	NodeID string `json:"node_id"`
