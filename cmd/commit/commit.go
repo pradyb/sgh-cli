@@ -58,6 +58,7 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "Show detailed commit information")
 	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "i", false, "Include merge commits")
 
+	listCmd.MarkPersistentFlagRequired("org")
 	listCmd.MarkFlagRequired("branch")
 	return listCmd
 }

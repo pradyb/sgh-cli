@@ -16,8 +16,8 @@ func NewRepoCommand(ctx *context.Context) *cobra.Command {
 
 	var repoCmd = &cobra.Command{
 		Use:   "repo <command>",
-		Short: "Repo operations for the given Organization.",
-		Long:  `Repo operations for the given Organization.`,
+		Short: "Repo operations for the given organization.",
+		Long:  `Repo operations for the given organization.`,
 		Example: heredoc.Doc(`
 			$ sgh repo list <owner>
 		`),
@@ -30,8 +30,8 @@ func NewRepoCommand(ctx *context.Context) *cobra.Command {
 func listCommand(ctx *context.Context) *cobra.Command {
 	var listCmd = &cobra.Command{
 		Use:     "list <owner> -a",
-		Short:   "List all the repos for the given owner/organization.",
-		Long:    `List all the repos for the given owner/organization.`,
+		Short:   "List all the selected repositories for the given owner/organization",
+		Long:    `List all the selected repositories for the given owner/organization`,
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh repo list <owner>
@@ -54,5 +54,6 @@ func listCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	listCmd.Flags().BoolVarP(&isAllRepos, "all", "a", false, "List all repos")
+
 	return listCmd
 }

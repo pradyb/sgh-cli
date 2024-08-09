@@ -17,7 +17,7 @@ func NewBranchCommand(ctx *context.Context) *cobra.Command {
 
 	var branchCmd = &cobra.Command{
 		Use:   "branch <command>",
-		Short: "Manage Branches",
+		Short: "Manage branches",
 		Long:  `Perform branch operations like create/delete`,
 	}
 
@@ -70,6 +70,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&refBranchName, "ref", "R", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringVarP(&commitSHA, "commit", "c", "", "The `commit sha` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
+
+	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("new")
 	createCmd.MarkFlagsOneRequired("ref", "commit")
 	createCmd.MarkFlagsMutuallyExclusive("ref", "commit")
@@ -81,7 +83,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 	var deleteCmd = &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a new branch.",
-		Long:    `Delete a new branch for given repos or all the selected repos in the given org/owner.`,
+		Long:    `Delete a new branch for given repositories or all the selected repositories in the given organization/owner.`,
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh branch delete --branch Release-1.0 --org sample-org
@@ -102,7 +104,9 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	deleteCmd.Flags().StringVarP(&branchName, "branch", "B", "", "The `branch` which you want to be deleted")
-	deleteCmd.MarkFlagRequired("branch")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the branch. If not provided, it will delete for all the repositories in the organization")
+
+	deleteCmd.MarkPersistentFlagRequired("org")
+	deleteCmd.MarkFlagRequired("branch")
 	return deleteCmd
 }

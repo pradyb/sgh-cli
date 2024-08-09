@@ -55,15 +55,17 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
 	createCmd.Flags().StringVarP(&refBranchName, "head", "H", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the tag. If not provided, it will create for all the repositories in the organization")
+	createCmd.Flags().StringVarP(&message, "message", "m", "", "The `message` for the tagging")
+
+	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("tag")
 	createCmd.MarkFlagRequired("head")
-	createCmd.Flags().StringVarP(&message, "message", "m", "", "The `message` for the tagging")
 	createCmd.MarkFlagRequired("message")
 	return createCmd
 }
 
 func DeleteCommand(ctx *context.Context) *cobra.Command {
-	var createCmd = &cobra.Command{
+	var deleteCmd = &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a new tag.",
 		Long:    `Delete a new tag for given repos or all the selected repos in the given org/owner.`,
@@ -84,8 +86,11 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 			ui.PrintResponses(responses)
 		},
 	}
-	createCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
-	createCmd.MarkFlagRequired("tag")
-	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
-	return createCmd
+
+	deleteCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
+	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
+
+	deleteCmd.MarkPersistentFlagRequired("org")
+	deleteCmd.MarkFlagRequired("tag")
+	return deleteCmd
 }

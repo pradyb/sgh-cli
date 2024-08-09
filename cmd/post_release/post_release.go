@@ -44,6 +44,7 @@ func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 	postReleaseCmd.Flags().BoolVarP(&createTag, "create-tag", "c", false, "Create tag for the release")
 	postReleaseCmd.Flags().StringVarP(&tagName, "tag-name", "T", "", "Tag name for the release")
 
+	postReleaseCmd.MarkPersistentFlagRequired("org")
 	postReleaseCmd.MarkFlagRequired("title")
 	postReleaseCmd.MarkFlagRequired("branch")
 	postReleaseCmd.MarkFlagRequired("head")
