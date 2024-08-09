@@ -16,8 +16,8 @@ func NewRepoCommand(ctx *context.Context) *cobra.Command {
 
 	var repoCmd = &cobra.Command{
 		Use:   "repo <command>",
-		Short: "Repo operations for the given organization.",
-		Long:  `Repo operations for the given organization.`,
+		Short: "Repo operations for the given organization",
+		Long:  `Repo operations for the given organization`,
 		Example: heredoc.Doc(`
 			$ sgh repo list <owner>
 		`),

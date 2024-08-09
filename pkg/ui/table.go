@@ -79,13 +79,19 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 func PrintRepositories(repos []model.Repository) {
 
 	rows := convertToRows(repos, func(repo model.Repository) []string {
+		prCount := strconv.Itoa(repo.OpenIssuesCount)
+		if repo.OpenIssuesCount != 0 {
+			prCount = fmt.Sprintf(hyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
+		}
+
 		return []string{
 			strconv.Itoa(repo.Id),
 			repo.Name,
 			repo.Description,
+			repo.DefaultBranch,
 			repo.Language,
 			repo.SSHUrl,
-			strconv.Itoa(repo.OpenIssuesCount),
+			prCount,
 			strconv.Itoa(repo.Size),
 		}
 	})
@@ -98,16 +104,16 @@ func PrintRepositories(repos []model.Repository) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(repos), true)
+			style := defaultTableStyle(row, col, len(rows), true)
 
 			if row != 0 && row < len(rows) {
-				if col == 5 && rows[row-1][col] != "0" {
+				if col == 6 && rows[row-1][col] != "0" {
 					style = style.Foreground(lipgloss.Color(red))
 				}
 			}
 			return style
 		}).
-		Headers("Id", repositoryNameDisplayName, "Description", "Language", "SSH URL", "Open Issues", "Size").
+		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "Open PRs", "Size").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -174,7 +180,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(prResponses), true)
+			style := defaultTableStyle(row, col, len(rows), true)
 
 			if row != 0 && row < len(rows) {
 				if col == 6 && rows[row-1][6] == "closed" {

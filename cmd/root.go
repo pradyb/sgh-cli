@@ -45,7 +45,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "Log HTTP response")
+	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))
 	rootCmd.AddCommand(repo.NewRepoCommand(ctx))

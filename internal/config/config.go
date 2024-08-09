@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -202,9 +203,13 @@ func (config *Config) ActualRepositoryNamesUsingFzf(orgName string, repos []stri
 	for _, repoName := range repos {
 		fuzzyNames := fuzzy.Find(repoName, configRepoNames)
 		if len(fuzzyNames) > 0 {
-			actualRepoNames = append(actualRepoNames, fuzzyNames[0])
 			if len(fuzzyNames) > 1 {
-				logger.Glog.Warn().Str("matched names", strings.Join(fuzzyNames, ",")).Str("selected", fuzzyNames[0]).Msgf("Multiple Repos found for the search string %s", repoName)
+				if slices.Contains(fuzzyNames, repoName) {
+					actualRepoNames = append(actualRepoNames, repoName)
+				} else {
+					actualRepoNames = append(actualRepoNames, fuzzyNames[0])
+					logger.Glog.Warn().Str("matched names", strings.Join(fuzzyNames, ",")).Str("selected", fuzzyNames[0]).Msgf("Multiple Repos found for the search string %s", repoName)
+				}
 			}
 		} else {
 			actualRepoNames = append(actualRepoNames, repoName)

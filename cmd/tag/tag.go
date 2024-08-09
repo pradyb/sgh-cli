@@ -67,8 +67,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 func DeleteCommand(ctx *context.Context) *cobra.Command {
 	var deleteCmd = &cobra.Command{
 		Use:     "delete",
-		Short:   "Delete a new tag.",
-		Long:    `Delete a new tag for given repos or all the selected repos in the given org/owner.`,
+		Short:   "Delete a new tag",
+		Long:    `Delete a new tag for given repos or all the selected repos in the given org/owner`,
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh tag delete --Tag Release-1.0 --org sample-org

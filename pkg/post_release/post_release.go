@@ -20,24 +20,24 @@ func ProcessPostRelease(ctx *context.Context, orgName string, repoNames []string
 
 			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body)
 			if err != nil {
-				return model.PostReleaseResponse{}, err
+				return model.PostReleaseResponse{RepositoryName: repoName}, err
 			}
 			// merge to main/develop
 			mrResponse := pr.MergePullRequest(ctx, orgName, repoName, prResponse.PRNumber, title, body)
 			if mrResponse.ErrorMessage != "" {
-				return model.PostReleaseResponse{}, errors.New(mrResponse.ErrorMessage)
+				return model.PostReleaseResponse{RepositoryName: repoName}, errors.New(mrResponse.ErrorMessage)
 			}
 
 			// create tag
 			if createTag {
 				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, tagName, baseRef, title)
 				if err != nil {
-					return model.PostReleaseResponse{}, err
+					return model.PostReleaseResponse{RepositoryName: repoName}, err
 				}
 				return model.PostReleaseResponse{RepositoryName: repoName, PRNumber: prResponse.PRNumber, PRHtmlUrl: prResponse.HTMLUrl, TagHtmlUrl: tagResponse.Url, TagCommitSHA: tagResponse.Object.SHA}, nil
 			}
 
-			return model.PostReleaseResponse{}, nil
+			return model.PostReleaseResponse{RepositoryName: repoName, PRNumber: prResponse.PRNumber, PRHtmlUrl: prResponse.HTMLUrl}, nil
 		}, func(repoName string, result processor.RepoOperationResult[model.PostReleaseResponse]) {
 			responses = append(responses, result.Result)
 		},
