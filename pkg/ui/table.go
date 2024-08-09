@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -12,19 +13,22 @@ import (
 )
 
 const (
-	hyperLinkFormat = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
+	hyperLinkFormat           = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
+	repositoryNameDisplayName = "Repository"
 
 	white     = lipgloss.Color("#FFFFFF")
 	gray      = lipgloss.Color("#CCC9C9")
 	lightGray = lipgloss.Color("#959393")
 	turquoise = lipgloss.Color("#5DE2E7")
 	red       = lipgloss.Color("#FF0000")
+	green     = lipgloss.Color("#00B500")
 )
 
 var (
 	re = lipgloss.NewRenderer(os.Stdout)
 
 	HeaderStyle  = re.NewStyle().Foreground(white).Bold(true).Align(lipgloss.Center)
+	FooterStyle  = re.NewStyle().Foreground(turquoise).Bold(true).Align(lipgloss.Center)
 	CellStyle    = re.NewStyle().Padding(0, 1)
 	OddRowStyle  = CellStyle.Foreground(gray)
 	EvenRowStyle = CellStyle.Foreground(lightGray)
@@ -61,16 +65,11 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 
 	if col == 1 {
 		//style = style.Width(22)
-		style = style.Foreground(lipgloss.Color("#00B500"))
+		style = style.Foreground(green)
 	}
 
 	if isFooterPresent && row == totalRows+1 {
-		if col == 1 {
-			style = style.Foreground(lipgloss.Color(turquoise))
-		}
-		if col == 2 {
-			style = style.Foreground(lipgloss.Color(turquoise))
-		}
+		style = FooterStyle
 	}
 
 	return style
@@ -107,7 +106,7 @@ func PrintRepositories(repos []model.Repository) {
 			}
 			return style
 		}).
-		Headers("Id", "Name", "Description", "Language", "SSH URL", "Open Issues", "Size").
+		Headers("Id", repositoryNameDisplayName, "Description", "Language", "SSH URL", "Open Issues", "Size").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -140,7 +139,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 			}
 			return style
 		}).
-		Headers("Repository", "Status Message").
+		Headers(repositoryNameDisplayName, "Status Message").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -185,7 +184,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			}
 			return style
 		}).
-		Headers("Id", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
+		Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -233,21 +232,12 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 				style = style.UnsetForeground()
 			}
 			if col == 0 && row != 0 {
-				style = style.Foreground(lipgloss.Color("#00B500"))
-			}
-
-			if row == len(rows) {
-				if col == 0 {
-					style = style.Foreground(lipgloss.Color(turquoise))
-				}
-				if col == 1 {
-					style = style.Foreground(lipgloss.Color(turquoise))
-				}
+				style = style.Foreground(green)
 			}
 
 			return style
 		}).
-		Headers("Project Name", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users").
+		Headers(repositoryNameDisplayName, "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -266,7 +256,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 				}
 				return style
 			}).
-			Headers("Project Name", "Error Message").
+			Headers(repositoryNameDisplayName, "Error Message").
 			Rows(failedRows...)
 
 		fmt.Println(t)
@@ -330,14 +320,14 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 
 			return style
 		}).
-		Headers("PR #", "Repository", "PR URL", "Tag URL", "Tag CommitSha").
+		Headers("PR #", repositoryNameDisplayName, "PR URL", "Tag URL", "Tag CommitSha").
 		Rows(rows...)
 
 	fmt.Println(t)
 }
 
 func PrintCommitResponses(commitResponses []model.CommitResponse) {
-	rows := make([][]string, 0, len(commitResponses)+1)
+	rows := make([][]string, 0, len(commitResponses))
 	failedRows := make([][]string, 0)
 	for _, commit := range commitResponses {
 		if commit.ErrorMessage != "" {
@@ -356,31 +346,24 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 	rows = append(rows, []string{"Total Commits", strconv.Itoa(len(commitResponses))})
 
 	fmt.Println()
+	fmt.Println()
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(commitResponses), false)
+			style := defaultTableStyle(row, col, len(commitResponses), true)
 
-			if col == 1 {
+			if col == 1 && row != 0 && row != len(rows) {
 				style = style.UnsetForeground()
 			}
-			if col == 0 && row != 0 {
-				style = style.Foreground(lipgloss.Color("#00B500"))
+			if col == 0 && row != 0 && row != len(rows) {
+				style = style.Foreground(green)
 			}
 
-			if row == len(rows) {
-				if col == 0 {
-					style = style.Foreground(lipgloss.Color(turquoise))
-				}
-				if col == 1 {
-					style = style.Foreground(lipgloss.Color(turquoise))
-				}
-			}
 			return style
 		}).
-		Headers("Repository", "Author Name", "Author Date", "Message", "Comment Count", "Url").
+		Headers(repositoryNameDisplayName, "Author Name", "Author Date", "Message", "Comment Count", "Url").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -399,9 +382,62 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 				}
 				return style
 			}).
-			Headers("Project Name", "Error Message").
+			Headers(repositoryNameDisplayName, "Error Message").
 			Rows(failedRows...)
 
 		fmt.Println(t)
 	}
+}
+
+func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool) {
+
+	repoCommits := getRepoCommitsMap(commitResponses, includeMergeCommits)
+	keys := make([]string, 0, len(repoCommits))
+	for k := range repoCommits {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	rows := make([][]string, 0, len(repoCommits)+1)
+	for _, repo := range keys {
+		commits := repoCommits[repo]
+		rows = append(rows, []string{repo, strconv.Itoa(len(commits)), strings.Join(commits, "\n")})
+	}
+
+	fmt.Println()
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			var style lipgloss.Style
+			if row == 0 {
+				return HeaderStyle
+			}
+			if col == 0 || col == 1 {
+				style = CellStyle.Foreground(lipgloss.Color(white)).AlignVertical(lipgloss.Center)
+			}
+			if col == 2 {
+				//style = style.Width(100)
+				style = CellStyle.Foreground(lipgloss.Color(lightGray))
+			}
+
+			return style
+		}).
+		Headers(repositoryNameDisplayName, "Total", "Commit Messages").
+		Rows(rows...)
+
+	fmt.Println(t)
+}
+
+func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommits bool) map[string][]string {
+	repoCommits := make(map[string][]string)
+	for _, commit := range commitResponses {
+		if commit.ErrorMessage == "" {
+			if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
+				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], commit.Commit.Message)
+			}
+		}
+	}
+	return repoCommits
 }
