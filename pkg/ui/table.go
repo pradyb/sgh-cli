@@ -15,6 +15,7 @@ import (
 const (
 	hyperLinkFormat           = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
 	repositoryNameDisplayName = "Repository"
+	errorMessageDisplayName   = "Error Message"
 
 	white     = lipgloss.Color("#FFFFFF")
 	gray      = lipgloss.Color("#CCC9C9")
@@ -261,7 +262,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 				}
 				return style
 			}).
-			Headers(repositoryNameDisplayName, "Error Message").
+			Headers(repositoryNameDisplayName, errorMessageDisplayName).
 			Rows(failedRows...)
 
 		fmt.Println(t)
@@ -345,7 +346,7 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 				}
 				return style
 			}).
-			Headers(repositoryNameDisplayName, "Error Message").
+			Headers(repositoryNameDisplayName, errorMessageDisplayName).
 			Rows(failedRows...)
 
 		fmt.Println(t)
@@ -408,7 +409,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 				}
 				return style
 			}).
-			Headers(repositoryNameDisplayName, "Error Message").
+			Headers(repositoryNameDisplayName, errorMessageDisplayName).
 			Rows(failedRows...)
 
 		fmt.Println(t)
