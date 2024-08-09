@@ -149,6 +149,7 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	mergeCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
 	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "Title for the automatic commit message")
 	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "Extra detail to append to automatic commit message")
+	mergeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
 	mergeCmd.MarkFlagRequired("repository")
 	mergeCmd.MarkFlagRequired("pr")

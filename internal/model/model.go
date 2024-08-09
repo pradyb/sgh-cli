@@ -87,10 +87,11 @@ type PRBranch struct {
 }
 
 type MergeResponse struct {
-	Merged       bool   `json:"merged"`
-	Message      string `json:"message"`
-	SHA          string `json:"sha"`
-	ErrorMessage string
+	RepositoryName string
+	Merged         bool   `json:"merged"`
+	Message        string `json:"message"`
+	SHA            string `json:"sha"`
+	ErrorMessage   string
 }
 
 type RefResponse struct {

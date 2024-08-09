@@ -68,7 +68,7 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 		style = style.Foreground(green)
 	}
 
-	if isFooterPresent && row == totalRows+1 {
+	if isFooterPresent && row == totalRows {
 		style = FooterStyle
 	}
 
@@ -193,12 +193,12 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 	rows := make([][]string, 0, len(mergeResponses)+1)
 	for _, merge := range mergeResponses {
-		rows = append(rows, []string{
-			strconv.FormatBool(merge.Merged), merge.Message, merge.SHA,
-		})
+		message := merge.Message
+		if merge.ErrorMessage != "" {
+			message = merge.ErrorMessage
+		}
+		rows = append(rows, []string{merge.RepositoryName, message, merge.SHA})
 	}
-	rows = append(rows, []string{"", "Total Merge Requests", strconv.Itoa(len(mergeResponses))})
-
 	fmt.Println()
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
@@ -206,9 +206,14 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(mergeResponses), true)
+			if row != 0 && row < len(rows)+1 {
+				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
+					style = style.Foreground(lipgloss.Color(red))
+				}
+			}
 			return style
 		}).
-		Headers("Merged", "Message", "Sha").
+		Headers(repositoryNameDisplayName, "Message", "Sha").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -217,7 +222,7 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 
 	rows, failedRows := getProtectedBranches(pbResponses)
-	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(pbResponses))})
+	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(rows))})
 
 	fmt.Println()
 	fmt.Println()
@@ -226,12 +231,12 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(pbResponses), true)
+			style := defaultTableStyle(row, col, len(rows), true)
 
-			if col == 1 {
+			if col == 1 && row != 0 && row != len(rows) {
 				style = style.UnsetForeground()
 			}
-			if col == 0 && row != 0 {
+			if col == 0 && row != 0 && row != len(rows) {
 				style = style.Foreground(green)
 			}
 
@@ -294,10 +299,11 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 }
 
 func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
+	failedRows := make([][]string, 0)
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
 		if pr.ErrorMessage != "" {
-			rows = append(rows, []string{pr.RepositoryName, pr.ErrorMessage})
+			failedRows = append(failedRows, []string{pr.RepositoryName, pr.ErrorMessage})
 		} else {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
@@ -308,7 +314,7 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 			})
 		}
 	}
-	rows = append(rows, []string{"", "Total", strconv.Itoa(len(prResponses))})
+	rows = append(rows, []string{"", "Total", strconv.Itoa(len(rows))})
 
 	fmt.Println()
 	t := table.New().
@@ -324,6 +330,26 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 		Rows(rows...)
 
 	fmt.Println(t)
+
+	if len(failedRows) > 0 {
+		fmt.Println()
+		fmt.Println("Failed to process post release activity the following repositories")
+		t = table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				var style lipgloss.Style
+				if col == 1 && row != 0 {
+					style = style.Foreground(lipgloss.Color(red))
+				}
+				return style
+			}).
+			Headers(repositoryNameDisplayName, "Error Message").
+			Rows(failedRows...)
+
+		fmt.Println(t)
+	}
 }
 
 func PrintCommitResponses(commitResponses []model.CommitResponse) {
@@ -352,7 +378,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(commitResponses), true)
+			style := defaultTableStyle(row, col, len(rows), true)
 
 			if col == 1 && row != 0 && row != len(rows) {
 				style = style.UnsetForeground()
@@ -435,7 +461,8 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 	for _, commit := range commitResponses {
 		if commit.ErrorMessage == "" {
 			if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
-				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], commit.Commit.Message)
+				message := fmt.Sprintf(hyperLinkFormat, commit.HtmlUrl, commit.Commit.Message+" ("+commit.Commit.Author.Name+")")
+				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], message)
 			}
 		}
 	}

@@ -61,9 +61,14 @@ func UpdatePullRequest(ctx *context.Context, orgName string, repoName string, pr
 }
 
 func MergePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, title, body string) model.MergeResponse {
-	response, err := service.MergePullRequest(ctx, orgName, repoName, prNumber, title, body)
-	if err != nil {
-		return model.MergeResponse{ErrorMessage: err.Error()}
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+	if len(actualRepoNames) == 0 {
+		return model.MergeResponse{RepositoryName: actualRepoNames[0], ErrorMessage: "Repository not found"}
 	}
+	response, err := service.MergePullRequest(ctx, orgName, actualRepoNames[0], prNumber, title, body)
+	if err != nil {
+		return model.MergeResponse{RepositoryName: actualRepoNames[0], ErrorMessage: err.Error()}
+	}
+	response.RepositoryName = actualRepoNames[0]
 	return response
 }
