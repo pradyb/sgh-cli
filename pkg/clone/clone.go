@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
 	logger "github.com/prady-lab/sgh-cli/utils"
@@ -25,22 +26,28 @@ func CloneRepositories(ctx *context.Context, orgName string, repos []string, bra
 	if len(repoNames) != 0 {
 		for _, repo := range repositories {
 			if slices.Contains(repoNames, repo.Name) {
-				var cloneCmd *exec.Cmd
-				logger.Glog.Info().Msgf("Cloning the repository %s: %s", repo.Name, repo.SSHUrl)
-				if branch == "" {
-					cloneCmd = exec.Command("git", "clone", repo.SSHUrl)
-				} else {
-					cloneCmd = exec.Command("git", "clone", "-b ", branch, repo.SSHUrl)
-				}
-				cloneCmd.Stdout = os.Stdout
-				if err := cloneCmd.Run(); err != nil {
+				if err := executeCloneCmd(repo, branch); err != nil {
 					logger.Glog.Error().Err(err).Msgf("Error in cloning the repository %s", repo.Name)
-					return err
 				}
 			}
 		}
 	} else {
 		logger.Glog.Warn().Msgf("No repositories selected for cloning")
+	}
+	return nil
+}
+
+func executeCloneCmd(repo model.Repository, branch string) error {
+	var cloneCmd *exec.Cmd
+	logger.Glog.Info().Msgf("Cloning the repository %s: %s", repo.Name, repo.SSHUrl)
+	if branch == "" {
+		cloneCmd = exec.Command("git", "clone", repo.SSHUrl)
+	} else {
+		cloneCmd = exec.Command("git", "clone", "-b ", branch, repo.SSHUrl)
+	}
+	cloneCmd.Stdout = os.Stdout
+	if err := cloneCmd.Run(); err != nil {
+		return err
 	}
 	return nil
 }

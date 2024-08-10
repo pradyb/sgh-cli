@@ -76,6 +76,18 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 	return style
 }
 
+func printNoDataMessage(message string) {
+	var style = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FAFAFA")).
+		PaddingTop(1).
+		PaddingLeft(2).
+		PaddingBottom(1)
+
+	fmt.Println()
+	fmt.Println(style.Render(message))
+}
+
 func PrintRepositories(repos []model.Repository) {
 
 	rows := convertToRows(repos, func(repo model.Repository) []string {
@@ -120,7 +132,10 @@ func PrintRepositories(repos []model.Repository) {
 }
 
 func PrintResponses(responses []model.RefUIResponse) {
-
+	if len(responses) == 0 {
+		printNoDataMessage("No data found for the given input")
+		return
+	}
 	rows := convertToRows(responses, func(response model.RefUIResponse) []string {
 		message := response.SuccessMessage
 		if response.ErrorMessage != "" {
@@ -153,6 +168,10 @@ func PrintResponses(responses []model.RefUIResponse) {
 }
 
 func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
+	if len(prResponses) == 0 {
+		printNoDataMessage("No Pull Requests found for the given input")
+		return
+	}
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
 		refs := fmt.Sprintf("%s <- %s", pr.Base.Ref, pr.Head.Ref)
@@ -198,6 +217,10 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 }
 
 func PrintMergeResponses(mergeResponses []model.MergeResponse) {
+	if len(mergeResponses) == 0 {
+		printNoDataMessage("No Merge Responses found for the given input")
+		return
+	}
 	rows := make([][]string, 0, len(mergeResponses)+1)
 	for _, merge := range mergeResponses {
 		message := merge.Message
@@ -227,7 +250,10 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 }
 
 func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
-
+	if len(pbResponses) == 0 {
+		printNoDataMessage("No Protected Branches found for the given input")
+		return
+	}
 	rows, failedRows := getProtectedBranches(pbResponses)
 	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(rows))})
 
@@ -306,6 +332,10 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 }
 
 func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
+	if len(prResponses) == 0 {
+		printNoDataMessage("No Post Release activity performed for the given input")
+		return
+	}
 	failedRows := make([][]string, 0)
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
@@ -360,23 +390,11 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 }
 
 func PrintCommitResponses(commitResponses []model.CommitResponse) {
-	rows := make([][]string, 0, len(commitResponses))
-	failedRows := make([][]string, 0)
-	for _, commit := range commitResponses {
-		if commit.ErrorMessage != "" {
-			failedRows = append(failedRows, []string{commit.RepositoryName, commit.ErrorMessage})
-		} else {
-			rows = append(rows, []string{
-				commit.RepoName(),
-				commit.Commit.Author.Name,
-				commit.Commit.Author.Date,
-				commit.Commit.Message,
-				strconv.Itoa(commit.Commit.CommentCount),
-				fmt.Sprintf(hyperLinkFormat, commit.HtmlUrl, "Link"),
-			})
-		}
+	if len(commitResponses) == 0 {
+		printNoDataMessage("No Commits found for the given input")
+		return
 	}
-	rows = append(rows, []string{"Total Commits", strconv.Itoa(len(commitResponses))})
+	rows, failedRows := getCommitResponses(commitResponses)
 
 	fmt.Println()
 	fmt.Println()
@@ -422,8 +440,32 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 	}
 }
 
-func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool) {
+func getCommitResponses(commitResponses []model.CommitResponse) ([][]string, [][]string) {
+	rows := make([][]string, 0, len(commitResponses))
+	failedRows := make([][]string, 0)
+	for _, commit := range commitResponses {
+		if commit.ErrorMessage != "" {
+			failedRows = append(failedRows, []string{commit.RepositoryName, commit.ErrorMessage})
+		} else {
+			rows = append(rows, []string{
+				commit.RepoName(),
+				commit.Commit.Author.Name,
+				commit.Commit.Author.Date,
+				commit.Commit.Message,
+				strconv.Itoa(commit.Commit.CommentCount),
+				fmt.Sprintf(hyperLinkFormat, commit.HtmlUrl, "Link"),
+			})
+		}
+	}
+	rows = append(rows, []string{"Total Commits", strconv.Itoa(len(commitResponses))})
+	return rows, failedRows
+}
 
+func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool) {
+	if len(commitResponses) == 0 {
+		printNoDataMessage("No Commits found for the given input")
+		return
+	}
 	repoCommits := getRepoCommitsMap(commitResponses, includeMergeCommits)
 	keys := make([]string, 0, len(repoCommits))
 	for k := range repoCommits {

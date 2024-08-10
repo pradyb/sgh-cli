@@ -203,7 +203,9 @@ func (config *Config) ActualRepositoryNamesUsingFzf(orgName string, repos []stri
 	for _, repoName := range repos {
 		fuzzyNames := fuzzy.Find(repoName, configRepoNames)
 		if len(fuzzyNames) > 0 {
-			if len(fuzzyNames) > 1 {
+			if len(fuzzyNames) == 1 {
+				actualRepoNames = append(actualRepoNames, fuzzyNames[0])
+			} else if len(fuzzyNames) > 1 {
 				if slices.Contains(fuzzyNames, repoName) {
 					actualRepoNames = append(actualRepoNames, repoName)
 				} else {

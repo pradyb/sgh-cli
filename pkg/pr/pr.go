@@ -38,7 +38,6 @@ func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName,
 
 func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
-
 	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListPullRequest,
 		func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
 			return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
