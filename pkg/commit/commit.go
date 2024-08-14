@@ -23,3 +23,19 @@ func ListCommits(ctx *context.Context, orgName string, repoNames []string, branc
 		})
 	return responses
 }
+
+func GetCommitInfo(ctx *context.Context, orgName string, repoName string, commitSha string) model.CommitResponse {
+	response, err := service.GetCommitInfo(ctx, orgName, repoName, commitSha)
+	if err != nil {
+		return model.CommitResponse{RepositoryName: repoName, ErrorMessage: err.Error()}
+	}
+	return response
+}
+
+func GetCommitCheckRuns(ctx *context.Context, orgName string, repoName string, commitSha string) model.CheckRunResponse {
+	checkRuns, err := service.GetCommitCheckRuns(ctx, orgName, repoName, commitSha)
+	if err != nil {
+		return model.CheckRunResponse{RepositoryName: repoName, ErrorMessage: err.Error()}
+	}
+	return checkRuns
+}

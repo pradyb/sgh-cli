@@ -375,3 +375,29 @@ func ListCommits(ctx *context.Context, orgName, repoName, branchName string, noO
 	}
 	return commits, nil
 }
+
+func GetCommitInfo(ctx *context.Context, orgName, repoName, commitSha string) (model.CommitResponse, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
+	if err != nil {
+		return model.CommitResponse{}, err
+	}
+	var commit model.CommitResponse
+	if err := json.Unmarshal(response, &commit); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the commit response body")
+		return model.CommitResponse{}, err
+	}
+	return commit, nil
+}
+
+func GetCommitCheckRuns(ctx *context.Context, orgName, repoName, commitSha string) (model.CheckRunResponse, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s/check-runs", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
+	if err != nil {
+		return model.CheckRunResponse{}, err
+	}
+	var checkRuns model.CheckRunResponse
+	if err := json.Unmarshal(response, &checkRuns); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the check runs response body")
+		return model.CheckRunResponse{}, err
+	}
+	return checkRuns, nil
+}

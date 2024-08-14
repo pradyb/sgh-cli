@@ -4,6 +4,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
+	"github.com/prady-lab/sgh-cli/pkg/pr/prompt"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 	logger "github.com/prady-lab/sgh-cli/utils"
 
@@ -64,6 +65,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 }
 
 var allPullRequests bool
+var interactive bool
 
 func ListCommand(ctx *context.Context) *cobra.Command {
 	var listCmd = &cobra.Command{
@@ -81,8 +83,12 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			responses := pr.ListPullRequests(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
-			ui.PrintPullRequestResponses(responses)
+			if !interactive {
+				responses := pr.ListPullRequests(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
+				ui.PrintPullRequestResponses(responses)
+			} else {
+				prompt.RunInteractivePR(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
+			}
 		},
 	}
 
@@ -90,6 +96,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
+	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode to select the PR to merge")
 
 	listCmd.MarkPersistentFlagRequired("org")
 

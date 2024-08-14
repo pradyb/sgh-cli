@@ -51,6 +51,14 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 	return responses
 }
 
+func GetPullRequestInfo(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestResponse {
+	response, err := service.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+	if err != nil {
+		return model.PullRequestResponse{ErrorMessage: err.Error()}
+	}
+	return response
+}
+
 func UpdatePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, state string) model.PullRequestResponse {
 	response, err := service.UpdatePullRequest(ctx, orgName, repoName, prNumber, state)
 	if err != nil {

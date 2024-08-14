@@ -181,7 +181,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
 				pr.RepositoryName(),
-				pr.Title,
+				pr.TitleName,
 				pr.UserName(),
 				pr.AssigneesName(),
 				pr.ReviewersName(),

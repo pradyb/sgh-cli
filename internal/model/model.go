@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -42,16 +43,26 @@ type Tagger struct {
 }
 
 type PullRequestResponse struct {
-	PRNumber     int      `json:"number"`
-	Title        string   `json:"title"`
-	Status       string   `json:"state"`
-	HTMLUrl      string   `json:"html_url"`
-	Head         PRBranch `json:"head"`
-	Base         PRBranch `json:"base"`
-	User         User     `json:"user"`
-	Assignees    []User   `json:"assignees"`
-	Reviewers    []User   `json:"requested_reviewers"`
-	ErrorMessage string
+	PRNumber       int      `json:"number"`
+	TitleName      string   `json:"title"`
+	Status         string   `json:"state"`
+	HTMLUrl        string   `json:"html_url"`
+	Head           PRBranch `json:"head"`
+	Base           PRBranch `json:"base"`
+	User           User     `json:"user"`
+	Assignees      []User   `json:"assignees"`
+	Reviewers      []User   `json:"requested_reviewers"`
+	Merged         bool     `json:"merged"`
+	Mergeable      bool     `json:"mergeable"`
+	MergeableState string   `json:"mergeable_state"`
+	MergedBy       User     `json:"merged_by"`
+	Comments       int      `json:"comments"`
+	ReviewComments int      `json:"review_comments"`
+	Commits        int      `json:"commits"`
+	ChangedFiles   int      `json:"changed_files"`
+	Additions      int      `json:"additions"`
+	Deletions      int      `json:"deletions"`
+	ErrorMessage   string
 }
 
 func (pr PullRequestResponse) RepositoryName() string {
@@ -73,6 +84,27 @@ func (pr PullRequestResponse) ReviewersName() string {
 		reviewers = append(reviewers, reviewer.Login)
 	}
 	return strings.Join(reviewers, "\n")
+}
+
+func (pr PullRequestResponse) FirstReviewerName() string {
+	if len(pr.Reviewers) == 0 {
+		return ""
+	}
+	if len(pr.Reviewers) > 1 {
+		return pr.Reviewers[0].Login
+	} else {
+		return pr.Reviewers[0].Login + "..."
+	}
+}
+
+func (pr PullRequestResponse) Title() string {
+	return strconv.Itoa(pr.PRNumber) + " " + pr.TitleName + " (" + pr.RepositoryName() + ")"
+}
+func (pr PullRequestResponse) Description() string {
+	return pr.UserName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
+}
+func (pr PullRequestResponse) FilterValue() string {
+	return pr.Title()
 }
 
 type User struct {
@@ -256,6 +288,23 @@ type CommitResponse struct {
 			Payload   string `json:"payload"`
 		} `json:"verification"`
 	} `json:"commit"`
+	Stats struct {
+		Additions int `json:"additions"`
+		Deletions int `json:"deletions"`
+		Total     int `json:"total"`
+	} `json:"stats"`
+	Files []struct {
+		Sha         string `json:"sha"`
+		Filename    string `json:"filename"`
+		Status      string `json:"status"`
+		Additions   int    `json:"additions"`
+		Deletions   int    `json:"deletions"`
+		Changes     int    `json:"changes"`
+		BlobUrl     string `json:"blob_url"`
+		RawUrl      string `json:"raw_url"`
+		ContentsUrl string `json:"contents_url"`
+	} `json:"files"`
+
 	ErrorMessage string
 }
 
@@ -263,4 +312,25 @@ func (cr CommitResponse) RepoName() string {
 	str := cr.HtmlUrl
 	str1 := str[0:strings.Index(str, "/commit")]
 	return str1[strings.LastIndex(str1, "/")+1:]
+}
+
+type CheckRunResponse struct {
+	RepositoryName string
+	Total          int        `json:"total"`
+	CheckRuns      []CheckRun `json:"check_runs"`
+	ErrorMessage   string
+}
+
+type CheckRun struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion"`
+	StartedAt   string `json:"started_at"`
+	CompletedAt string `json:"completed_at"`
+	DetailsUrl  string `json:"details_url"`
+	Output      struct {
+		Title   string `json:"title"`
+		Summary string `json:"summary"`
+		Text    string `json:"text"`
+	} `json:"output"`
 }
