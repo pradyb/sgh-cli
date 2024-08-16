@@ -1,6 +1,8 @@
 package prompt
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,6 +25,7 @@ type eventMsg struct {
 	prResponse       model.PullRequestResponse
 	commitResponse   model.CommitResponse
 	checkRunResponse model.CheckRunResponse
+	prReviews        []model.ReviewPullRequestResponse
 	message          string
 }
 
@@ -74,13 +77,13 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 		case tea.KeyMsg:
 			switch {
 			case key.Matches(msg, keys.status):
+				m.StartSpinner()
 				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("PR status " + title))
-				pullRequestResponse := pr.GetPullRequestInfo(ctx, orgName, selectedPR.RepositoryName(), selectedPR.PRNumber)
-				commitResponse := commit.GetCommitInfo(ctx, orgName, selectedPR.RepositoryName(), selectedPR.Head.Sha)
-				checkRunResponse := commit.GetCommitCheckRuns(ctx, orgName, selectedPR.RepositoryName(), selectedPR.Head.Sha)
+				pullRequestResponse, commitResponse, checkRunResponse, prReviews := getPRDetails(ctx, orgName, selectedPR.RepositoryName(), selectedPR.PRNumber, selectedPR.Head.Sha)
 				eventCmd := func() tea.Msg {
-					return eventMsg{eventType: "STATUS", prResponse: pullRequestResponse, commitResponse: commitResponse, checkRunResponse: checkRunResponse}
+					return eventMsg{eventType: "STATUS", prResponse: pullRequestResponse, commitResponse: commitResponse, checkRunResponse: checkRunResponse, prReviews: prReviews}
 				}
+				m.StopSpinner()
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.approve):
 				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approving the PR " + title))
@@ -112,4 +115,34 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 	}
 
 	return d
+}
+
+func getPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.CommitResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+
+	var wg sync.WaitGroup
+	var pullRequestResponse model.PullRequestResponse
+	var commitResponse model.CommitResponse
+	var checkRunResponse model.CheckRunResponse
+	var prReviews []model.ReviewPullRequestResponse
+
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+	}()
+	go func() {
+		defer wg.Done()
+		commitResponse = commit.GetCommitInfo(ctx, orgName, repoName, lastSha)
+	}()
+	go func() {
+		defer wg.Done()
+		checkRunResponse = commit.GetCommitCheckRuns(ctx, orgName, repoName, lastSha)
+	}()
+	go func() {
+		defer wg.Done()
+		prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+	}()
+
+	wg.Wait()
+	return pullRequestResponse, commitResponse, checkRunResponse, prReviews
 }

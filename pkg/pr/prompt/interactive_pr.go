@@ -3,8 +3,10 @@ package prompt
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -97,7 +99,7 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch eventType {
 		case "STATUS":
 			m.showEventPanel = true
-			m.sections = statusSections(msg.prResponse, msg.commitResponse, msg.checkRunResponse)
+			m.sections = statusSections(msg.prResponse, msg.commitResponse, msg.checkRunResponse, msg.prReviews)
 		case "APPROVE":
 			m.showEventPanel = true
 			// m.message = msg.eventType + " " + msg.message + " APPROVED"
@@ -136,7 +138,7 @@ func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, 
 	return nil
 }
 
-func statusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse) []string {
+func statusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse) []string {
 	var sections []string
 
 	titleView := lipgloss.NewStyle().Foreground(white).Background(lipgloss.Color("#25A065")).Padding(0, 1).Align(lipgloss.Center)
@@ -233,6 +235,51 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 		checkRunTableView := lipgloss.NewStyle().BorderForeground(white)
 		sections = append(sections, lipgloss.NewStyle().Foreground(white).Bold(true).Render("Check Runs"))
 		sections = append(sections, checkRunTableView.Render(checkRunTable.String()))
+	}
+
+	prReviewsRows := make([][]string, 0)
+
+	sort.Slice(prReviews, func(i, j int) bool {
+		submittedAtI, _ := time.Parse(time.RFC3339, prReviews[i].SubmittedAt)
+		submittedAtJ, _ := time.Parse(time.RFC3339, prReviews[j].SubmittedAt)
+		return submittedAtI.After(submittedAtJ)
+	})
+	if len(prReviews) > 0 {
+		for _, review := range prReviews {
+			prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.CommitId})
+		}
+
+		reviewsTable := ltable.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				var style lipgloss.Style
+
+				if row == 0 {
+					return HeaderStyle
+				}
+				if col == 0 {
+					style = CellStyle.Foreground(gray).AlignHorizontal(lipgloss.Left)
+				} else if col == 1 && row == 1 {
+					if prReviewsRows[1][1] == "APPROVED" {
+						style = style.Foreground(lipgloss.Color("#25A065")).Blink(true)
+					} else if prReviewsRows[1][1] == "CHANGES_REQUESTED" {
+						style = style.Foreground(lipgloss.Color("#FF0000"))
+					} else {
+						style = style.Foreground(lipgloss.Color("#FFA500"))
+					}
+				}
+
+				return style
+			}).
+			Headers("Reviewed By", "State", "Submitted At", "Commit Id").
+			Rows(prReviewsRows...)
+
+		reviewsTableView := lipgloss.NewStyle().BorderForeground(white)
+		sections = append(sections, "\n")
+		sections = append(sections, lipgloss.NewStyle().Foreground(white).Bold(true).Render("Reviews Status"))
+		sections = append(sections, reviewsTableView.Render(reviewsTable.String()))
 	}
 
 	return sections

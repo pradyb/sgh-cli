@@ -279,6 +279,19 @@ func UpdatePullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 	return prResponse, nil
 }
 
+func ListPullRequestReviews(ctx *context.Context, orgName, repoName string, prNumber int) ([]model.ReviewPullRequestResponse, error) {
+	reviewResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
+	if err != nil {
+		return nil, err
+	}
+	var reviewResponses []model.ReviewPullRequestResponse
+	if err := json.Unmarshal(reviewResponseByte, &reviewResponses); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
+		return nil, err
+	}
+	return reviewResponses, nil
+}
+
 func ReviewPullRequest(ctx *context.Context, orgName, repoName, action string, prNumber int, body string) (model.ReviewPullRequestResponse, error) {
 	reviewRequest := map[string]interface{}{
 		"event": strings.ToUpper(action),
@@ -288,7 +301,7 @@ func ReviewPullRequest(ctx *context.Context, orgName, repoName, action string, p
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
-	reviewResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	reviewResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
