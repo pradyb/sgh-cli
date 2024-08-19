@@ -1,16 +1,12 @@
 package prompt
 
 import (
-	"sync"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
@@ -22,11 +18,11 @@ type delegateKeyMap struct {
 }
 
 type eventMsg struct {
-	eventType        string
-	prResponse       model.PullRequestResponse
-	commitResponse   model.CommitResponse
-	checkRunResponse model.CheckRunResponse
-	prReviews        []model.ReviewPullRequestResponse
+	eventType  string
+	ctx        *context.Context
+	orgName    string
+	repoName   string
+	selectedPR model.PullRequestResponse
 }
 
 func newDelegateKeyMap() *delegateKeyMap {
@@ -78,14 +74,15 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 			switch {
 			case key.Matches(msg, keys.status):
 				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("PR status " + title))
-				pullRequestResponse, commitResponse, checkRunResponse, prReviews := getPRDetails(ctx, orgName, selectedPR.RepositoryName(), selectedPR.PRNumber, selectedPR.Head.Sha)
 				eventCmd := func() tea.Msg {
-					return eventMsg{eventType: "STATUS", prResponse: pullRequestResponse, commitResponse: commitResponse, checkRunResponse: checkRunResponse, prReviews: prReviews}
+					return eventMsg{eventType: "STATUS", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
 				}
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.approve):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("TBD: Approving the PR " + title))
-				eventCmd := func() tea.Msg { return eventMsg{eventType: "APPROVE"} }
+				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approving the PR " + title))
+				eventCmd := func() tea.Msg {
+					return eventMsg{eventType: "APPROVE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
+				}
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.merge):
 				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("TBD: Merging the PR " + title))
@@ -113,34 +110,4 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 	}
 
 	return d
-}
-
-func getPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.CommitResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
-
-	var wg sync.WaitGroup
-	var pullRequestResponse model.PullRequestResponse
-	var commitResponse model.CommitResponse
-	var checkRunResponse model.CheckRunResponse
-	var prReviews []model.ReviewPullRequestResponse
-
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
-	}()
-	go func() {
-		defer wg.Done()
-		commitResponse = commit.GetCommitInfo(ctx, orgName, repoName, lastSha)
-	}()
-	go func() {
-		defer wg.Done()
-		checkRunResponse = commit.GetCommitCheckRuns(ctx, orgName, repoName, lastSha)
-	}()
-	go func() {
-		defer wg.Done()
-		prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
-	}()
-
-	wg.Wait()
-	return pullRequestResponse, commitResponse, checkRunResponse, prReviews
 }

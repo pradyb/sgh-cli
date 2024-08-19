@@ -51,6 +51,14 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 	return responses
 }
 
+func ReviewPullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, body, event string) model.ReviewPullRequestResponse {
+	response, err := service.ReviewPullRequest(ctx, orgName, repoName, prNumber, event, body)
+	if err != nil {
+		return model.ReviewPullRequestResponse{ErrorMessage: err.Error()}
+	}
+	return response
+}
+
 func ListPullRequestReviews(ctx *context.Context, orgName string, repoName string, prNumber int) []model.ReviewPullRequestResponse {
 	response, err := service.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
 	if err != nil {

@@ -292,7 +292,7 @@ func ListPullRequestReviews(ctx *context.Context, orgName, repoName string, prNu
 	return reviewResponses, nil
 }
 
-func ReviewPullRequest(ctx *context.Context, orgName, repoName, action string, prNumber int, body string) (model.ReviewPullRequestResponse, error) {
+func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber int, action, body string) (model.ReviewPullRequestResponse, error) {
 	reviewRequest := map[string]interface{}{
 		"event": strings.ToUpper(action),
 		"body":  body,
