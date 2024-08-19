@@ -2,16 +2,13 @@ package prompt
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -44,9 +41,6 @@ var (
 	CellStyle   = re.NewStyle().Padding(0, 1)
 	BorderStyle = lipgloss.NewStyle().Foreground(ui.White).BorderBottom(true)
 	HeaderStyle = re.NewStyle().Foreground(ui.White).Bold(true).Align(lipgloss.Center)
-
-	actionItemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	actionSelectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
 )
 
 type prModel struct {
@@ -54,10 +48,6 @@ type prModel struct {
 	delegateKeys   *delegateKeyMap
 	showEventPanel bool
 	sections       []string
-
-	//actionList     list.Model
-	//selectedAction string
-	//actionExit     bool
 }
 
 func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
@@ -103,33 +93,25 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case eventMsg:
 		eventType := msg.eventType
-		switch eventType {
-		case "STATUS", "APPROVE":
-			m.showEventPanel = true
-			var reviewResponse model.ReviewPullRequestResponse
-			var actionMessage string
-			actionFailed := true
-			pullRequestResponse, commitResponse, checkRunResponse, prReviews := getPRDetails(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha)
-			if eventType == "APPROVE" {
-				if canApprove(msg.selectedPR, prReviews) {
-					reviewResponse = pr.ReviewPullRequest(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, "APPROVE", "Changes approved")
-					if reviewResponse.ErrorMessage != "" {
-						actionMessage = reviewResponse.ErrorMessage
-					} else {
-						actionMessage = "PR Approved successfully"
-						prReviews = pr.ListPullRequestReviews(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber)
-						actionFailed = false
-					}
+		m.showEventPanel = true
+		var actionMessage string
+		actionFailed := true
+		pullRequestResponse, commitResponse, checkRunResponse, prReviews := pr.GetPRDetails(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha)
+		if eventType == "APPROVE" {
+			if canApprove(msg.selectedPR, prReviews) {
+				reviewResponse := pr.ReviewPullRequest(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, "APPROVE", "Changes approved")
+				if reviewResponse.ErrorMessage != "" {
+					actionMessage = reviewResponse.ErrorMessage
 				} else {
-					actionMessage = "PR is not mergeable"
+					actionMessage = "PR Approved successfully"
+					prReviews = pr.ListPullRequestReviews(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber)
+					actionFailed = false
 				}
+			} else {
+				actionMessage = "PR is not mergeable"
 			}
-			m.sections = statusSections(pullRequestResponse, commitResponse, checkRunResponse, prReviews, actionMessage, actionFailed)
-		case "MERGE":
-			m.showEventPanel = true
-		case "APPROVE_MERGE":
-			m.showEventPanel = true
 		}
+		m.sections = getPRStatusSections(pullRequestResponse, commitResponse, checkRunResponse, prReviews, eventType, actionMessage, actionFailed)
 	case tea.WindowSizeMsg:
 		h, v := listStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
@@ -158,41 +140,11 @@ func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, 
 	return nil
 }
 
-func getPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.CommitResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
-
-	var wg sync.WaitGroup
-	var pullRequestResponse model.PullRequestResponse
-	var commitResponse model.CommitResponse
-	var checkRunResponse model.CheckRunResponse
-	var prReviews []model.ReviewPullRequestResponse
-
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
-	}()
-	go func() {
-		defer wg.Done()
-		commitResponse = commit.GetCommitInfo(ctx, orgName, repoName, lastSha)
-	}()
-	go func() {
-		defer wg.Done()
-		checkRunResponse = commit.GetCommitCheckRuns(ctx, orgName, repoName, lastSha)
-	}()
-	go func() {
-		defer wg.Done()
-		prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
-	}()
-
-	wg.Wait()
-	return pullRequestResponse, commitResponse, checkRunResponse, prReviews
-}
-
 func canApprove(prResponse model.PullRequestResponse, _ []model.ReviewPullRequestResponse) bool {
 	return prResponse.Mergeable
 }
 
-func statusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, actionResponse string, actionFailed bool) []string {
+func getPRStatusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionFailed bool) []string {
 	var sections []string
 
 	titleView := lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color(ui.CrayolaGreen)).Padding(0, 1).Align(lipgloss.Center)
@@ -212,13 +164,9 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 		sections = append(sections, getReviewTable(prReviews))
 	}
 
-	//sections = append(sections, "\n")
-	//sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Actions"))
-	//sections = append(sections, getActionsList(prResponse))
-
 	if actionResponse != "" {
 		sections = append(sections, "\n")
-		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Action Status"))
+		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Action Status: "+eventType))
 		if !actionFailed {
 			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Green).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Blink(true).Render(actionResponse))
 		} else {
@@ -365,58 +313,4 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 
 	reviewsTableView := lipgloss.NewStyle().BorderForeground(ui.White)
 	return reviewsTableView.Render(reviewsTable.String())
-}
-
-type item string
-
-func (i item) FilterValue() string { return "" }
-
-func getActionsList(prResponse model.PullRequestResponse) string {
-
-	actions := make([]string, 0)
-
-	actions = append(actions, "No Action")
-	if prResponse.Mergeable {
-		actions = append(actions, "Approve")
-		actions = append(actions, "Merge")
-		actions = append(actions, "Approve and Merge")
-	} else {
-		actions = append(actions, "Approve")
-	}
-
-	items := make([]list.Item, len(actions))
-	for i, action := range actions {
-		items[i] = item(action)
-	}
-
-	l := list.New(items, itemDelegate{}, 0, 0)
-	l.Title = "Actions ?"
-	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
-	l.Styles.Title = titleStyle
-
-	return listStyle.Render(l.View())
-}
-
-type itemDelegate struct{}
-
-func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 0 }
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(item)
-	if !ok {
-		return
-	}
-
-	str := fmt.Sprintf("%d. %s", index+1, i)
-
-	fn := actionItemStyle.Render
-	if index == m.Index() {
-		fn = func(s ...string) string {
-			return actionSelectedItemStyle.Render("> " + strings.Join(s, " "))
-		}
-	}
-
-	fmt.Fprint(w, fn(str))
 }

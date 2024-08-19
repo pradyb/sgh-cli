@@ -1,9 +1,12 @@
 package pr
 
 import (
+	"sync"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
+	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
@@ -94,4 +97,34 @@ func MergePullRequest(ctx *context.Context, orgName string, repoName string, prN
 	}
 	response.RepositoryName = actualRepoNames[0]
 	return response
+}
+
+func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.CommitResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+
+	var wg sync.WaitGroup
+	var pullRequestResponse model.PullRequestResponse
+	var commitResponse model.CommitResponse
+	var checkRunResponse model.CheckRunResponse
+	var prReviews []model.ReviewPullRequestResponse
+
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		pullRequestResponse = GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+	}()
+	go func() {
+		defer wg.Done()
+		commitResponse = commit.GetCommitInfo(ctx, orgName, repoName, lastSha)
+	}()
+	go func() {
+		defer wg.Done()
+		checkRunResponse = commit.GetCommitCheckRuns(ctx, orgName, repoName, lastSha)
+	}()
+	go func() {
+		defer wg.Done()
+		prReviews = ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+	}()
+
+	wg.Wait()
+	return pullRequestResponse, commitResponse, checkRunResponse, prReviews
 }
