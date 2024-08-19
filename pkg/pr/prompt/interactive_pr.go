@@ -11,6 +11,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,11 +20,7 @@ import (
 )
 
 const (
-	hyperLinkFormat = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
-
-	white     = lipgloss.Color("#FFFFFF")
-	gray      = lipgloss.Color("#CCC9C9")
-	lightGray = lipgloss.Color("#959393")
+	mergeableTitle = "Mergeable ?"
 )
 
 var (
@@ -32,8 +29,8 @@ var (
 	statusModelStyle = lipgloss.NewStyle().Padding(1, 2)
 
 	titleStyle = lipgloss.NewStyle().
-			Foreground(white).
-			Background(lipgloss.Color("#25A065")).
+			Foreground(ui.White).
+			Background(lipgloss.Color(ui.CrayolaGreen)).
 			Padding(0, 1)
 
 	statusMessageStyle = lipgloss.NewStyle().
@@ -42,8 +39,8 @@ var (
 
 	re          = lipgloss.NewRenderer(os.Stdout)
 	CellStyle   = re.NewStyle().Padding(0, 1)
-	BorderStyle = lipgloss.NewStyle().Foreground(white).BorderBottom(true)
-	HeaderStyle = re.NewStyle().Foreground(white).Bold(true).Align(lipgloss.Center)
+	BorderStyle = lipgloss.NewStyle().Foreground(ui.White).BorderBottom(true)
+	HeaderStyle = re.NewStyle().Foreground(ui.White).Bold(true).Align(lipgloss.Center)
 )
 
 type prModel struct {
@@ -141,10 +138,30 @@ func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, 
 func statusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse) []string {
 	var sections []string
 
-	titleView := lipgloss.NewStyle().Foreground(white).Background(lipgloss.Color("#25A065")).Padding(0, 1).Align(lipgloss.Center)
-	responseRows := make([][]string, 0)
+	titleView := lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color(ui.CrayolaGreen)).Padding(0, 1).Align(lipgloss.Center)
 
+	sections = append(sections, titleView.Render(prResponse.Title()))
+	sections = append(sections, "\n")
+	sections = append(sections, getPRResponseTable(prResponse, commitResponse))
+
+	if len(checkRunResponse.CheckRuns) > 0 {
+		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs"))
+		sections = append(sections, getCheckRunsTable(checkRunResponse))
+	}
+
+	if len(prReviews) > 0 {
+		sections = append(sections, "\n")
+		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Reviews Status"))
+		sections = append(sections, getReviewTable(prReviews))
+	}
+
+	return sections
+}
+
+func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse model.CommitResponse) string {
+	responseRows := make([][]string, 0)
 	modifiedFiles := make([]string, 0)
+
 	if len(commitResponse.Files) > 0 {
 		for _, file := range commitResponse.Files {
 			modifiedFiles = append(modifiedFiles, file.Filename)
@@ -159,7 +176,7 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 	responseRows = append(responseRows, []string{"Repository", prResponse.RepositoryName()})
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
-	responseRows = append(responseRows, []string{"Mergeable ?", strconv.FormatBool(prResponse.Mergeable)})
+	responseRows = append(responseRows, []string{mergeableTitle, strconv.FormatBool(prResponse.Mergeable)})
 	responseRows = append(responseRows, []string{"Mergeable State", prResponse.MergeableState})
 	responseRows = append(responseRows, []string{"Review comments", strconv.Itoa(prResponse.ReviewComments)})
 	responseRows = append(responseRows, []string{"Comments", strconv.Itoa(prResponse.Comments)})
@@ -167,7 +184,7 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 	responseRows = append(responseRows, []string{"Total files #", strconv.Itoa(prResponse.ChangedFiles)})
 	responseRows = append(responseRows, []string{"Modified files in last commit", strings.Join(modifiedFiles, "\n")})
 	responseRows = append(responseRows, []string{"Changes", strconv.Itoa(prResponse.Additions) + " Additions, " + strconv.Itoa(prResponse.Deletions) + " Deletions"})
-	responseRows = append(responseRows, []string{"Review link", fmt.Sprintf(hyperLinkFormat, prResponse.HTMLUrl, "Open")})
+	responseRows = append(responseRows, []string{"Review link", fmt.Sprintf(ui.HyperLinkFormat, prResponse.HTMLUrl, "Open")})
 
 	responseTable := ltable.New().
 		Border(lipgloss.HiddenBorder()).
@@ -177,13 +194,13 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 			var style lipgloss.Style
 
 			if col == 0 {
-				style = CellStyle.Foreground(gray).AlignHorizontal(lipgloss.Right)
+				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
 			} else {
-				style = CellStyle.Foreground(white)
-				if responseRows[row-1][0] == "Mergeable ?" && responseRows[row-1][1] == "true" {
-					style = style.Foreground(lipgloss.Color("#25A065")).Blink(true)
-				} else if responseRows[row-1][0] == "Mergeable ?" && responseRows[row-1][1] == "false" {
-					style = style.Foreground(lipgloss.Color("#FF0000"))
+				style = CellStyle.Foreground(ui.White)
+				if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "true" {
+					style = style.Foreground(lipgloss.Color(ui.CrayolaGreen)).Blink(true)
+				} else if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "false" {
+					style = style.Foreground(lipgloss.Color(ui.Red))
 				}
 			}
 
@@ -191,52 +208,51 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 		}).
 		Rows(responseRows...)
 
-	responseTableView := lipgloss.NewStyle().BorderForeground(white)
+	responseTableView := lipgloss.NewStyle().BorderForeground(ui.White)
 	tableRender := responseTable.String()
 
-	sections = append(sections, titleView.Render(prResponse.Title()))
-	sections = append(sections, "\n")
-	sections = append(sections, responseTableView.Render(tableRender))
+	return responseTableView.Render(tableRender)
+}
 
+func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 	checkRunRows := make([][]string, 0)
-	if len(checkRunResponse.CheckRuns) > 0 {
-		for _, checkRun := range checkRunResponse.CheckRuns {
-			checkRunRows = append(checkRunRows, []string{checkRun.Name, checkRun.Status, checkRun.Conclusion, checkRun.StartedAt, checkRun.CompletedAt})
-		}
-
-		checkRunTable := ltable.New().
-			Border(lipgloss.RoundedBorder()).
-			BorderStyle(BorderStyle).
-			BorderRow(true).
-			StyleFunc(func(row, col int) lipgloss.Style {
-				var style lipgloss.Style
-
-				if row == 0 {
-					return HeaderStyle
-				}
-				if col == 0 {
-					style = CellStyle.Foreground(gray).AlignHorizontal(lipgloss.Left)
-				} else if col == 2 {
-					style = CellStyle.Foreground(white)
-					if checkRunRows[row-1][2] == "success" {
-						style = style.Foreground(lipgloss.Color("#25A065")).Blink(true)
-					} else if checkRunRows[row-1][2] == "failure" {
-						style = style.Foreground(lipgloss.Color("#FF0000"))
-					} else if checkRunRows[row-1][2] == "skipped" {
-						style = style.Foreground(lipgloss.Color("#FFA500"))
-					}
-				}
-
-				return style
-			}).
-			Headers("Name", "Status", "Conclusion", "Started At", "Completed At").
-			Rows(checkRunRows...)
-
-		checkRunTableView := lipgloss.NewStyle().BorderForeground(white)
-		sections = append(sections, lipgloss.NewStyle().Foreground(white).Bold(true).Render("Check Runs"))
-		sections = append(sections, checkRunTableView.Render(checkRunTable.String()))
+	for _, checkRun := range checkRunResponse.CheckRuns {
+		checkRunRows = append(checkRunRows, []string{checkRun.Name, checkRun.Status, checkRun.Conclusion, checkRun.StartedAt, checkRun.CompletedAt})
 	}
 
+	checkRunTable := ltable.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			var style lipgloss.Style
+
+			if row == 0 {
+				return HeaderStyle
+			}
+			if col == 0 {
+				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
+			} else if col == 2 {
+				style = CellStyle.Foreground(ui.White)
+				if checkRunRows[row-1][2] == "success" {
+					style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
+				} else if checkRunRows[row-1][2] == "failure" {
+					style = style.Foreground(lipgloss.Color(ui.Red))
+				} else if checkRunRows[row-1][2] == "skipped" {
+					style = style.Foreground(lipgloss.Color("#FFA500"))
+				}
+			}
+
+			return style
+		}).
+		Headers("Name", "Status", "Conclusion", "Started At", "Completed At").
+		Rows(checkRunRows...)
+
+	checkRunTableView := lipgloss.NewStyle().BorderForeground(ui.White)
+	return checkRunTableView.Render(checkRunTable.String())
+}
+
+func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 	prReviewsRows := make([][]string, 0)
 
 	sort.Slice(prReviews, func(i, j int) bool {
@@ -244,43 +260,37 @@ func statusSections(prResponse model.PullRequestResponse, commitResponse model.C
 		submittedAtJ, _ := time.Parse(time.RFC3339, prReviews[j].SubmittedAt)
 		return submittedAtI.After(submittedAtJ)
 	})
-	if len(prReviews) > 0 {
-		for _, review := range prReviews {
-			prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.CommitId})
-		}
-
-		reviewsTable := ltable.New().
-			Border(lipgloss.RoundedBorder()).
-			BorderStyle(BorderStyle).
-			BorderRow(true).
-			StyleFunc(func(row, col int) lipgloss.Style {
-				var style lipgloss.Style
-
-				if row == 0 {
-					return HeaderStyle
-				}
-				if col == 0 {
-					style = CellStyle.Foreground(gray).AlignHorizontal(lipgloss.Left)
-				} else if col == 1 && row == 1 {
-					if prReviewsRows[1][1] == "APPROVED" {
-						style = style.Foreground(lipgloss.Color("#25A065")).Blink(true)
-					} else if prReviewsRows[1][1] == "CHANGES_REQUESTED" {
-						style = style.Foreground(lipgloss.Color("#FF0000"))
-					} else {
-						style = style.Foreground(lipgloss.Color("#FFA500"))
-					}
-				}
-
-				return style
-			}).
-			Headers("Reviewed By", "State", "Submitted At", "Commit Id").
-			Rows(prReviewsRows...)
-
-		reviewsTableView := lipgloss.NewStyle().BorderForeground(white)
-		sections = append(sections, "\n")
-		sections = append(sections, lipgloss.NewStyle().Foreground(white).Bold(true).Render("Reviews Status"))
-		sections = append(sections, reviewsTableView.Render(reviewsTable.String()))
+	for _, review := range prReviews {
+		prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.CommitId})
 	}
 
-	return sections
+	reviewsTable := ltable.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			var style lipgloss.Style
+
+			if row == 0 {
+				return HeaderStyle
+			}
+			if col == 0 {
+				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
+			} else if col == 1 && row == 1 {
+				if prReviewsRows[row-1][1] == "APPROVED" {
+					style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
+				} else if prReviewsRows[row-1][1] == "CHANGES_REQUESTED" {
+					style = style.Foreground(lipgloss.Color(ui.Red))
+				} else {
+					style = style.Foreground(lipgloss.Color("#FFA500"))
+				}
+			}
+
+			return style
+		}).
+		Headers("Reviewed By", "State", "Submitted At", "Commit Id").
+		Rows(prReviewsRows...)
+
+	reviewsTableView := lipgloss.NewStyle().BorderForeground(ui.White)
+	return reviewsTableView.Render(reviewsTable.String())
 }

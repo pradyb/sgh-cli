@@ -12,28 +12,15 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 )
 
-const (
-	hyperLinkFormat           = "\x1b]8;;%s\x07%s\x1b]8;;\x07\u001b[0m"
-	repositoryNameDisplayName = "Repository"
-	errorMessageDisplayName   = "Error Message"
-
-	white     = lipgloss.Color("#FFFFFF")
-	gray      = lipgloss.Color("#CCC9C9")
-	lightGray = lipgloss.Color("#959393")
-	turquoise = lipgloss.Color("#5DE2E7")
-	red       = lipgloss.Color("#FF0000")
-	green     = lipgloss.Color("#00B500")
-)
-
 var (
 	re = lipgloss.NewRenderer(os.Stdout)
 
-	HeaderStyle  = re.NewStyle().Foreground(white).Bold(true).Align(lipgloss.Center)
-	FooterStyle  = re.NewStyle().Foreground(turquoise).Bold(true).Align(lipgloss.Center)
+	HeaderStyle  = re.NewStyle().Foreground(White).Bold(true).Align(lipgloss.Center)
+	FooterStyle  = re.NewStyle().Foreground(Turquoise).Bold(true).Align(lipgloss.Center)
 	CellStyle    = re.NewStyle().Padding(0, 1)
-	OddRowStyle  = CellStyle.Foreground(gray)
-	EvenRowStyle = CellStyle.Foreground(lightGray)
-	BorderStyle  = lipgloss.NewStyle().Foreground(white)
+	OddRowStyle  = CellStyle.Foreground(Gray)
+	EvenRowStyle = CellStyle.Foreground(LightGray)
+	BorderStyle  = lipgloss.NewStyle().Foreground(White)
 )
 
 type TableRowType interface {
@@ -66,7 +53,7 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 
 	if col == 1 {
 		//style = style.Width(22)
-		style = style.Foreground(green)
+		style = style.Foreground(Green)
 	}
 
 	if isFooterPresent && row == totalRows {
@@ -93,7 +80,7 @@ func PrintRepositories(repos []model.Repository) {
 	rows := convertToRows(repos, func(repo model.Repository) []string {
 		prCount := strconv.Itoa(repo.OpenIssuesCount)
 		if repo.OpenIssuesCount != 0 {
-			prCount = fmt.Sprintf(hyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
+			prCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
 		}
 
 		return []string{
@@ -120,7 +107,7 @@ func PrintRepositories(repos []model.Repository) {
 
 			if row != 0 && row < len(rows) {
 				if col == 6 && rows[row-1][col] != "0" {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
 			return style
@@ -156,7 +143,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 
 			if row != 0 && row < len(rows)+1 {
 				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
 			return style
@@ -187,7 +174,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 				pr.ReviewersName(),
 				pr.Status,
 				refs,
-				fmt.Sprintf(hyperLinkFormat, pr.HTMLUrl, "Open"),
+				fmt.Sprintf(HyperLinkFormat, pr.HTMLUrl, "Open"),
 			})
 		}
 	}
@@ -238,7 +225,7 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 			style := defaultTableStyle(row, col, len(mergeResponses), true)
 			if row != 0 && row < len(rows)+1 {
 				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
 			return style
@@ -270,7 +257,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 				style = style.UnsetForeground()
 			}
 			if col == 0 && row != 0 && row != len(rows) {
-				style = style.Foreground(green)
+				style = style.Foreground(Green)
 			}
 
 			return style
@@ -290,7 +277,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
 				if col == 1 && row != 0 {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
 			}).
@@ -345,8 +332,8 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
 				pr.RepositoryName,
-				fmt.Sprintf(hyperLinkFormat, pr.PRHtmlUrl, "PR"),
-				fmt.Sprintf(hyperLinkFormat, pr.TagHtmlUrl, "Tag"),
+				fmt.Sprintf(HyperLinkFormat, pr.PRHtmlUrl, "PR"),
+				fmt.Sprintf(HyperLinkFormat, pr.TagHtmlUrl, "Tag"),
 				pr.TagCommitSHA,
 			})
 		}
@@ -378,7 +365,7 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
 				if col == 1 && row != 0 {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
 			}).
@@ -409,7 +396,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 				style = style.UnsetForeground()
 			}
 			if col == 0 && row != 0 && row != len(rows) {
-				style = style.Foreground(green)
+				style = style.Foreground(Green)
 			}
 
 			return style
@@ -429,7 +416,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
 				if col == 1 && row != 0 {
-					style = style.Foreground(lipgloss.Color(red))
+					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
 			}).
@@ -453,7 +440,7 @@ func getCommitResponses(commitResponses []model.CommitResponse) ([][]string, [][
 				commit.Commit.Author.Date,
 				commit.Commit.Message,
 				strconv.Itoa(commit.Commit.CommentCount),
-				fmt.Sprintf(hyperLinkFormat, commit.HtmlUrl, "Link"),
+				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
 			})
 		}
 	}
@@ -490,11 +477,11 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 				return HeaderStyle
 			}
 			if col == 0 || col == 1 {
-				style = CellStyle.Foreground(lipgloss.Color(white)).AlignVertical(lipgloss.Center)
+				style = CellStyle.Foreground(lipgloss.Color(White)).AlignVertical(lipgloss.Center)
 			}
 			if col == 2 {
 				//style = style.Width(100)
-				style = CellStyle.Foreground(lipgloss.Color(lightGray))
+				style = CellStyle.Foreground(lipgloss.Color(LightGray))
 			}
 
 			return style
@@ -510,7 +497,7 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 	for _, commit := range commitResponses {
 		if commit.ErrorMessage == "" {
 			if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
-				message := fmt.Sprintf(hyperLinkFormat, commit.HtmlUrl, commit.Commit.Message+" ("+commit.Commit.Author.Name+")")
+				message := fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Message+" ("+commit.Commit.Author.Name+")")
 				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], message)
 			}
 		}
