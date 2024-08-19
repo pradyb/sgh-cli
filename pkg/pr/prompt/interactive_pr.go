@@ -98,7 +98,7 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		actionFailed := true
 		pullRequestResponse, commitResponse, checkRunResponse, prReviews := pr.GetPRDetails(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha)
 		if eventType == "APPROVE" {
-			if canApprove(msg.selectedPR, prReviews) {
+			if canApprove(pullRequestResponse, prReviews) {
 				reviewResponse := pr.ReviewPullRequest(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, "APPROVE", "Changes approved")
 				if reviewResponse.ErrorMessage != "" {
 					actionMessage = reviewResponse.ErrorMessage
@@ -211,12 +211,12 @@ func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse mod
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			var style lipgloss.Style
+			style := CellStyle
 
 			if col == 0 {
-				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
+				style = style.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
 			} else {
-				style = CellStyle.Foreground(ui.White)
+				style = style.Foreground(ui.White)
 				if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "true" {
 					style = style.Foreground(lipgloss.Color(ui.CrayolaGreen)).Blink(true)
 				} else if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "false" {
@@ -245,7 +245,7 @@ func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			var style lipgloss.Style
+			style := CellStyle
 
 			if row == 0 {
 				return HeaderStyle
@@ -281,7 +281,7 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 		return submittedAtI.After(submittedAtJ)
 	})
 	for _, review := range prReviews {
-		prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.CommitId})
+		prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.Body})
 	}
 
 	reviewsTable := ltable.New().
@@ -289,7 +289,7 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			var style lipgloss.Style
+			style := CellStyle
 
 			if row == 0 {
 				return HeaderStyle
@@ -308,7 +308,7 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 
 			return style
 		}).
-		Headers("Reviewed By", "State", "Submitted At", "Commit Id").
+		Headers("Reviewed By", "State", "Submitted At", "Body").
 		Rows(prReviewsRows...)
 
 	reviewsTableView := lipgloss.NewStyle().BorderForeground(ui.White)

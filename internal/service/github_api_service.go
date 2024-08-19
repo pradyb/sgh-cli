@@ -301,7 +301,7 @@ func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
-	reviewResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	reviewResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
