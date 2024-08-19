@@ -91,9 +91,9 @@ func (pr PullRequestResponse) FirstReviewerName() string {
 		return ""
 	}
 	if len(pr.Reviewers) > 1 {
-		return pr.Reviewers[0].Login
-	} else {
 		return pr.Reviewers[0].Login + "..."
+	} else {
+		return pr.Reviewers[0].Login
 	}
 }
 

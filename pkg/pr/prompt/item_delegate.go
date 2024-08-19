@@ -84,15 +84,15 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 				}
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.approve):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approving the PR " + title))
+				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("TBD: Approving the PR " + title))
 				eventCmd := func() tea.Msg { return eventMsg{eventType: "APPROVE"} }
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.merge):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Merging the PR " + title))
+				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("TBD: Merging the PR " + title))
 				eventCmd := func() tea.Msg { return eventMsg{eventType: "MERGE"} }
 				return tea.Batch(statusMsgCmd, eventCmd)
 			case key.Matches(msg, keys.approve_merge):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approve and Merging the PR " + title))
+				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("TBD: Approve and Merging the PR " + title))
 				eventCmd := func() tea.Msg { return eventMsg{eventType: "APPROVE_MERGE"} }
 				return tea.Batch(statusMsgCmd, eventCmd)
 			}
