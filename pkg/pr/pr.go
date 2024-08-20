@@ -70,6 +70,14 @@ func ListPullRequestReviews(ctx *context.Context, orgName string, repoName strin
 	return response
 }
 
+func GetPullRequestFiles(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestFilesResponse {
+	response, err := service.GetPullRequestFiles(ctx, orgName, repoName, prNumber)
+	if err != nil {
+		return model.PullRequestFilesResponse{RepositoryName: repoName, PRNumber: prNumber, ErrorMessage: err.Error()}
+	}
+	return model.PullRequestFilesResponse{RepositoryName: repoName, PRNumber: prNumber, Files: response}
+}
+
 func GetPullRequestInfo(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestResponse {
 	response, err := service.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
 	if err != nil {
@@ -99,11 +107,11 @@ func MergePullRequest(ctx *context.Context, orgName string, repoName string, prN
 	return response
 }
 
-func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.CommitResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
 
 	var wg sync.WaitGroup
 	var pullRequestResponse model.PullRequestResponse
-	var commitResponse model.CommitResponse
+	var pullRequestFilesResponse model.PullRequestFilesResponse
 	var checkRunResponse model.CheckRunResponse
 	var prReviews []model.ReviewPullRequestResponse
 
@@ -114,7 +122,7 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 	}()
 	go func() {
 		defer wg.Done()
-		commitResponse = commit.GetCommitInfo(ctx, orgName, repoName, lastSha)
+		pullRequestFilesResponse = GetPullRequestFiles(ctx, orgName, repoName, prNumber)
 	}()
 	go func() {
 		defer wg.Done()
@@ -126,5 +134,5 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 	}()
 
 	wg.Wait()
-	return pullRequestResponse, commitResponse, checkRunResponse, prReviews
+	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews
 }

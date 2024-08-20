@@ -120,6 +120,22 @@ type PRBranch struct {
 	Repo  Repository `json:"repo"`
 }
 
+type PullRequestFilesResponse struct {
+	RepositoryName string
+	PRNumber       int
+	Files          []PullRequestFile
+	ErrorMessage   string
+}
+
+type PullRequestFile struct {
+	Sha       string `json:"sha"`
+	Filename  string `json:"filename"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	Changes   int    `json:"changes"`
+	Status    string `json:"status"`
+}
+
 type MergeResponse struct {
 	RepositoryName string
 	Merged         bool   `json:"merged"`

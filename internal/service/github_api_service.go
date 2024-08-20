@@ -292,6 +292,19 @@ func ListPullRequestReviews(ctx *context.Context, orgName, repoName string, prNu
 	return reviewResponses, nil
 }
 
+func GetPullRequestFiles(ctx *context.Context, orgName, repoName string, prNumber int) ([]model.PullRequestFile, error) {
+	filesResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
+	if err != nil {
+		return nil, err
+	}
+	var files []model.PullRequestFile
+	if err := json.Unmarshal(filesResponseByte, &files); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR files response body")
+		return nil, err
+	}
+	return files, nil
+}
+
 func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber int, action, body string) (model.ReviewPullRequestResponse, error) {
 	reviewRequest := map[string]interface{}{
 		"event": strings.ToUpper(action),

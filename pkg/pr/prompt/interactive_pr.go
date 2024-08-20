@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	mergeableTitle = "Mergeable ?"
+	mergeableTitle      = "Mergeable ?"
+	mergeableStateTitle = "Mergeable State"
 )
 
 var (
@@ -94,24 +95,9 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		eventType := msg.eventType
 		m.showEventPanel = true
-		var actionMessage string
-		actionFailed := true
-		pullRequestResponse, commitResponse, checkRunResponse, prReviews := pr.GetPRDetails(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha)
-		if eventType == "APPROVE" {
-			if canApprove(pullRequestResponse, prReviews) {
-				reviewResponse := pr.ReviewPullRequest(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, "APPROVE", "Changes approved")
-				if reviewResponse.ErrorMessage != "" {
-					actionMessage = reviewResponse.ErrorMessage
-				} else {
-					actionMessage = "PR Approved successfully"
-					prReviews = pr.ListPullRequestReviews(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber)
-					actionFailed = false
-				}
-			} else {
-				actionMessage = "PR is not mergeable"
-			}
-		}
-		m.sections = getPRStatusSections(pullRequestResponse, commitResponse, checkRunResponse, prReviews, eventType, actionMessage, actionFailed)
+		pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess := processEventMsg(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha, eventType)
+		m.sections = getPRStatusSections(pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, eventType, actionMessage, actionSuccess)
+
 	case tea.WindowSizeMsg:
 		h, v := listStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
@@ -140,18 +126,79 @@ func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, 
 	return nil
 }
 
-func canApprove(prResponse model.PullRequestResponse, _ []model.ReviewPullRequestResponse) bool {
+func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber int, lastSha, eventType string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse, string, bool) {
+	var actionMessage string
+	actionSuccess := true
+	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetails(ctx, orgName, repoName, prNumber, lastSha)
+	if eventType == "APPROVE" {
+		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
+	} else if eventType == "MERGE" || eventType == "APPROVE_MERGE" {
+
+		if eventType == "APPROVE_MERGE" {
+			actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
+		}
+
+		if actionSuccess {
+			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews)
+			if actionSuccess {
+				pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+				prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+				actionSuccess = false
+			}
+		}
+	}
+	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess
+}
+
+func canApprovePR(prResponse model.PullRequestResponse) bool {
 	return prResponse.Mergeable
 }
 
-func getPRStatusSections(prResponse model.PullRequestResponse, commitResponse model.CommitResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionFailed bool) []string {
+func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
+	if canApprovePR(prResponse) {
+		reviewResponse := pr.ReviewPullRequest(ctx, orgName, repoName, prNumber, "APPROVE", "Changes approved")
+		if reviewResponse.ErrorMessage != "" {
+			return reviewResponse.ErrorMessage, false
+		}
+		return "PR Approved successfully", true
+	} else {
+		return "PR cannot be approved at this moment", false
+	}
+}
+
+func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse) bool {
+	if !canApprovePR(prResponse) {
+		return false
+	}
+	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" {
+		if len(prReviews) == 0 || prReviews[0].State != "APPROVED" {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse) (string, bool) {
+	if canMergePR(prResponse, prReviews) {
+		mergeResponse := pr.MergePullRequest(ctx, orgName, repoName, prNumber, prResponse.Title(), "Merging the PR")
+		if mergeResponse.ErrorMessage != "" {
+			return mergeResponse.ErrorMessage, false
+		}
+		return "PR Merged successfully", true
+	} else {
+		return "PR is not mergeable", false
+	}
+}
+
+func getPRStatusSections(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionSuccess bool) []string {
 	var sections []string
 
 	titleView := lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color(ui.CrayolaGreen)).Padding(0, 1).Align(lipgloss.Center)
 
 	sections = append(sections, titleView.Render(prResponse.Title()))
 	sections = append(sections, "\n")
-	sections = append(sections, getPRResponseTable(prResponse, commitResponse))
+	sections = append(sections, getPRResponseTable(prResponse, pullRequestFilesResponse))
 
 	if len(checkRunResponse.CheckRuns) > 0 {
 		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs"))
@@ -167,7 +214,7 @@ func getPRStatusSections(prResponse model.PullRequestResponse, commitResponse mo
 	if actionResponse != "" {
 		sections = append(sections, "\n")
 		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Action Status: "+eventType))
-		if !actionFailed {
+		if actionSuccess {
 			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Green).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Blink(true).Render(actionResponse))
 		} else {
 			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Red).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Render(actionResponse))
@@ -177,12 +224,12 @@ func getPRStatusSections(prResponse model.PullRequestResponse, commitResponse mo
 	return sections
 }
 
-func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse model.CommitResponse) string {
+func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse) string {
 	responseRows := make([][]string, 0)
 	modifiedFiles := make([]string, 0)
 
-	if len(commitResponse.Files) > 0 {
-		for _, file := range commitResponse.Files {
+	if len(pullRequestFilesResponse.Files) > 0 {
+		for _, file := range pullRequestFilesResponse.Files {
 			modifiedFiles = append(modifiedFiles, file.Filename)
 			if len(modifiedFiles) == 5 {
 				modifiedFiles = append(modifiedFiles, "...")
@@ -197,12 +244,12 @@ func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse mod
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{mergeableTitle, strconv.FormatBool(prResponse.Mergeable)})
-	responseRows = append(responseRows, []string{"Mergeable State", prResponse.MergeableState})
+	responseRows = append(responseRows, []string{mergeableStateTitle, prResponse.MergeableState})
 	responseRows = append(responseRows, []string{"Review comments", strconv.Itoa(prResponse.ReviewComments)})
 	responseRows = append(responseRows, []string{"Comments", strconv.Itoa(prResponse.Comments)})
 	responseRows = append(responseRows, []string{"Commits", strconv.Itoa(prResponse.Commits)})
 	responseRows = append(responseRows, []string{"Total files #", strconv.Itoa(prResponse.ChangedFiles)})
-	responseRows = append(responseRows, []string{"Modified files in last commit", strings.Join(modifiedFiles, "\n")})
+	responseRows = append(responseRows, []string{"Files changed", strings.Join(modifiedFiles, "\n")})
 	responseRows = append(responseRows, []string{"Changes", strconv.Itoa(prResponse.Additions) + " Additions, " + strconv.Itoa(prResponse.Deletions) + " Deletions"})
 	responseRows = append(responseRows, []string{"Review link", fmt.Sprintf(ui.HyperLinkFormat, prResponse.HTMLUrl, "Open")})
 
@@ -211,19 +258,7 @@ func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse mod
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := CellStyle
-
-			if col == 0 {
-				style = style.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
-			} else {
-				style = style.Foreground(ui.White)
-				if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "true" {
-					style = style.Foreground(lipgloss.Color(ui.CrayolaGreen)).Blink(true)
-				} else if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "false" {
-					style = style.Foreground(lipgloss.Color(ui.Red))
-				}
-			}
-
+			style := getPRTableStyle(col, responseRows, row)
 			return style
 		}).
 		Rows(responseRows...)
@@ -232,6 +267,26 @@ func getPRResponseTable(prResponse model.PullRequestResponse, commitResponse mod
 	tableRender := responseTable.String()
 
 	return responseTableView.Render(tableRender)
+}
+
+func getPRTableStyle(col int, responseRows [][]string, row int) lipgloss.Style {
+	style := CellStyle
+
+	if col == 0 {
+		style = style.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
+	} else {
+		style = style.Foreground(ui.White)
+		if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "true" {
+			style = style.Foreground(lipgloss.Color(ui.CrayolaGreen)).Blink(true)
+		} else if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "false" {
+			style = style.Foreground(lipgloss.Color(ui.Red))
+		} else if responseRows[row-1][0] == mergeableStateTitle && responseRows[row-1][1] == "clean" {
+			style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
+		} else if responseRows[row-1][0] == mergeableStateTitle {
+			style = style.Foreground(lipgloss.Color(ui.Red))
+		}
+	}
+	return style
 }
 
 func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
@@ -255,7 +310,7 @@ func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 			} else if col == 2 {
 				style = CellStyle.Foreground(ui.White)
 				if checkRunRows[row-1][2] == "success" {
-					style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
+					style = style.Foreground(lipgloss.Color(ui.Green))
 				} else if checkRunRows[row-1][2] == "failure" {
 					style = style.Foreground(lipgloss.Color(ui.Red))
 				} else if checkRunRows[row-1][2] == "skipped" {
