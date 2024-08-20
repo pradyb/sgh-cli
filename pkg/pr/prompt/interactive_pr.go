@@ -54,6 +54,8 @@ type prModel struct {
 	spinner        spinner.Model
 }
 
+type sectionEvent []string
+
 func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
 	pullRequests := pr.ListPullRequests(ctx, orgName, repoNames, baseRef, headRef, all)
 	items := make([]list.Item, len(pullRequests))
@@ -113,8 +115,13 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		eventType := msg.eventType
 		m.showEventPanel = true
 		m.showSpinner = true
+
 		pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess := processEventMsg(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha, eventType)
-		m.sections = getPRStatusSections(pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, eventType, actionMessage, actionSuccess)
+		cmd := getPRStatusSections(pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, eventType, actionMessage, actionSuccess)
+		cmds = append(cmds, cmd)
+
+	case sectionEvent:
+		m.sections = []string(msg)
 		m.showSpinner = false
 
 	case tea.WindowSizeMsg:
@@ -212,7 +219,7 @@ func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 	}
 }
 
-func getPRStatusSections(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionSuccess bool) []string {
+func getPRStatusSections(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionSuccess bool) tea.Cmd {
 	var sections []string
 
 	titleView := lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color(ui.CrayolaGreen)).Padding(0, 1).Align(lipgloss.Center)
@@ -242,7 +249,7 @@ func getPRStatusSections(prResponse model.PullRequestResponse, pullRequestFilesR
 		}
 	}
 
-	return sections
+	return func() tea.Msg { return sectionEvent(sections) }
 }
 
 func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse) string {
