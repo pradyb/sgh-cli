@@ -32,8 +32,8 @@ func newDelegateKeyMap() *delegateKeyMap {
 			key.WithHelp("s", "status"),
 		),
 		approve: key.NewBinding(
-			key.WithKeys("a"),
-			key.WithHelp("a", "approve"),
+			key.WithKeys("A"),
+			key.WithHelp("A", "approve"),
 		),
 		merge: key.NewBinding(
 			key.WithKeys("m"),

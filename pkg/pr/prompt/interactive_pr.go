@@ -14,6 +14,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	ltable "github.com/charmbracelet/lipgloss/table"
@@ -49,6 +50,8 @@ type prModel struct {
 	delegateKeys   *delegateKeyMap
 	showEventPanel bool
 	sections       []string
+	showSpinner    bool
+	spinner        spinner.Model
 }
 
 func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
@@ -65,26 +68,40 @@ func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef,
 	prList.Title = "Interactive Pull Request options"
 	prList.Styles.Title = titleStyle
 
+	s := spinner.New()
+	s.Spinner = spinner.Points
+	s.Style = lipgloss.NewStyle().Foreground(ui.Green)
+
 	return prModel{
 		list:           prList,
 		delegateKeys:   delegateKeys,
 		showEventPanel: false,
+		showSpinner:    false,
+		spinner:        s,
 	}
 }
 
 func (m prModel) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m prModel) View() string {
 	if !m.showEventPanel {
 		return listStyle.Render(m.list.View())
 	} else {
-		return lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			listStyle.Render(m.list.View()),
-			statusModelStyle.Render(lipgloss.JoinVertical(lipgloss.Center, m.sections...)),
-		)
+		if m.showSpinner {
+			return lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				listStyle.Render(m.list.View()),
+				statusModelStyle.Render(fmt.Sprintf("\n\n  %s Processing ...\n\n", m.spinner.View())),
+			)
+		} else {
+			return lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				listStyle.Render(m.list.View()),
+				statusModelStyle.Render(lipgloss.JoinVertical(lipgloss.Center, m.sections...)),
+			)
+		}
 	}
 }
 
@@ -95,8 +112,10 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		eventType := msg.eventType
 		m.showEventPanel = true
+		m.showSpinner = true
 		pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess := processEventMsg(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha, eventType)
 		m.sections = getPRStatusSections(pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, eventType, actionMessage, actionSuccess)
+		m.showSpinner = false
 
 	case tea.WindowSizeMsg:
 		h, v := listStyle.GetFrameSize()
@@ -112,6 +131,8 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	newListModel, cmd := m.list.Update(msg)
 	m.list = newListModel
+	cmds = append(cmds, cmd)
+	m.spinner, cmd = m.spinner.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
