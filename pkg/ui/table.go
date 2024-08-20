@@ -15,8 +15,8 @@ import (
 var (
 	re = lipgloss.NewRenderer(os.Stdout)
 
-	HeaderStyle  = re.NewStyle().Foreground(White).Bold(true).Align(lipgloss.Center)
-	FooterStyle  = re.NewStyle().Foreground(Turquoise).Bold(true).Align(lipgloss.Center)
+	HeaderStyle  = re.NewStyle().Padding(0, 1).Foreground(White).Bold(true).Align(lipgloss.Center)
+	FooterStyle  = re.NewStyle().Padding(0, 1).Foreground(Turquoise).Bold(true).Align(lipgloss.Center)
 	CellStyle    = re.NewStyle().Padding(0, 1)
 	OddRowStyle  = CellStyle.Foreground(Gray)
 	EvenRowStyle = CellStyle.Foreground(LightGray)
@@ -90,6 +90,7 @@ func PrintRepositories(repos []model.Repository) {
 			repo.DefaultBranch,
 			repo.Language,
 			repo.SSHUrl,
+			fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl, "Link"),
 			prCount,
 			strconv.Itoa(repo.Size),
 		}
@@ -105,14 +106,17 @@ func PrintRepositories(repos []model.Repository) {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), true)
 
+			if col == 2 {
+				style = style.Width(40)
+			}
 			if row != 0 && row < len(rows) {
-				if col == 6 && rows[row-1][col] != "0" {
+				if col == 7 && rows[row-1][col] != "0" {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
 			return style
 		}).
-		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "Open PRs", "Size").
+		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "HTML Page", "Open PRs", "Size").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -188,6 +192,9 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), true)
 
+			if col == 2 {
+				style = style.Width(40)
+			}
 			if row != 0 && row < len(rows) {
 				if col == 6 && rows[row-1][6] == "closed" {
 					style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))

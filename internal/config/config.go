@@ -221,17 +221,17 @@ func (config *Config) ActualRepositoryNamesUsingFzf(orgName string, repos []stri
 }
 
 func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string) bool {
-	for _, org := range config.Organizations {
-		if strings.EqualFold(org.Name, orgName) {
-			if org.RepoPatterns.Include != nil {
-				if matchPatterns(org.RepoPatterns.Include, repoName) {
-					return true
-				}
-			}
-			if org.RepoPatterns.Exclude != nil {
-				return !matchPatterns(org.RepoPatterns.Exclude, repoName)
-			}
+	repoPatterns := config.orgData[strings.ToLower(orgName)].RepoPatterns
+	if repoPatterns.Include == nil && repoPatterns.Exclude == nil {
+		return true
+	}
+	if repoPatterns.Include != nil {
+		if matchPatterns(repoPatterns.Include, repoName) {
+			return true
 		}
+	}
+	if repoPatterns.Exclude != nil {
+		return !matchPatterns(repoPatterns.Exclude, repoName)
 	}
 	return false
 }
