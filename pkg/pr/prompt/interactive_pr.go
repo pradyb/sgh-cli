@@ -209,7 +209,8 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 
 func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse) (string, bool) {
 	if canMergePR(prResponse, prReviews) {
-		mergeResponse := pr.MergePullRequest(ctx, orgName, repoName, prNumber, prResponse.Title(), "Merging the PR")
+		title := "Merge pull request #" + strconv.Itoa(prNumber) + " from " + orgName + "/" + prResponse.Head.Ref
+		mergeResponse := pr.MergePullRequest(ctx, orgName, repoName, prNumber, title, prResponse.TitleName)
 		if mergeResponse.ErrorMessage != "" {
 			return mergeResponse.ErrorMessage, false
 		}
@@ -271,6 +272,7 @@ func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesRe
 	responseRows = append(responseRows, []string{"User", prResponse.UserName()})
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
+	responseRows = append(responseRows, []string{"Status", prResponse.Status})
 	responseRows = append(responseRows, []string{mergeableTitle, strconv.FormatBool(prResponse.Mergeable)})
 	responseRows = append(responseRows, []string{mergeableStateTitle, prResponse.MergeableState})
 	responseRows = append(responseRows, []string{"Review comments", strconv.Itoa(prResponse.ReviewComments)})

@@ -227,6 +227,9 @@ func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string)
 	}
 	if repoPatterns.Include != nil {
 		if matchPatterns(repoPatterns.Include, repoName) {
+			if repoPatterns.Exclude != nil {
+				return !matchPatterns(repoPatterns.Exclude, repoName)
+			}
 			return true
 		}
 	}
