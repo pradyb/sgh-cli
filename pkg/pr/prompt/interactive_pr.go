@@ -183,8 +183,10 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetails(ctx, orgName, repoName, prNumber, lastSha)
 	if eventType == "APPROVE" {
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
-		pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
-		prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+		if actionSuccess {
+			pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+			prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+		}
 	} else if eventType == "MERGE" || eventType == "APPROVE_MERGE" {
 
 		if eventType == "APPROVE_MERGE" {
@@ -196,7 +198,6 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 			if actionSuccess {
 				pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
 				prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
-				actionSuccess = false
 			}
 		}
 	}
@@ -226,7 +227,8 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 		return false
 	}
 	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" {
-		if eventType != "APPROVE_MERGE" || len(prReviews) == 0 || prReviews[0].State != "APPROVED" {
+		if eventType != "APPROVE_MERGE" && (len(prReviews) == 0 || prReviews[0].State != "APPROVED") {
+			logger.Flog.Error().Str("state", prResponse.MergeableState).Str("eventType", eventType).Int("prReviews", len(prReviews)).Msgf("PR cannot be merged at this moment")
 			return false
 		}
 		return true
