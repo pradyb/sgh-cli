@@ -1,10 +1,13 @@
 package commit
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -44,9 +47,12 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			responses := commit.ListCommits(ctx, orgName, repoNames, branchName, noOfDays)
+			fmt.Println()
 			if details {
+				logger.Glog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
 				ui.PrintCommitResponses(responses)
 			} else {
+				logger.Glog.Info().Msgf("Printing commit summary for past %d days", noOfDays)
 				ui.PrintCommitSummary(responses, includeMergeCommits)
 			}
 		},

@@ -391,7 +391,6 @@ func PrintCommitResponses(commitResponses []model.CommitResponse) {
 	rows, failedRows := getCommitResponses(commitResponses)
 
 	fmt.Println()
-	fmt.Println()
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
@@ -473,7 +472,6 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 	}
 
 	fmt.Println()
-	fmt.Println()
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
@@ -483,12 +481,13 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 			if row == 0 {
 				return HeaderStyle
 			}
-			if col == 0 || col == 1 {
-				style = CellStyle.Foreground(lipgloss.Color(White)).AlignVertical(lipgloss.Center)
-			}
-			if col == 2 {
+			if col == 0 {
+				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
+			} else if col == 1 {
+				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
+			} else if col == 2 {
 				//style = style.Width(100)
-				style = CellStyle.Foreground(lipgloss.Color(LightGray))
+				style = CellStyle.Foreground(lipgloss.Color(White))
 			}
 
 			return style
@@ -504,7 +503,7 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 	for _, commit := range commitResponses {
 		if commit.ErrorMessage == "" {
 			if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
-				message := fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Message+" ("+commit.Commit.Author.Name+")")
+				message := fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Message+" ("+commit.Commit.Author.Name+")"+" : "+commit.Commit.Author.Date)
 				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], message)
 			}
 		}
