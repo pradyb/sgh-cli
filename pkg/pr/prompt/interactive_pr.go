@@ -189,7 +189,7 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 		}
 
 		if actionSuccess {
-			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews)
+			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews, eventType)
 			if actionSuccess {
 				pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
 				prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
@@ -216,12 +216,12 @@ func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prR
 	}
 }
 
-func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse) bool {
+func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse, eventType string) bool {
 	if !canApprovePR(prResponse) {
 		return false
 	}
 	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" {
-		if len(prReviews) == 0 || prReviews[0].State != "APPROVED" {
+		if eventType != "APPROVE_MERGE" || len(prReviews) == 0 || prReviews[0].State != "APPROVED" {
 			return false
 		}
 		return true
@@ -229,8 +229,8 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 	return false
 }
 
-func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse) (string, bool) {
-	if canMergePR(prResponse, prReviews) {
+func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse, eventType string) (string, bool) {
+	if canMergePR(prResponse, prReviews, eventType) {
 		title := "Merge pull request #" + strconv.Itoa(prNumber) + " from " + orgName + "/" + prResponse.Head.Ref
 		mergeResponse := pr.MergePullRequest(ctx, orgName, repoName, prNumber, title, prResponse.TitleName)
 		if mergeResponse.ErrorMessage != "" {
