@@ -2,12 +2,14 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 var Glog zerolog.Logger
+var Flog zerolog.Logger
 
 func init() {
 	/*output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
@@ -16,5 +18,11 @@ func init() {
 		return fmt.Sprintf("| \x1b[%dm%-6v\x1b[0m|", zerolog.LevelColors[level], strings.ToUpper(level.String()))
 	}
 	Glog = zerolog.New(output).With().Timestamp().Caller().Logger()*/
-	Glog = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
+	d, _ := os.UserHomeDir()
+	runLogFile, _ := os.OpenFile(filepath.Join(d, "sgh.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	multi := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, runLogFile)
+	Glog = log.Output(multi)
+	Flog = zerolog.New(runLogFile).With().Timestamp().Logger()
+	Flog.Info().Msg("Starting sgh-cli")
 }

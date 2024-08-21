@@ -27,6 +27,8 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 		fmt.Printf("REQUEST:\n%s", string(reqDump))
 	}
 
+	logger.Flog.Info().Msgf("Sending %s request to %s", req.Method, req.URL.String())
+
 	res, err := c.Client.Do(req)
 
 	if c.LogResponse {

@@ -15,6 +15,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	logger "github.com/prady-lab/sgh-cli/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			ctx.SetVerbose(verbose)
 			logResponse, _ := cmd.Flags().GetBool("log-response")
 			ctx.SetLogResponse(logResponse)
+			logger.Flog.Info().Msgf("Processing command: %s", cmd.CommandPath())
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()

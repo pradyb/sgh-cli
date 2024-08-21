@@ -12,6 +12,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -182,6 +183,8 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetails(ctx, orgName, repoName, prNumber, lastSha)
 	if eventType == "APPROVE" {
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
+		pullRequestResponse = pr.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+		prReviews = pr.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
 	} else if eventType == "MERGE" || eventType == "APPROVE_MERGE" {
 
 		if eventType == "APPROVE_MERGE" {
@@ -210,8 +213,10 @@ func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prR
 		if reviewResponse.ErrorMessage != "" {
 			return reviewResponse.ErrorMessage, false
 		}
+		logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msg("PR Approved successfully")
 		return "PR Approved successfully", true
 	} else {
+		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR cannot be approved at this moment")
 		return "PR cannot be approved at this moment", false
 	}
 }
@@ -236,8 +241,10 @@ func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 		if mergeResponse.ErrorMessage != "" {
 			return mergeResponse.ErrorMessage, false
 		}
+		logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR Merged successfully")
 		return "PR Merged successfully", true
 	} else {
+		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR cannot be merged at this moment")
 		return "PR is not mergeable", false
 	}
 }
