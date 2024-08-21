@@ -54,6 +54,16 @@ type prModel struct {
 	spinner        spinner.Model
 }
 
+type eventStatusResponse struct {
+	eventType                string
+	pullRequestResponse      model.PullRequestResponse
+	pullRequestFilesResponse model.PullRequestFilesResponse
+	checkRunResponse         model.CheckRunResponse
+	prReviews                []model.ReviewPullRequestResponse
+	actionMessage            string
+	actionSuccess            bool
+}
+
 type sectionEvent []string
 
 func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
@@ -116,8 +126,10 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.showEventPanel = true
 		m.showSpinner = true
 
-		pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess := processEventMsg(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha, eventType)
-		cmd := getPRStatusSections(pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, eventType, actionMessage, actionSuccess)
+		cmd := func() tea.Msg {
+			sections := <-processEventAndGetSectionRenders(msg.ctx, msg.orgName, msg.repoName, msg.selectedPR.PRNumber, msg.selectedPR.Head.Sha, eventType)
+			return sectionEvent(sections)
+		}
 		cmds = append(cmds, cmd)
 
 	case sectionEvent:
@@ -154,7 +166,17 @@ func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, 
 	return nil
 }
 
-func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber int, lastSha, eventType string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse, string, bool) {
+func processEventAndGetSectionRenders(ctx *context.Context, orgName, repoName string, prNumber int, lastSha, eventType string) <-chan []string {
+	ch := make(chan []string)
+	go func() {
+		eventStatusResponse := processEventMsg(ctx, orgName, repoName, prNumber, lastSha, eventType)
+		sections := getSectionsRenders(eventStatusResponse)
+		ch <- sections
+	}()
+	return ch
+}
+
+func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber int, lastSha, eventType string) eventStatusResponse {
 	var actionMessage string
 	actionSuccess := true
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetails(ctx, orgName, repoName, prNumber, lastSha)
@@ -175,7 +197,7 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 			}
 		}
 	}
-	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews, actionMessage, actionSuccess
+	return eventStatusResponse{eventType: eventType, pullRequestResponse: pullRequestResponse, pullRequestFilesResponse: pullRequestFilesResponse, checkRunResponse: checkRunResponse, prReviews: prReviews, actionMessage: actionMessage, actionSuccess: actionSuccess}
 }
 
 func canApprovePR(prResponse model.PullRequestResponse) bool {
@@ -220,37 +242,37 @@ func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 	}
 }
 
-func getPRStatusSections(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse, checkRunResponse model.CheckRunResponse, prReviews []model.ReviewPullRequestResponse, eventType, actionResponse string, actionSuccess bool) tea.Cmd {
+func getSectionsRenders(status eventStatusResponse) []string {
 	var sections []string
 
 	titleView := lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color(ui.CrayolaGreen)).Padding(0, 1).Align(lipgloss.Center)
 
-	sections = append(sections, titleView.Render(prResponse.Title()))
+	sections = append(sections, titleView.Render(status.pullRequestResponse.Title()))
 	sections = append(sections, "\n")
-	sections = append(sections, getPRResponseTable(prResponse, pullRequestFilesResponse))
+	sections = append(sections, getPRResponseTable(status.pullRequestResponse, status.pullRequestFilesResponse))
 
-	if len(checkRunResponse.CheckRuns) > 0 {
+	if len(status.checkRunResponse.CheckRuns) > 0 {
 		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs"))
-		sections = append(sections, getCheckRunsTable(checkRunResponse))
+		sections = append(sections, getCheckRunsTable(status.checkRunResponse))
 	}
 
-	if len(prReviews) > 0 {
+	if len(status.prReviews) > 0 {
 		sections = append(sections, "\n")
 		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Reviews Status"))
-		sections = append(sections, getReviewTable(prReviews))
+		sections = append(sections, getReviewTable(status.prReviews))
 	}
 
-	if actionResponse != "" {
+	if status.actionMessage != "" {
 		sections = append(sections, "\n")
-		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Action Status: "+eventType))
-		if actionSuccess {
-			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Green).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Blink(true).Render(actionResponse))
+		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Action Status: "+status.eventType))
+		if status.actionSuccess {
+			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Green).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Blink(true).Render(status.actionMessage))
 		} else {
-			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Red).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Render(actionResponse))
+			sections = append(sections, lipgloss.NewStyle().Foreground(ui.Red).BorderStyle(lipgloss.RoundedBorder()).PaddingLeft(10).PaddingRight(10).Bold(true).Render(status.actionMessage))
 		}
 	}
 
-	return func() tea.Msg { return sectionEvent(sections) }
+	return sections
 }
 
 func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse) string {

@@ -11,26 +11,37 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/tag"
 )
 
-func ProcessPostRelease(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef, title, body string, createTag bool, tagName string) []model.PostReleaseResponse {
+type PostReleaseRequest struct {
+	OrgName   string
+	RepoNames []string
+	BaseRef   string
+	HeadRef   string
+	Title     string
+	Body      string
+	CreateTag bool
+	TagName   string
+}
+
+func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []model.PostReleaseResponse {
 
 	responses := make([]model.PostReleaseResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationPostRelease,
+	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
 
-			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body)
+			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body)
 			if err != nil {
 				return model.PostReleaseResponse{RepositoryName: repoName}, err
 			}
 			// merge to main/develop
-			mrResponse := pr.MergePullRequest(ctx, orgName, repoName, prResponse.PRNumber, title, body)
+			mrResponse := pr.MergePullRequest(ctx, orgName, repoName, prResponse.PRNumber, request.Title, request.Body)
 			if mrResponse.ErrorMessage != "" {
 				return model.PostReleaseResponse{RepositoryName: repoName}, errors.New(mrResponse.ErrorMessage)
 			}
 
 			// create tag
-			if createTag {
-				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, tagName, baseRef, title)
+			if request.CreateTag {
+				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, request.TagName, request.BaseRef, request.Title)
 				if err != nil {
 					return model.PostReleaseResponse{RepositoryName: repoName}, err
 				}

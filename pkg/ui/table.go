@@ -519,9 +519,6 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
 			} else if col == 1 {
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
-			} else if col == 2 {
-				//style = style.Width(100)
-				//style = CellStyle.Foreground(lipgloss.Color(White))
 			}
 
 			return style
@@ -537,9 +534,6 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 	for _, commit := range commitResponses {
 		if commit.ErrorMessage == "" {
 			if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
-				//message := CommitMessageStyle.Render(commit.Commit.Message) + " (" + CommitAuthorStyle.Render(commit.Commit.Author.Name) + ") : " + CommitDateStyle.Render(commit.Commit.Author.Date) + " " + CommitShaStyle.Render(fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Tree.Sha[:7]))
-				//repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], message)
-
 				repoCommits[commit.RepoName()] = append(repoCommits[commit.RepoName()], commit)
 			}
 		}

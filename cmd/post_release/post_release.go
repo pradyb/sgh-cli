@@ -31,7 +31,7 @@ func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			postReleaseResponses := postrelease.ProcessPostRelease(ctx, orgName, repoNames, baseRef, headRef, title, body, createTag, tagName)
+			postReleaseResponses := postrelease.ProcessPostRelease(ctx, postrelease.PostReleaseRequest{OrgName: orgName, RepoNames: repoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body, CreateTag: createTag, TagName: tagName})
 			ui.PrintPostReleaseResponses(postReleaseResponses)
 		},
 	}
