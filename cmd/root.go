@@ -4,6 +4,8 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"strings"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
@@ -17,6 +19,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	logger "github.com/prady-lab/sgh-cli/utils"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewRootCommand(ctx *context.Context) *cobra.Command {
@@ -37,7 +40,14 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			ctx.SetVerbose(verbose)
 			logResponse, _ := cmd.Flags().GetBool("log-response")
 			ctx.SetLogResponse(logResponse)
-			logger.Flog.Info().Msgf("Processing command: %s", cmd.CommandPath())
+			userFlags := make([]string, 0)
+			flags := cmd.Flags()
+			flags.VisitAll(func(f *pflag.Flag) {
+				if f.DefValue != f.Value.String() {
+					userFlags = append(userFlags, "--"+f.Name+" "+f.Value.String())
+				}
+			})
+			logger.Flog.Info().Msgf("Processing command: %s %s", cmd.CommandPath(), strings.Join(userFlags, " "))
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()

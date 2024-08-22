@@ -318,6 +318,7 @@ func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
+	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("event", action).Msgf("PR Review successfully")
 	var reviewResponse model.ReviewPullRequestResponse
 	if err := json.Unmarshal(reviewResponseByte, &reviewResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
@@ -341,6 +342,7 @@ func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber i
 	if err != nil {
 		return model.MergeResponse{}, err
 	}
+	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR Merged successfully")
 	var mergeResponse model.MergeResponse
 	if err := json.Unmarshal(mergeResponseByte, &mergeResponse); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Merge response body")

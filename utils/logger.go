@@ -3,6 +3,7 @@ package logger
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -23,6 +24,9 @@ func init() {
 	runLogFile, _ := os.OpenFile(filepath.Join(d, "sgh.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 	multi := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, runLogFile)
 	Glog = log.Output(multi)
-	Flog = zerolog.New(runLogFile).With().Timestamp().Logger()
-	Flog.Info().Msg("Starting sgh-cli")
+
+	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+		return filepath.Base(file) + ":" + strconv.Itoa(line)
+	}
+	Flog = zerolog.New(runLogFile).With().Timestamp().Caller().Logger()
 }

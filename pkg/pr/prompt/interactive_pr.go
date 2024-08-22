@@ -226,7 +226,7 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 	if !canApprovePR(prResponse) {
 		return false
 	}
-	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" {
+	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" || (eventType == "APPROVE_MERGE" && prResponse.MergeableState == "blocked") {
 		if eventType != "APPROVE_MERGE" && (len(prReviews) == 0 || prReviews[0].State != "APPROVED") {
 			logger.Flog.Error().Str("state", prResponse.MergeableState).Str("eventType", eventType).Int("prReviews", len(prReviews)).Msgf("PR cannot be merged at this moment")
 			return false
@@ -243,10 +243,9 @@ func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 		if mergeResponse.ErrorMessage != "" {
 			return mergeResponse.ErrorMessage, false
 		}
-		logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR Merged successfully")
 		return "PR Merged successfully", true
 	} else {
-		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR cannot be merged at this moment")
+		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("mergeableState", prResponse.MergeableState).Msgf("PR cannot be merged at this moment")
 		return "PR is not mergeable", false
 	}
 }
