@@ -136,5 +136,6 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		}, func(err async.ASyncJobError[any]) {
 			errorHandler(err.JobData.(string), err.Error)
 		})
+	fmt.Println()
 	return nil
 }

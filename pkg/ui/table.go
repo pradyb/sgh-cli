@@ -77,7 +77,6 @@ func printNoDataMessage(message string) {
 		PaddingLeft(2).
 		PaddingBottom(1)
 
-	fmt.Println()
 	fmt.Println(style.Render(message))
 }
 
