@@ -70,7 +70,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 		func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
 			var requestPayload model.ProtectedBranchRequest
 			if err := json.Unmarshal([]byte(payload), &requestPayload); err != nil {
-				return model.ProtectedBranch{}, err
+				return model.ProtectedBranch{RepositoryName: repoName}, err
 			}
 			if !removeStatus && !ctx.Config.IsRepoPresentInIgnoreForStatusCheck(orgName, repoName) {
 				requestPayload.RequiredStatusChecks.Checks = append(requestPayload.RequiredStatusChecks.Checks, model.CheckRequest{Context: "Build", AppID: 15368})
@@ -87,7 +87,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 
 			jsonBody, err := json.Marshal(requestPayload)
 			if err != nil {
-				return model.ProtectedBranch{}, err
+				return model.ProtectedBranch{RepositoryName: repoName}, err
 			}
 			return service.UpdateProtectedBranch(ctx, orgName, repoName, branchName, jsonBody)
 		},
@@ -95,7 +95,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 			responses = append(responses, result.Result)
 		},
 		func(repoName string, err error) {
-			responses = append(responses, model.ProtectedBranch{ErrorMessage: err.Error()})
+			responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()})
 		})
 	return responses
 }

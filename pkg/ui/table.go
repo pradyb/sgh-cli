@@ -40,7 +40,7 @@ func convertToRows[T TableRowType](data []T, rowsConvertHandler rowsConvertHandl
 	for _, d := range data {
 		row := rowsConvertHandler(d)
 		if len(row) > 0 {
-			rows = append(rows, rowsConvertHandler(d))
+			rows = append(rows, row)
 		}
 	}
 	return rows
@@ -132,35 +132,52 @@ func PrintResponses(responses []model.RefUIResponse) {
 		printNoDataMessage("No data found for the given input")
 		return
 	}
+	failedRows := make([][]string, 0)
 	rows := convertToRows(responses, func(response model.RefUIResponse) []string {
-		message := response.SuccessMessage
 		if response.ErrorMessage != "" {
-			message = response.ErrorMessage
+			failedRows = append(failedRows, []string{response.RepositoryName, response.ErrorMessage})
+			return []string{}
 		}
-		return []string{response.RepositoryName,
-			message,
-		}
+		return []string{response.RepositoryName, response.SuccessMessage}
 	})
 
-	fmt.Println()
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(BorderStyle).
-		BorderRow(true).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(responses), false)
+	if len(rows) > 0 {
+		rows = append(rows, []string{"Total items", strconv.Itoa(len(rows))})
+		fmt.Println()
+		t := table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				style := defaultTableStyle(row, col, len(rows), true)
+				return style
+			}).
+			Headers(repositoryNameDisplayName, "Status Message").
+			Rows(rows...)
 
-			if row != 0 && row < len(rows)+1 {
-				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
+		fmt.Println(t)
+	}
+
+	if len(failedRows) > 0 {
+		failedRows = append(failedRows, []string{"Total items", strconv.Itoa(len(failedRows))})
+		fmt.Println()
+		fmt.Println("Failed to process following repositories")
+		t := table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				style := defaultTableStyle(row, col, len(failedRows), true)
+				if col == 1 && row != 0 && row != len(failedRows) {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
-			}
-			return style
-		}).
-		Headers(repositoryNameDisplayName, "Status Message").
-		Rows(rows...)
+				return style
+			}).
+			Headers(repositoryNameDisplayName, errorMessageDisplayName).
+			Rows(failedRows...)
 
-	fmt.Println(t)
+		fmt.Println(t)
+	}
 }
 
 func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
@@ -281,7 +298,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 
 	if len(failedRows) > 0 {
 		fmt.Println()
-		fmt.Println("Failed to fetch details the following repositories")
+		fmt.Println("Failed to process following repositories")
 		t = table.New().
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(BorderStyle).

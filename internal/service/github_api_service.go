@@ -368,12 +368,12 @@ func ListProtectedBranches(ctx *context.Context, orgName, repoName, branchName s
 func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
 	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), bytes.NewReader(payload))
 	if err != nil {
-		return model.ProtectedBranch{}, err
+		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
 	var branch model.ProtectedBranch
 	if err := json.Unmarshal(response, &branch); err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
-		return model.ProtectedBranch{}, err
+		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
 	branch.RepositoryName = repoName
 	return branch, nil
