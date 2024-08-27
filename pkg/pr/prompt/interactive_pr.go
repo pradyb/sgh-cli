@@ -14,6 +14,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 	logger "github.com/prady-lab/sgh-cli/utils"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -145,8 +146,10 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.list.FilterState() == list.Filtering {
 			break
 		}
-		m.showEventPanel = false
-		m.sections = nil
+		if key.Matches(msg, m.list.KeyMap.CursorDown, m.list.KeyMap.CursorUp, m.list.KeyMap.Filter, m.list.KeyMap.ClearFilter, m.list.KeyMap.Quit, m.list.KeyMap.GoToStart, m.list.KeyMap.GoToEnd) {
+			m.showEventPanel = false
+			m.sections = nil
+		}
 	}
 
 	newListModel, cmd := m.list.Update(msg)
