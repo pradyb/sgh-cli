@@ -350,3 +350,17 @@ type CheckRun struct {
 		Text    string `json:"text"`
 	} `json:"output"`
 }
+
+type Team struct {
+	Name         string
+	TotalMembers int
+	Url          string
+	Members      []Member
+}
+
+type Member struct {
+	Login     string
+	Name      string
+	Url       string
+	PeopleUrl string
+}

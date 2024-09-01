@@ -16,6 +16,7 @@ import (
 	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protected_branch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
+	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	logger "github.com/prady-lab/sgh-cli/utils"
 	"github.com/spf13/cobra"
@@ -68,6 +69,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(postrelease.NewPostReleaseCommand(ctx))
 	rootCmd.AddCommand(commit.NewCommitCommand(ctx))
 	rootCmd.AddCommand(clone.NewCloneCommand(ctx))
+	rootCmd.AddCommand(team.NewTeamCommand(ctx))
+
+	//rootCmd.MarkPersistentFlagRequired("org")
 
 	return rootCmd
 }

@@ -27,6 +27,8 @@ require (
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
+	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7 // indirect
+	github.com/shurcooL/graphql v0.0.0-20230722043721-ed46e5a46466 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
@@ -41,4 +43,5 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/schollz/progressbar/v3 v3.14.6
 	github.com/spf13/pflag v1.0.5
+	golang.org/x/oauth2 v0.22.0
 )

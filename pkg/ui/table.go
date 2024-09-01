@@ -30,7 +30,7 @@ var (
 )
 
 type TableRowType interface {
-	model.Repository | model.RefUIResponse | model.ProtectedBranch
+	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.Team
 }
 
 type rowsConvertHandler[T TableRowType] func(data T) []string
@@ -555,4 +555,49 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 		}
 	}
 	return repoCommits
+}
+
+func PrintTeams(teams []model.Team) {
+	if len(teams) == 0 {
+		printNoDataMessage("No Teams found for the given input")
+		return
+	}
+	rows := convertToRows(teams, func(team model.Team) []string {
+		members := make([]string, 0, len(team.Members))
+		for _, member := range team.Members {
+			members = append(members, fmt.Sprintf(HyperLinkFormat, member.PeopleUrl, member.Name))
+		}
+		return []string{
+			fmt.Sprintf(HyperLinkFormat, team.Url, team.Name),
+			strconv.Itoa(team.TotalMembers),
+			strings.Join(members, "\n"),
+		}
+	})
+
+	rows = append(rows, []string{"Total Teams", strconv.Itoa(len(teams))})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := CellStyle
+			if row == 0 {
+				return HeaderStyle
+			}
+			if col == 0 {
+				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
+			} else if col == 1 {
+				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
+			}
+			if row == len(rows) {
+				style = FooterStyle
+			}
+			return style
+		}).
+		Headers("Team Name", "Total Members", "Members").
+		Rows(rows...)
+
+	fmt.Println(t)
 }

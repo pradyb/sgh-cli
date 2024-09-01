@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"os"
 
 	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/shurcooL/githubv4"
 )
 
 type HttpClient struct {
@@ -41,4 +43,17 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 	}
 
 	return res, err
+}
+
+type GraphqlClient struct {
+	Client *githubv4.Client
+}
+
+func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{}) error {
+	err := c.Client.Query(context.Background(), query, variables)
+	if err != nil {
+		fmt.Println(err)
+		logger.Glog.Error().Err(err).Msg("Error in executing the query")
+	}
+	return err
 }
