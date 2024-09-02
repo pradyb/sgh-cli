@@ -10,18 +10,19 @@ type Repositories struct {
 }
 
 type Repository struct {
-	Id              int    `json:"id"`
-	Name            string `json:"name"`
-	Private         bool   `json:"private"`
-	Description     string `json:"description"`
-	DefaultBranch   string `json:"default_branch"`
-	HTMLUrl         string `json:"html_url"`
-	SSHUrl          string `json:"ssh_url"`
-	CloneUrl        string `json:"clone_url"`
-	IssuesUrl       string `json:"issues_url"`
-	OpenIssuesCount int    `json:"open_issues_count"`
-	Language        string `json:"language"`
-	Size            int    `json:"size"`
+	Id                    int    `json:"id"`
+	Name                  string `json:"name"`
+	Private               bool   `json:"private"`
+	Description           string `json:"description"`
+	DefaultBranch         string `json:"default_branch"`
+	HTMLUrl               string `json:"html_url"`
+	SSHUrl                string `json:"ssh_url"`
+	CloneUrl              string `json:"clone_url"`
+	IssuesUrl             string `json:"issues_url"`
+	OpenIssuesCount       int    `json:"open_issues_count"`
+	OpenPullRequestsCount int    `json:"open_pull_requests_count"`
+	Language              string `json:"language"`
+	Size                  int    `json:"size"`
 }
 
 type BranchRequest struct {

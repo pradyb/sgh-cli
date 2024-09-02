@@ -83,9 +83,13 @@ func printNoDataMessage(message string) {
 func PrintRepositories(repos []model.Repository) {
 
 	rows := convertToRows(repos, func(repo model.Repository) []string {
-		prCount := strconv.Itoa(repo.OpenIssuesCount)
-		if repo.OpenIssuesCount != 0 {
+		prCount := strconv.Itoa(repo.OpenPullRequestsCount)
+		if repo.OpenPullRequestsCount != 0 {
 			prCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
+		}
+		issueCount := strconv.Itoa(repo.OpenIssuesCount)
+		if repo.OpenIssuesCount != 0 {
+			issueCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/issues", issueCount)
 		}
 
 		return []string{
@@ -97,7 +101,7 @@ func PrintRepositories(repos []model.Repository) {
 			repo.SSHUrl,
 			fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl, "Link"),
 			prCount,
-			strconv.Itoa(repo.Size),
+			issueCount,
 		}
 	})
 
@@ -115,13 +119,13 @@ func PrintRepositories(repos []model.Repository) {
 				style = style.Width(40)
 			}
 			if row != 0 && row < len(rows) {
-				if col == 7 && rows[row-1][col] != "0" {
+				if (col == 7 || col == 8) && rows[row-1][col] != "0" {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
 			return style
 		}).
-		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "HTML Page", "Open PRs", "Size").
+		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
 		Rows(rows...)
 
 	fmt.Println(t)

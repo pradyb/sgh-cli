@@ -47,6 +47,7 @@ func Init() (*Context, error) {
 func (c *Context) SetVerbose(verbose bool) {
 	c.Verbose = verbose
 	c.HttpClient.Verbose = verbose
+	c.GraphqlClient.Verbose = verbose
 }
 
 func (c *Context) SetLogResponse(logResponse bool) {

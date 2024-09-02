@@ -69,6 +69,13 @@ func (config *Config) RepositoriesNames(orgName string) []string {
 	return config.orgData[strings.ToLower(orgName)].Repositories
 }
 
+func (config *Config) IncludePatterns(orgName string) []string {
+	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Include
+}
+func (config *Config) ExcludePatterns(orgName string) []string {
+	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Exclude
+}
+
 func (config *Config) PullRequestAssignees(orgName string) []string {
 	return config.orgData[strings.ToLower(orgName)].PullRequestAssignees
 }

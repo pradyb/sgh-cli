@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"strconv"
+	"time"
 
 	logger "github.com/prady-lab/sgh-cli/utils"
 	"github.com/shurcooL/githubv4"
@@ -34,11 +36,12 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 	rateLimit := res.Header.Get("X-RateLimit-Limit")
 	rateRemaining := res.Header.Get("X-RateLimit-Remaining")
 	rateUsed := res.Header.Get("X-RateLimit-Used")
-	rateReset := res.Header.Get("X-RateLimit-Reset")
+	rateResetInt, _ := strconv.ParseInt(res.Header.Get("X-RateLimit-Reset"), 10, 64)
+	rateReset := time.Unix(rateResetInt, 0).String()
 	rateResource := res.Header.Get("X-RateLimit-Resource")
 
 	logger.Flog.Info().Msgf("Invoked %s request to %s received status %d", req.Method, req.URL.String(), res.StatusCode)
-	logger.Flog.Info().Str("rateLimit", rateLimit).Str("rateRemaining", rateRemaining).Str("rateUsed", rateUsed).Str("rateResource", rateResource).Str("rateReset", rateReset).Msgf("Rate Limit: %s, Remaining: %s, Used: %s, Reset: %s, Resource: %s", rateLimit, rateRemaining, rateUsed, rateReset, rateResource)
+	logger.Flog.Info().Str("rateLimit", rateLimit).Str("rateRemaining", rateRemaining).Str("rateUsed", rateUsed).Str("rateResource", rateResource).Str("rateReset", rateReset).Msgf("Rate limit details")
 
 	if c.LogResponse {
 		respDump, err := httputil.DumpResponse(res, true)
@@ -53,13 +56,17 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 }
 
 type GraphqlClient struct {
-	Client *githubv4.Client
+	Client  *githubv4.Client
+	Verbose bool
 }
 
 func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{}) error {
+	if c.Verbose {
+		logger.Flog.Info().Msgf("Executing the query  %s", query)
+		logger.Flog.Info().Msgf("Executing the query with the variables %s", variables)
+	}
 	err := c.Client.Query(context.Background(), query, variables)
 	if err != nil {
-		fmt.Println(err)
 		logger.Glog.Error().Err(err).Msg("Error in executing the query")
 	}
 	return err
