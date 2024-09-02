@@ -34,7 +34,7 @@ func listCommand(ctx *context.Context) *cobra.Command {
 		Use:   "list",
 		Short: "List team and members for the given owner/organization",
 		Long: `List team and members for the given owner/organization.
-By default, it will list 10 members in each team.`,
+By default, it will list 50 members in each team.`,
 
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`

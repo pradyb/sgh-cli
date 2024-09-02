@@ -4,6 +4,8 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -37,6 +39,12 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 				$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			if orgName == "" && (!cmd.HasParent() || (cmd.HasParent() && cmd.Parent().Name() != "config" && cmd.Parent().Name() != "repo")) {
+				fmt.Println(`Error: required flag(s) "organization name" not set`)
+				cmd.Help()
+				os.Exit(1)
+			}
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			ctx.SetVerbose(verbose)
 			logResponse, _ := cmd.Flags().GetBool("log-response")
@@ -44,7 +52,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			userFlags := make([]string, 0)
 			flags := cmd.Flags()
 			flags.VisitAll(func(f *pflag.Flag) {
-				if f.DefValue != f.Value.String() {
+				if f.Changed {
 					userFlags = append(userFlags, "--"+f.Name+" "+f.Value.String())
 				}
 			})
@@ -70,8 +78,6 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(commit.NewCommitCommand(ctx))
 	rootCmd.AddCommand(clone.NewCloneCommand(ctx))
 	rootCmd.AddCommand(team.NewTeamCommand(ctx))
-
-	//rootCmd.MarkPersistentFlagRequired("org")
 
 	return rootCmd
 }
