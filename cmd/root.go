@@ -4,8 +4,6 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -39,11 +37,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 				$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			orgName, _ := cmd.Flags().GetString("org")
-			if orgName == "" && (!cmd.HasParent() || (cmd.HasParent() && cmd.Parent().Name() != "config" && cmd.Parent().Name() != "repo")) {
-				fmt.Println(`Error: required flag(s) "organization name" not set`)
-				cmd.Help()
-				os.Exit(1)
+			if cmd.HasParent() && (cmd.Parent().Name() == "config" || cmd.Parent().Name() == "repo") {
+				cmd.InheritedFlags().SetAnnotation("org", cobra.BashCompOneRequiredFlag, []string{"false"})
 			}
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			ctx.SetVerbose(verbose)
@@ -67,6 +62,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
+	rootCmd.MarkPersistentFlagRequired("org")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))
 	rootCmd.AddCommand(repo.NewRepoCommand(ctx))

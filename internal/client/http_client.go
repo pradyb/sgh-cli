@@ -31,7 +31,14 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 
 	res, err := c.Client.Do(req)
 
+	rateLimit := res.Header.Get("X-RateLimit-Limit")
+	rateRemaining := res.Header.Get("X-RateLimit-Remaining")
+	rateUsed := res.Header.Get("X-RateLimit-Used")
+	rateReset := res.Header.Get("X-RateLimit-Reset")
+	rateResource := res.Header.Get("X-RateLimit-Resource")
+
 	logger.Flog.Info().Msgf("Invoked %s request to %s received status %d", req.Method, req.URL.String(), res.StatusCode)
+	logger.Flog.Info().Str("rateLimit", rateLimit).Str("rateRemaining", rateRemaining).Str("rateUsed", rateUsed).Str("rateResource", rateResource).Str("rateReset", rateReset).Msgf("Rate Limit: %s, Remaining: %s, Used: %s, Reset: %s, Resource: %s", rateLimit, rateRemaining, rateUsed, rateReset, rateResource)
 
 	if c.LogResponse {
 		respDump, err := httputil.DumpResponse(res, true)
