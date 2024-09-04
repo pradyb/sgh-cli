@@ -12,42 +12,6 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-var q struct {
-	Search struct {
-		RepositoryCount int
-		PageInfo        struct {
-			EndCursor   string
-			HasNextPage bool
-		}
-		Edges []struct {
-			Node struct {
-				Repository struct {
-					Name             string
-					NameWithOwner    string
-					Url              string
-					SSHUrl           string
-					Description      string
-					IsPrivate        bool
-					IsArchived       bool
-					IsDisabled       bool
-					DefaultBranchRef struct {
-						Name string
-					}
-					PrimaryLanguage struct {
-						Name string
-					}
-					PullRequests struct {
-						TotalCount int
-					} `graphql:"pullRequests(first:1, states: OPEN)"`
-					Issues struct {
-						TotalCount int
-					} `graphql:"issues(first:1, states: OPEN)"`
-				} `graphql:"... on Repository"`
-			}
-		}
-	} `graphql:"search(query: $queryString, type: REPOSITORY, first: 50, after: $repoCursor)"`
-}
-
 func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Repository, error) {
 	var queryString string
 	queryString = "org:" + orgName
@@ -66,12 +30,12 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 
 	repositories := make([]model.Repository, 0)
 	for {
-		err := service.Query(ctx, &q, variables)
+		err := service.Query(ctx, &model.SearchRepository, variables)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, edge := range q.Search.Edges {
+		for _, edge := range model.SearchRepository.Search.Edges {
 			repo := edge.Node.Repository
 			repositories = append(repositories, model.Repository{
 				Name:                  repo.Name,
@@ -84,10 +48,10 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 				OpenPullRequestsCount: repo.PullRequests.TotalCount,
 			})
 		}
-		variables["repoCursor"] = githubv4.String(q.Search.PageInfo.EndCursor)
-		logger.Flog.Info().Msgf("Next page details %t %s", q.Search.PageInfo.HasNextPage, q.Search.PageInfo.EndCursor)
+		variables["repoCursor"] = githubv4.String(model.SearchRepository.Search.PageInfo.EndCursor)
+		logger.Flog.Info().Msgf("Next page details %t %s", model.SearchRepository.Search.PageInfo.HasNextPage, model.SearchRepository.Search.PageInfo.EndCursor)
 
-		if !q.Search.PageInfo.HasNextPage {
+		if !model.SearchRepository.Search.PageInfo.HasNextPage {
 			break
 		}
 	}

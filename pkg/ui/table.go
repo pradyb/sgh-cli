@@ -202,7 +202,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 				pr.UserName(),
 				pr.AssigneesName(),
 				pr.ReviewersName(),
-				pr.Status,
+				pr.State,
 				refs,
 				fmt.Sprintf(HyperLinkFormat, pr.HTMLUrl, "Open"),
 			})

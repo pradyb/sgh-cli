@@ -8,6 +8,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/shurcooL/githubv4"
 )
 
 func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef, title, body string) []model.PullRequestResponse {
@@ -134,5 +135,119 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 	}()
 
 	wg.Wait()
+	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews
+}
+
+func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+
+	variables := map[string]interface{}{
+		"orgName":  githubv4.String(orgName),
+		"repoName": githubv4.String(repoName),
+		"prNumber": githubv4.Int(prNumber),
+	}
+
+	var pullRequestResponse model.PullRequestResponse
+	var pullRequestFilesResponse model.PullRequestFilesResponse
+	var checkRunResponse model.CheckRunResponse
+	var prReviews []model.ReviewPullRequestResponse
+
+	err := service.Query(ctx, &model.PullRequestDetailsQuery, variables)
+	if err != nil {
+		return model.PullRequestResponse{ErrorMessage: err.Error()}, model.PullRequestFilesResponse{}, model.CheckRunResponse{}, nil
+	}
+
+	pullRequestResponse = model.PullRequestResponse{
+		PRNumber:  model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Number,
+		TitleName: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Title,
+		Body:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Body,
+		HTMLUrl:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Url,
+		Base: model.PRBranch{
+			Ref: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.BaseRef.Name,
+			Repo: model.Repository{
+				Name: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.BaseRef.Repository.Name,
+			},
+		},
+		Head: model.PRBranch{
+			Ref: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.HeadRef.Name,
+			Repo: model.Repository{
+				Name: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.HeadRef.Repository.Name,
+			},
+		},
+		User: model.User{
+			Login: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Author.Login,
+		},
+		ReviewDecision:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ReviewDecision,
+		State:            model.PullRequestDetailsQuery.Organization.Repository.PullRequest.State,
+		Mergeable:        model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Mergeable,
+		MergeStateStatus: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergeStateStatus,
+		MergeAt:          model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergedAt,
+		MergedBy: model.User{
+			Login: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergedBy.Login,
+		},
+		ReviewComments: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.TotalCommentsCount,
+		Comments:       model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Comments.TotalCount,
+		Commits:        model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Commits.TotalCount,
+		Additions:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Additions,
+		Deletions:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Deletions,
+		ChangedFiles:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ChangedFiles,
+	}
+
+	for _, assignee := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Assignees.Edges {
+		pullRequestResponse.Assignees = append(pullRequestResponse.Assignees, model.User{
+			Login: assignee.Node.Login,
+			Name:  assignee.Node.Name,
+		})
+	}
+
+	for _, reviewer := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ReviewRequests.Edges {
+		pullRequestResponse.Reviewers = append(pullRequestResponse.Reviewers, model.User{
+			Login: reviewer.Node.RequestedReviewer.User.Login,
+			Name:  reviewer.Node.RequestedReviewer.User.Name,
+		})
+	}
+
+	for _, file := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Files.Edges {
+		pullRequestFilesResponse.Files = append(pullRequestFilesResponse.Files, model.PullRequestFile{
+			Filename:   file.Node.Path,
+			Additions:  file.Node.Additions,
+			Deletions:  file.Node.Deletions,
+			ChangeType: file.Node.ChangeType,
+		})
+	}
+
+	for _, commit := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Commits.Edges {
+		for _, checkSuite := range commit.Node.Commit.CheckSuites.Edges {
+			checkRunResponse.OverallConclusion = checkSuite.Node.Conclusion
+			for _, checkRun := range checkSuite.Node.CheckRuns.Edges {
+				checkRunResponse.CheckRuns = append(checkRunResponse.CheckRuns, model.CheckRun{
+					Status:      checkRun.Node.Status,
+					Conclusion:  checkRun.Node.Conclusion,
+					StartedAt:   checkRun.Node.StartedAt,
+					CompletedAt: checkRun.Node.CompletedAt,
+					DetailsUrl:  checkRun.Node.DetailsUrl,
+					Name:        checkRun.Node.Name,
+					Output: model.CheckRunOutput{
+						Title:   checkRun.Node.Title,
+						Summary: checkRun.Node.Summary,
+						Text:    checkRun.Node.Text,
+					},
+				})
+			}
+		}
+	}
+
+	for _, review := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Reviews.Edges {
+		prReviews = append(prReviews, model.ReviewPullRequestResponse{
+			User: model.User{
+				Login: review.Node.Author.Login,
+			},
+			State:       review.Node.State,
+			Body:        review.Node.Body,
+			CreatedAt:   review.Node.CreatedAt,
+			SubmittedAt: review.Node.SubmittedAt,
+			CommitId:    review.Node.Commit.Oid,
+		})
+	}
+
 	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews
 }

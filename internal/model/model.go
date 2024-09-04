@@ -44,26 +44,29 @@ type Tagger struct {
 }
 
 type PullRequestResponse struct {
-	PRNumber       int      `json:"number"`
-	TitleName      string   `json:"title"`
-	Status         string   `json:"state"`
-	HTMLUrl        string   `json:"html_url"`
-	Head           PRBranch `json:"head"`
-	Base           PRBranch `json:"base"`
-	User           User     `json:"user"`
-	Assignees      []User   `json:"assignees"`
-	Reviewers      []User   `json:"requested_reviewers"`
-	Merged         bool     `json:"merged"`
-	Mergeable      bool     `json:"mergeable"`
-	MergeableState string   `json:"mergeable_state"`
-	MergedBy       User     `json:"merged_by"`
-	Comments       int      `json:"comments"`
-	ReviewComments int      `json:"review_comments"`
-	Commits        int      `json:"commits"`
-	ChangedFiles   int      `json:"changed_files"`
-	Additions      int      `json:"additions"`
-	Deletions      int      `json:"deletions"`
-	ErrorMessage   string
+	PRNumber         int      `json:"number"`
+	TitleName        string   `json:"title"`
+	Body             string   `json:"body"`
+	State            string   `json:"state"`
+	HTMLUrl          string   `json:"html_url"`
+	Head             PRBranch `json:"head"`
+	Base             PRBranch `json:"base"`
+	User             User     `json:"user"`
+	Assignees        []User   `json:"assignees"`
+	Reviewers        []User   `json:"requested_reviewers"`
+	ReviewDecision   string   `json:"review_decision"`
+	Merged           bool     `json:"merged"`
+	Mergeable        string   `json:"mergeable"`
+	MergeStateStatus string   `json:"mergeable_state"`
+	MergedBy         User     `json:"merged_by"`
+	MergeAt          string   `json:"merged_at"`
+	Comments         int      `json:"comments"`
+	ReviewComments   int      `json:"review_comments"`
+	Commits          int      `json:"commits"`
+	ChangedFiles     int      `json:"changed_files"`
+	Additions        int      `json:"additions"`
+	Deletions        int      `json:"deletions"`
+	ErrorMessage     string
 }
 
 func (pr PullRequestResponse) RepositoryName() string {
@@ -112,6 +115,7 @@ type User struct {
 	Id    int    `json:"id"`
 	Login string `json:"login"`
 	Type  string `json:"type"`
+	Name  string `json:"name"`
 }
 
 type PRBranch struct {
@@ -129,12 +133,12 @@ type PullRequestFilesResponse struct {
 }
 
 type PullRequestFile struct {
-	Sha       string `json:"sha"`
-	Filename  string `json:"filename"`
-	Additions int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-	Changes   int    `json:"changes"`
-	Status    string `json:"status"`
+	Sha        string `json:"sha"`
+	Filename   string `json:"filename"`
+	Additions  int    `json:"additions"`
+	Deletions  int    `json:"deletions"`
+	Changes    int    `json:"changes"`
+	ChangeType string `json:"status"`
 }
 
 type MergeResponse struct {
@@ -152,6 +156,7 @@ type ReviewPullRequestResponse struct {
 	User           User   `json:"user"`
 	State          string `json:"state"`
 	Body           string `json:"body"`
+	CreatedAt      string `json:"created_at"`
 	SubmittedAt    string `json:"submitted_at"`
 	CommitId       string `json:"commit_id"`
 	ErrorMessage   string
@@ -332,24 +337,27 @@ func (cr CommitResponse) RepoName() string {
 }
 
 type CheckRunResponse struct {
-	RepositoryName string
-	Total          int        `json:"total"`
-	CheckRuns      []CheckRun `json:"check_runs"`
-	ErrorMessage   string
+	RepositoryName    string
+	Total             int        `json:"total"`
+	CheckRuns         []CheckRun `json:"check_runs"`
+	OverallConclusion string
+	ErrorMessage      string
 }
 
 type CheckRun struct {
-	Name        string `json:"name"`
-	Status      string `json:"status"`
-	Conclusion  string `json:"conclusion"`
-	StartedAt   string `json:"started_at"`
-	CompletedAt string `json:"completed_at"`
-	DetailsUrl  string `json:"details_url"`
-	Output      struct {
-		Title   string `json:"title"`
-		Summary string `json:"summary"`
-		Text    string `json:"text"`
-	} `json:"output"`
+	Name        string         `json:"name"`
+	Status      string         `json:"status"`
+	Conclusion  string         `json:"conclusion"`
+	StartedAt   string         `json:"started_at"`
+	CompletedAt string         `json:"completed_at"`
+	DetailsUrl  string         `json:"details_url"`
+	Output      CheckRunOutput `json:"output"`
+}
+
+type CheckRunOutput struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+	Text    string `json:"text"`
 }
 
 type Team struct {

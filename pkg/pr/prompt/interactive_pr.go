@@ -184,7 +184,7 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("eventType", eventType).Msg("Processing Event")
 	var actionMessage string
 	actionSuccess := true
-	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetails(ctx, orgName, repoName, prNumber, lastSha)
+	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
 	if eventType == "APPROVE" {
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		if actionSuccess {
@@ -209,7 +209,7 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 }
 
 func canApprovePR(prResponse model.PullRequestResponse) bool {
-	return prResponse.Mergeable
+	return prResponse.Mergeable == "CLEAN" && prResponse.State == "OPEN" && prResponse.MergeStateStatus == "MERGEABLE"
 }
 
 func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
@@ -230,9 +230,9 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 	if !canApprovePR(prResponse) {
 		return false
 	}
-	if prResponse.MergeableState == "clean" || prResponse.MergeableState == "unstable" || (eventType == "APPROVE_MERGE" && prResponse.MergeableState == "blocked") {
+	if prResponse.MergeStateStatus == "MERGEABLE" || (eventType == "APPROVE_MERGE" && prResponse.MergeStateStatus == "blocked") {
 		if eventType != "APPROVE_MERGE" && (len(prReviews) == 0 || prReviews[0].State != "APPROVED") {
-			logger.Flog.Error().Str("state", prResponse.MergeableState).Str("eventType", eventType).Int("prReviews", len(prReviews)).Msgf("PR cannot be merged at this moment")
+			logger.Flog.Error().Str("state", prResponse.MergeStateStatus).Str("eventType", eventType).Int("prReviews", len(prReviews)).Msgf("PR cannot be merged at this moment")
 			return false
 		}
 		return true
@@ -249,7 +249,7 @@ func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 		}
 		return "PR Merged successfully", true
 	} else {
-		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("mergeableState", prResponse.MergeableState).Msgf("PR cannot be merged at this moment")
+		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("MergeStateStatus", prResponse.MergeStateStatus).Msgf("PR cannot be merged at this moment")
 		return "PR is not mergeable", false
 	}
 }
@@ -264,7 +264,15 @@ func getSectionsRenders(status eventStatusResponse) []string {
 	sections = append(sections, getPRResponseTable(status.pullRequestResponse, status.pullRequestFilesResponse))
 
 	if len(status.checkRunResponse.CheckRuns) > 0 {
-		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs"))
+		var finalStatus string
+		if status.checkRunResponse.OverallConclusion == "SUCCESS" {
+			finalStatus = lipgloss.NewStyle().Foreground(ui.Green).Bold(true).Render(status.checkRunResponse.OverallConclusion)
+		} else if status.checkRunResponse.OverallConclusion == "FAILURE" {
+			finalStatus = lipgloss.NewStyle().Foreground(ui.Red).Bold(true).Render(status.checkRunResponse.OverallConclusion)
+		} else {
+			finalStatus = lipgloss.NewStyle().Foreground(ui.Gray).Bold(true).Render(status.checkRunResponse.OverallConclusion)
+		}
+		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs: ")+finalStatus)
 		sections = append(sections, getCheckRunsTable(status.checkRunResponse))
 	}
 
@@ -306,9 +314,10 @@ func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesRe
 	responseRows = append(responseRows, []string{"User", prResponse.UserName()})
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
-	responseRows = append(responseRows, []string{"Status", prResponse.Status})
-	responseRows = append(responseRows, []string{mergeableTitle, strconv.FormatBool(prResponse.Mergeable)})
-	responseRows = append(responseRows, []string{mergeableStateTitle, prResponse.MergeableState})
+	responseRows = append(responseRows, []string{"State", prResponse.State})
+	responseRows = append(responseRows, []string{mergeableTitle, prResponse.Mergeable})
+	responseRows = append(responseRows, []string{mergeableStateTitle, prResponse.MergeStateStatus})
+	responseRows = append(responseRows, []string{"Merged At", prResponse.MergeAt})
 	responseRows = append(responseRows, []string{"Review comments", strconv.Itoa(prResponse.ReviewComments)})
 	responseRows = append(responseRows, []string{"Comments", strconv.Itoa(prResponse.Comments)})
 	responseRows = append(responseRows, []string{"Commits", strconv.Itoa(prResponse.Commits)})
@@ -373,11 +382,11 @@ func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
 			} else if col == 2 {
 				style = CellStyle.Foreground(ui.White)
-				if checkRunRows[row-1][2] == "success" {
+				if checkRunRows[row-1][2] == "SUCCESS" {
 					style = style.Foreground(lipgloss.Color(ui.Green))
-				} else if checkRunRows[row-1][2] == "failure" {
+				} else if checkRunRows[row-1][2] == "FAILURE" {
 					style = style.Foreground(lipgloss.Color(ui.Red))
-				} else if checkRunRows[row-1][2] == "skipped" {
+				} else if checkRunRows[row-1][2] == "SKIPPED" {
 					style = style.Foreground(lipgloss.Color("#FFA500"))
 				}
 			}
