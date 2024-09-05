@@ -18,7 +18,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 
 	if ctx.Config.IsOrganizationPresent(orgName) {
 		includes := ctx.Config.IncludePatterns(orgName)
-		if (len(includes)) > 0 {
+		if (len(includes)) == 1 {
 			queryString = queryString + " " + strings.ReplaceAll(includes[0], "*", "") + " in:name"
 		}
 	}

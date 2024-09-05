@@ -31,7 +31,9 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 		fmt.Printf("REQUEST:\n%s", string(reqDump))
 	}
 
+	start := time.Now()
 	res, err := c.Client.Do(req)
+	elapsed := time.Since(start).Milliseconds()
 
 	rateLimit := res.Header.Get("X-RateLimit-Limit")
 	rateRemaining := res.Header.Get("X-RateLimit-Remaining")
@@ -40,7 +42,7 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 	rateReset := time.Unix(rateResetInt, 0).String()
 	rateResource := res.Header.Get("X-RateLimit-Resource")
 
-	logger.Flog.Info().Msgf("Invoked %s request to %s received status %d", req.Method, req.URL.String(), res.StatusCode)
+	logger.Flog.Info().Str("url", req.URL.String()).Str("method", req.Method).Int("statusCode", res.StatusCode).Int("timeTakenInMs", int(elapsed)).Msgf("API details")
 	logger.Flog.Info().Str("rateLimit", rateLimit).Str("rateRemaining", rateRemaining).Str("rateUsed", rateUsed).Str("rateResource", rateResource).Str("rateReset", rateReset).Msgf("Rate limit details")
 
 	if c.LogResponse {

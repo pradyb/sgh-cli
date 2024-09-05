@@ -36,6 +36,56 @@ var SearchRepository struct {
 	} `graphql:"search(query: $queryString, type: REPOSITORY, first: 50, after: $repoCursor)"`
 }
 
+var SearchPullRequests struct {
+	Search struct {
+		IssueCount int
+		PageInfo   struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+		Edges []struct {
+			Node struct {
+				PullRequest struct {
+					Number  int
+					Title   string
+					Url     string
+					Body    string
+					BaseRef struct {
+						Name       string
+						Repository struct {
+							Name string
+						}
+					}
+					BaseRefName string
+					HeadRef     struct {
+						Name       string
+						Repository struct {
+							Name string
+						}
+					}
+					HeadRefName string
+					Author      struct {
+						Login string
+					}
+					ReviewRequests struct {
+						TotalCount int
+						Edges      []struct {
+							Node struct {
+								RequestedReviewer struct {
+									User struct {
+										Login string
+										Name  string
+									} `graphql:"... on User"`
+								}
+							}
+						}
+					} `graphql:"reviewRequests(first: 1)"`
+				} `graphql:"... on PullRequest"`
+			}
+		}
+	} `graphql:"search(query: $queryString, type: ISSUE, last: 20, after: $prCursor)"`
+}
+
 var PullRequestDetailsQuery struct {
 	Organization struct {
 		Repository struct {

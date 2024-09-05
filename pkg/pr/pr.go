@@ -1,6 +1,7 @@
 package pr
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -8,6 +9,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	logger "github.com/prady-lab/sgh-cli/utils"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -42,17 +44,89 @@ func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName,
 
 func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListPullRequest,
-		func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
-			return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
-		},
-		func(repoName string, result processor.RepoOperationResult[[]model.PullRequestResponse]) {
-			responses = append(responses, result.Result...)
-		},
-		func(repoName string, err error) {
-			responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
-		})
-	return responses
+
+	if len(repoNames) <= 1 {
+		// Invoke via GraphQL
+		logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", orgName)
+
+		queryString := getSearchQuery(ctx, orgName, repoNames, baseRef, headRef)
+
+		variables := map[string]interface{}{
+			"queryString": githubv4.String(queryString),
+			"prCursor":    (*githubv4.String)(nil),
+		}
+
+		err := service.Query(ctx, &model.SearchPullRequests, variables)
+		if err != nil {
+			return responses
+		}
+
+		for _, edge := range model.SearchPullRequests.Search.Edges {
+			pr := edge.Node.PullRequest
+			prModel := model.PullRequestResponse{
+				PRNumber:  pr.Number,
+				TitleName: pr.Title,
+				Body:      pr.Body,
+				HTMLUrl:   pr.Url,
+				Base: model.PRBranch{
+					Ref: pr.BaseRef.Name,
+					Repo: model.Repository{
+						Name: pr.BaseRef.Repository.Name,
+					},
+				},
+				Head: model.PRBranch{
+					Ref: pr.HeadRef.Name,
+					Repo: model.Repository{
+						Name: pr.HeadRef.Repository.Name,
+					},
+				},
+				User: model.User{
+					Login: pr.Author.Login,
+				},
+			}
+
+			for _, reviewer := range pr.ReviewRequests.Edges {
+				prModel.Reviewers = append(prModel.Reviewers, model.User{
+					Login: reviewer.Node.RequestedReviewer.User.Login,
+					Name:  reviewer.Node.RequestedReviewer.User.Name,
+				})
+			}
+
+			responses = append(responses, prModel)
+		}
+		return responses
+	} else {
+		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListPullRequest,
+			func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
+				return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
+			},
+			func(repoName string, result processor.RepoOperationResult[[]model.PullRequestResponse]) {
+				responses = append(responses, result.Result...)
+			},
+			func(repoName string, err error) {
+				responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
+			})
+		return responses
+	}
+}
+
+func getSearchQuery(ctx *context.Context, orgName string, repoNames []string, baseRef string, headRef string) string {
+	var queryString string
+	if len(repoNames) == 1 {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
+		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", orgName)
+		queryString = "repo:" + orgName + "/" + actualRepoNames[0]
+	} else {
+		queryString = "org:" + orgName
+	}
+	queryString = queryString + " type:pr state:open sort:created-desc"
+	if baseRef != "" {
+		queryString = queryString + " base:" + baseRef
+	}
+	if headRef != "" {
+		queryString = queryString + " head:" + headRef
+	}
+	return queryString
 }
 
 func ReviewPullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, event, body string) model.ReviewPullRequestResponse {
