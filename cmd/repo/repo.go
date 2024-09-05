@@ -53,7 +53,7 @@ func listCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	listCmd.Flags().BoolVarP(&isAllRepos, "all", "a", false, "List all repos")
+	listCmd.Flags().BoolVarP(&isAllRepos, "all", "a", false, "list all repos")
 
 	return listCmd
 }

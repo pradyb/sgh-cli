@@ -77,8 +77,8 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 
 	updateCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to update the protected branch")
 	updateCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to update the protected branches. If not provided, it will update for all the repositories in the organization")
-	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "Lock the protected branch")
-	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "Remove the status checks in protected branch")
+	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "lock the protected branch")
+	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "remove the status checks in protected branch")
 
 	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("branch")

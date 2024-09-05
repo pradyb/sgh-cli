@@ -57,9 +57,9 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "main", "The `branch` for which you want to fetch commits")
-	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "Number of days to fetch commits")
-	listCmd.Flags().BoolVarP(&details, "details", "d", false, "Show detailed commit information")
-	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "i", false, "Include merge commits")
+	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "number of days to fetch commits")
+	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")
+	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "i", false, "include merge commits")
 
 	listCmd.MarkPersistentFlagRequired("org")
 	listCmd.MarkFlagRequired("branch")

@@ -51,8 +51,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	createCmd.Flags().StringVarP(&title, "title", "t", "", "Title for the pull request")
-	createCmd.Flags().StringVarP(&body, "body", "b", "", "Body for the pull request")
+	createCmd.Flags().StringVarP(&title, "title", "t", "", "title for the pull request")
+	createCmd.Flags().StringVarP(&body, "body", "b", "", "body for the pull request")
 	createCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	createCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
@@ -96,7 +96,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
-	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode to select the PR to merge")
+	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode to select the PR to merge")
 
 	listCmd.MarkPersistentFlagRequired("org")
 
@@ -159,8 +159,8 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	mergeCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
-	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "Title for the automatic commit message")
-	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "Extra detail to append to automatic commit message")
+	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "title for the automatic commit message")
+	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "extra detail to append to automatic commit message")
 	mergeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
 	mergeCmd.MarkPersistentFlagRequired("org")
