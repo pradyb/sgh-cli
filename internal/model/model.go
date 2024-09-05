@@ -51,9 +51,9 @@ type PullRequestResponse struct {
 	HTMLUrl          string   `json:"html_url"`
 	Head             PRBranch `json:"head"`
 	Base             PRBranch `json:"base"`
-	User             User     `json:"user"`
+	Author           User     `json:"user"`
 	Assignees        []User   `json:"assignees"`
-	Reviewers        []User   `json:"requested_reviewers"`
+	Reviewers        []Actor  `json:"requested_reviewers"`
 	ReviewDecision   string   `json:"review_decision"`
 	Merged           bool     `json:"merged"`
 	Mergeable        string   `json:"mergeable"`
@@ -72,20 +72,23 @@ type PullRequestResponse struct {
 func (pr PullRequestResponse) RepositoryName() string {
 	return pr.Base.Repo.Name
 }
-func (pr PullRequestResponse) UserName() string {
-	return pr.User.Login
+func (pr PullRequestResponse) AuthorName() string {
+	if pr.Author.Name == "" {
+		return pr.Author.Login
+	}
+	return pr.Author.Name
 }
 func (pr PullRequestResponse) AssigneesName() string {
 	assignees := make([]string, 0)
 	for _, assignee := range pr.Assignees {
-		assignees = append(assignees, assignee.Login)
+		assignees = append(assignees, assignee.Name)
 	}
 	return strings.Join(assignees, "\n")
 }
 func (pr PullRequestResponse) ReviewersName() string {
 	reviewers := make([]string, 0)
 	for _, reviewer := range pr.Reviewers {
-		reviewers = append(reviewers, reviewer.Login)
+		reviewers = append(reviewers, reviewer.Name())
 	}
 	return strings.Join(reviewers, "\n")
 }
@@ -95,9 +98,9 @@ func (pr PullRequestResponse) FirstReviewerName() string {
 		return ""
 	}
 	if len(pr.Reviewers) > 1 {
-		return pr.Reviewers[0].Login + "..."
+		return pr.Reviewers[0].Name() + "..."
 	} else {
-		return pr.Reviewers[0].Login
+		return pr.Reviewers[0].Name()
 	}
 }
 
@@ -105,19 +108,33 @@ func (pr PullRequestResponse) Title() string {
 	return strconv.Itoa(pr.PRNumber) + " " + pr.TitleName + " (" + pr.RepositoryName() + ")"
 }
 func (pr PullRequestResponse) Description() string {
-	return pr.UserName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
+	return pr.AuthorName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
 }
 func (pr PullRequestResponse) FilterValue() string {
 	return pr.Title()
 }
 
-type User struct {
-	Id    int    `json:"id"`
-	Login string `json:"login"`
-	Type  string `json:"type"`
-	Name  string `json:"name"`
+type Actor struct {
+	Type string
+	User User
+	Team Team
 }
 
+func (a Actor) Name() string {
+	if a.Type == "User" {
+		return a.User.Name
+	}
+	return a.Team.Name
+}
+
+type User struct {
+	Id         int    `json:"id"`
+	Login      string `json:"login"`
+	Type       string `json:"type"`
+	Name       string `json:"name"`
+	Bio        string `json:"bio"`
+	WebsiteUrl string `json:"websiteUrl"`
+}
 type PRBranch struct {
 	Label string     `json:"label"`
 	Ref   string     `json:"ref"`

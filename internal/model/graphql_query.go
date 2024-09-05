@@ -1,5 +1,59 @@
 package model
 
+type (
+	OrganizationFragment struct {
+		Description string
+	}
+
+	SimpleRepositoryFragment struct {
+		Name          string
+		NameWithOwner string
+		Url           string
+		SSHUrl        string
+	}
+
+	UserFragment struct {
+		Login      string
+		Name       string
+		Bio        string
+		WebsiteUrl string
+	}
+
+	TeamFragment struct {
+		Name        string
+		Description string
+	}
+
+	RefFragment struct {
+		Name       string
+		Repository SimpleRepositoryFragment
+	}
+
+	ReviewRequestFragment struct {
+		RequestedReviewer struct {
+			Type string       `graphql:"__typename"`
+			User UserFragment `graphql:"... on User"`
+			Team TeamFragment `graphql:"... on Team"`
+		}
+	}
+	ReviewRequestsFragment struct {
+		TotalCount int
+		Edges      []struct {
+			Node ReviewRequestFragment
+		}
+	}
+
+	AssigneeFragment struct {
+		User UserFragment `graphql:"... on User"`
+	}
+	AssigneesFragment struct {
+		TotalCount int
+		Edges      []struct {
+			Node AssigneeFragment
+		}
+	}
+)
+
 var SearchRepository struct {
 	Search struct {
 		RepositoryCount int
@@ -46,40 +100,19 @@ var SearchPullRequests struct {
 		Edges []struct {
 			Node struct {
 				PullRequest struct {
-					Number  int
-					Title   string
-					Url     string
-					Body    string
-					BaseRef struct {
-						Name       string
-						Repository struct {
-							Name string
-						}
-					}
+					Number      int
+					Title       string
+					Url         string
+					Body        string
+					BaseRef     RefFragment `graphql:"baseRef"`
 					BaseRefName string
-					HeadRef     struct {
-						Name       string
-						Repository struct {
-							Name string
-						}
-					}
+					HeadRef     RefFragment `graphql:"headRef"`
 					HeadRefName string
 					Author      struct {
-						Login string
+						User UserFragment `graphql:"... on User"`
 					}
-					ReviewRequests struct {
-						TotalCount int
-						Edges      []struct {
-							Node struct {
-								RequestedReviewer struct {
-									User struct {
-										Login string
-										Name  string
-									} `graphql:"... on User"`
-								}
-							}
-						}
-					} `graphql:"reviewRequests(first: 1)"`
+					ReviewRequests ReviewRequestsFragment `graphql:"reviewRequests(first: 3)"`
+					Assignees      AssigneesFragment      `graphql:"assignees(first: 3)"`
 				} `graphql:"... on PullRequest"`
 			}
 		}
@@ -90,23 +123,13 @@ var PullRequestDetailsQuery struct {
 	Organization struct {
 		Repository struct {
 			PullRequest struct {
-				Number  int
-				Title   string
-				Body    string
-				Url     string
-				BaseRef struct {
-					Name       string
-					Repository struct {
-						Name string
-					}
-				}
-				BaseRefName string
-				HeadRef     struct {
-					Name       string
-					Repository struct {
-						Name string
-					}
-				}
+				Number           int
+				Title            string
+				Body             string
+				Url              string
+				BaseRef          RefFragment `graphql:"baseRef"`
+				BaseRefName      string
+				HeadRef          RefFragment `graphql:"headRef"`
 				HeadRefName      string
 				ReviewDecision   string
 				State            string
@@ -114,36 +137,14 @@ var PullRequestDetailsQuery struct {
 				MergeStateStatus string
 				MergedAt         string
 				MergedBy         struct {
-					Login string
+					User UserFragment `graphql:"... on User"`
 				}
 				Author struct {
-					Login string
+					User UserFragment `graphql:"... on User"`
 				}
-				Repository struct {
-					Name string
-				}
-				ReviewRequests struct {
-					TotalCount int
-					Edges      []struct {
-						Node struct {
-							RequestedReviewer struct {
-								User struct {
-									Login string
-									Name  string
-								} `graphql:"... on User"`
-							}
-						}
-					}
-				} `graphql:"reviewRequests(first: 50)"`
-				Assignees struct {
-					TotalCount int
-					Edges      []struct {
-						Node struct {
-							Login string
-							Name  string
-						}
-					}
-				} `graphql:"assignees(first: 10)"`
+				Repository         SimpleRepositoryFragment
+				ReviewRequests     ReviewRequestsFragment `graphql:"reviewRequests(first: 50)"`
+				Assignees          AssigneesFragment      `graphql:"assignees(first: 10)"`
 				TotalCommentsCount int
 				Comments           struct {
 					TotalCount int

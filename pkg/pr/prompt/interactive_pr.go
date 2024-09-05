@@ -309,7 +309,7 @@ func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesRe
 
 	responseRows = append(responseRows, []string{"PR Number", strconv.Itoa(prResponse.PRNumber)})
 	responseRows = append(responseRows, []string{"Repository", prResponse.RepositoryName()})
-	responseRows = append(responseRows, []string{"User", prResponse.UserName()})
+	responseRows = append(responseRows, []string{"User", prResponse.AuthorName()})
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"State", prResponse.State})

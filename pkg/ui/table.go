@@ -199,7 +199,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 				strconv.Itoa(pr.PRNumber),
 				pr.RepositoryName(),
 				pr.TitleName,
-				pr.UserName(),
+				pr.AuthorName(),
 				pr.AssigneesName(),
 				pr.ReviewersName(),
 				pr.State,

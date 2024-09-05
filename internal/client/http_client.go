@@ -67,7 +67,13 @@ func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{
 		logger.Flog.Info().Msgf("Executing the query  %s", query)
 		logger.Flog.Info().Msgf("Executing the query with the variables %s", variables)
 	}
+
+	start := time.Now()
 	err := c.Client.Query(context.Background(), query, variables)
+	elapsed := time.Since(start).Milliseconds()
+
+	logger.Flog.Info().Str("type", "graphql").Int("timeTakenInMs", int(elapsed)).Msgf("GraphQL details")
+
 	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in executing the query")
 	}
