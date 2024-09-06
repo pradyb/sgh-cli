@@ -229,48 +229,49 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		return model.PullRequestResponse{ErrorMessage: err.Error()}, model.PullRequestFilesResponse{}, model.CheckRunResponse{}, nil
 	}
 
+	prQueryReponse := pullRequestDetailQuery.Organization.Repository.PullRequest
 	prResponse = model.PullRequestResponse{
-		PRNumber:  pullRequestDetailQuery.Organization.Repository.PullRequest.Number,
-		TitleName: pullRequestDetailQuery.Organization.Repository.PullRequest.Title,
-		Body:      pullRequestDetailQuery.Organization.Repository.PullRequest.Body,
-		HTMLUrl:   pullRequestDetailQuery.Organization.Repository.PullRequest.Url,
+		PRNumber:  prQueryReponse.Number,
+		TitleName: prQueryReponse.Title,
+		Body:      prQueryReponse.Body,
+		HTMLUrl:   prQueryReponse.Url,
 		Base: model.PRBranch{
-			Ref: pullRequestDetailQuery.Organization.Repository.PullRequest.BaseRef.Name,
+			Ref: prQueryReponse.BaseRef.Name,
 			Repo: model.Repository{
-				Name: pullRequestDetailQuery.Organization.Repository.PullRequest.BaseRef.Repository.Name,
+				Name: prQueryReponse.BaseRef.Repository.Name,
 			},
 		},
 		Head: model.PRBranch{
-			Ref: pullRequestDetailQuery.Organization.Repository.PullRequest.HeadRef.Name,
+			Ref: prQueryReponse.HeadRef.Name,
 			Repo: model.Repository{
-				Name: pullRequestDetailQuery.Organization.Repository.PullRequest.HeadRef.Repository.Name,
+				Name: prQueryReponse.HeadRef.Repository.Name,
 			},
 		},
 		Author: model.User{
-			Login: pullRequestDetailQuery.Organization.Repository.PullRequest.Author.User.Login,
-			Name:  pullRequestDetailQuery.Organization.Repository.PullRequest.Author.User.Name,
+			Login: prQueryReponse.Author.User.Login,
+			Name:  prQueryReponse.Author.User.Name,
 		},
-		ReviewDecision:   pullRequestDetailQuery.Organization.Repository.PullRequest.ReviewDecision,
-		State:            pullRequestDetailQuery.Organization.Repository.PullRequest.State,
-		Mergeable:        pullRequestDetailQuery.Organization.Repository.PullRequest.Mergeable,
-		MergeStateStatus: pullRequestDetailQuery.Organization.Repository.PullRequest.MergeStateStatus,
-		MergeAt:          pullRequestDetailQuery.Organization.Repository.PullRequest.MergedAt,
+		ReviewDecision:   prQueryReponse.ReviewDecision,
+		State:            prQueryReponse.State,
+		Mergeable:        prQueryReponse.Mergeable,
+		MergeStateStatus: prQueryReponse.MergeStateStatus,
+		MergeAt:          prQueryReponse.MergedAt,
 		MergedBy: model.User{
-			Login: pullRequestDetailQuery.Organization.Repository.PullRequest.MergedBy.User.Name,
-			Name:  pullRequestDetailQuery.Organization.Repository.PullRequest.MergedBy.User.Login,
+			Login: prQueryReponse.MergedBy.User.Name,
+			Name:  prQueryReponse.MergedBy.User.Login,
 		},
-		ReviewComments: pullRequestDetailQuery.Organization.Repository.PullRequest.TotalCommentsCount,
-		Comments:       pullRequestDetailQuery.Organization.Repository.PullRequest.Comments.TotalCount,
-		Commits:        pullRequestDetailQuery.Organization.Repository.PullRequest.Commits.TotalCount,
-		Additions:      pullRequestDetailQuery.Organization.Repository.PullRequest.Additions,
-		Deletions:      pullRequestDetailQuery.Organization.Repository.PullRequest.Deletions,
-		ChangedFiles:   pullRequestDetailQuery.Organization.Repository.PullRequest.ChangedFiles,
+		ReviewComments: prQueryReponse.TotalCommentsCount,
+		Comments:       prQueryReponse.Comments.TotalCount,
+		Commits:        prQueryReponse.Commits.TotalCount,
+		Additions:      prQueryReponse.Additions,
+		Deletions:      prQueryReponse.Deletions,
+		ChangedFiles:   prQueryReponse.ChangedFiles,
 	}
 
-	prResponse.Assignees = populateAssignees(pullRequestDetailQuery.Organization.Repository.PullRequest.Assignees)
-	prResponse.Reviewers = populateReviewers(pullRequestDetailQuery.Organization.Repository.PullRequest.ReviewRequests)
+	prResponse.Assignees = populateAssignees(prQueryReponse.Assignees)
+	prResponse.Reviewers = populateReviewers(prQueryReponse.ReviewRequests)
 
-	for _, file := range pullRequestDetailQuery.Organization.Repository.PullRequest.Files.Edges {
+	for _, file := range prQueryReponse.Files.Edges {
 		pullRequestFilesResponse.Files = append(pullRequestFilesResponse.Files, model.PullRequestFile{
 			Filename:   file.Node.Path,
 			Additions:  file.Node.Additions,
@@ -279,7 +280,7 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		})
 	}
 
-	for _, commit := range pullRequestDetailQuery.Organization.Repository.PullRequest.Commits.Edges {
+	for _, commit := range prQueryReponse.Commits.Edges {
 		for _, checkSuite := range commit.Node.Commit.CheckSuites.Edges {
 			checkRunResponse.OverallConclusion = checkSuite.Node.Conclusion
 			for _, checkRun := range checkSuite.Node.CheckRuns.Edges {
@@ -300,7 +301,7 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		}
 	}
 
-	for _, review := range pullRequestDetailQuery.Organization.Repository.PullRequest.Reviews.Edges {
+	for _, review := range prQueryReponse.Reviews.Edges {
 		prReviews = append(prReviews, model.ReviewPullRequestResponse{
 			User: model.User{
 				Login: review.Node.Author.User.Login,
