@@ -31,12 +31,14 @@ func Init() (*Context, error) {
 	}
 
 	ctx.Config = config
-	ctx.HttpClient = &client.HttpClient{Client: http.Client{Timeout: time.Duration(30) * time.Second}}
+	ctx.HttpClient = &client.HttpClient{Client: http.Client{Timeout: time.Duration(30) * time.Second, Transport: client.Interceptor{OriginalTransport: http.DefaultTransport}}}
 
 	src := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
-	httpClient := oauth2.NewClient(context.Background(), src)
+
+	defaultCtx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: time.Duration(30) * time.Second, Transport: client.Interceptor{OriginalTransport: http.DefaultTransport}})
+	httpClient := oauth2.NewClient(defaultCtx, src)
 
 	gqlClient := githubv4.NewClient(httpClient)
 	ctx.GraphqlClient = &client.GraphqlClient{Client: gqlClient}

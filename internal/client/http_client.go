@@ -19,6 +19,37 @@ type HttpClient struct {
 	LogResponse bool
 }
 
+type Interceptor struct {
+	OriginalTransport http.RoundTripper
+}
+
+func (i Interceptor) RoundTrip(r *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, err := i.OriginalTransport.RoundTrip(r)
+	elapsed := time.Since(start).Milliseconds()
+
+	logger.Flog.Info().Str("url", r.URL.String()).Str("method", r.Method).Int("statusCode", resp.StatusCode).Int("timeTakenInMs", int(elapsed)).Msgf("API details")
+	logRateDetails(resp)
+	return resp, err
+}
+
+func logRateDetails(resp *http.Response) {
+	rateLimit := resp.Header.Get("X-RateLimit-Limit")
+	rateRemaining := resp.Header.Get("X-RateLimit-Remaining")
+	rateUsed := resp.Header.Get("X-RateLimit-Used")
+	rateResetInt, _ := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64)
+	rateReset := time.Unix(rateResetInt, 0).String()
+	rateResource := resp.Header.Get("X-RateLimit-Resource")
+
+	logger.Flog.Info().
+		Str("rateLimit", rateLimit).
+		Str("rateRemaining", rateRemaining).
+		Str("rateUsed", rateUsed).
+		Str("rateResource", rateResource).
+		Str("rateReset", rateReset).
+		Msgf("Rate limit details")
+}
+
 func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 	req.Header.Add("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
 	req.Header.Add("Content-Type", "application/json")
@@ -31,19 +62,7 @@ func (c *HttpClient) Send(req *http.Request) (*http.Response, error) {
 		fmt.Printf("REQUEST:\n%s", string(reqDump))
 	}
 
-	start := time.Now()
 	res, err := c.Client.Do(req)
-	elapsed := time.Since(start).Milliseconds()
-
-	rateLimit := res.Header.Get("X-RateLimit-Limit")
-	rateRemaining := res.Header.Get("X-RateLimit-Remaining")
-	rateUsed := res.Header.Get("X-RateLimit-Used")
-	rateResetInt, _ := strconv.ParseInt(res.Header.Get("X-RateLimit-Reset"), 10, 64)
-	rateReset := time.Unix(rateResetInt, 0).String()
-	rateResource := res.Header.Get("X-RateLimit-Resource")
-
-	logger.Flog.Info().Str("url", req.URL.String()).Str("method", req.Method).Int("statusCode", res.StatusCode).Int("timeTakenInMs", int(elapsed)).Msgf("API details")
-	logger.Flog.Info().Str("rateLimit", rateLimit).Str("rateRemaining", rateRemaining).Str("rateUsed", rateUsed).Str("rateResource", rateResource).Str("rateReset", rateReset).Msgf("Rate limit details")
 
 	if c.LogResponse {
 		respDump, err := httputil.DumpResponse(res, true)
@@ -68,11 +87,7 @@ func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{
 		logger.Flog.Info().Msgf("Executing the query with the variables %s", variables)
 	}
 
-	start := time.Now()
 	err := c.Client.Query(context.Background(), query, variables)
-	elapsed := time.Since(start).Milliseconds()
-
-	logger.Flog.Info().Str("type", "graphql").Int("timeTakenInMs", int(elapsed)).Msgf("GraphQL details")
 
 	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in executing the query")
