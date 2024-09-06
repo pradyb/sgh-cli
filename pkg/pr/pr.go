@@ -56,14 +56,15 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 			"prCursor":    (*githubv4.String)(nil),
 		}
 
-		err := service.Query(ctx, &model.SearchPullRequests, variables)
+		var pullRequestQuery model.SearchPullRequestsQuery
+		err := service.Query(ctx, &pullRequestQuery, variables)
 		if err != nil {
 			return responses
 		}
 
-		for _, edge := range model.SearchPullRequests.Search.Edges {
+		for _, edge := range pullRequestQuery.Search.Edges {
 			pr := edge.Node.PullRequest
-			prModel := model.PullRequestResponse{
+			prResponse := model.PullRequestResponse{
 				PRNumber:  pr.Number,
 				TitleName: pr.Title,
 				Body:      pr.Body,
@@ -86,33 +87,10 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 				},
 			}
 
-			for _, reviewer := range pr.ReviewRequests.Edges {
-				if reviewer.Node.RequestedReviewer.Type == "User" {
-					prModel.Reviewers = append(prModel.Reviewers, model.Actor{
-						Type: "User",
-						User: model.User{
-							Login: reviewer.Node.RequestedReviewer.User.Login,
-							Name:  reviewer.Node.RequestedReviewer.User.Name,
-						},
-					})
-				} else if reviewer.Node.RequestedReviewer.Type == "Team" {
-					prModel.Reviewers = append(prModel.Reviewers, model.Actor{
-						Type: "Team",
-						Team: model.Team{
-							Name: reviewer.Node.RequestedReviewer.User.Name,
-						},
-					})
-				}
-			}
+			prResponse.Assignees = populateAssignees(pr.Assignees)
+			prResponse.Reviewers = populateReviewers(pr.ReviewRequests)
 
-			for _, assignee := range pr.Assignees.Edges {
-				prModel.Assignees = append(prModel.Assignees, model.User{
-					Login: assignee.Node.User.Login,
-					Name:  assignee.Node.User.Name,
-				})
-			}
-
-			responses = append(responses, prModel)
+			responses = append(responses, prResponse)
 		}
 		return responses
 	} else {
@@ -240,81 +218,59 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		"prNumber": githubv4.Int(prNumber),
 	}
 
-	var pullRequestResponse model.PullRequestResponse
+	var prResponse model.PullRequestResponse
 	var pullRequestFilesResponse model.PullRequestFilesResponse
 	var checkRunResponse model.CheckRunResponse
 	var prReviews []model.ReviewPullRequestResponse
 
-	err := service.Query(ctx, &model.PullRequestDetailsQuery, variables)
+	var pullRequestDetailQuery model.PullRequestDetailQuery
+	err := service.Query(ctx, &pullRequestDetailQuery, variables)
 	if err != nil {
 		return model.PullRequestResponse{ErrorMessage: err.Error()}, model.PullRequestFilesResponse{}, model.CheckRunResponse{}, nil
 	}
 
-	pullRequestResponse = model.PullRequestResponse{
-		PRNumber:  model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Number,
-		TitleName: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Title,
-		Body:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Body,
-		HTMLUrl:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Url,
+	prResponse = model.PullRequestResponse{
+		PRNumber:  pullRequestDetailQuery.Organization.Repository.PullRequest.Number,
+		TitleName: pullRequestDetailQuery.Organization.Repository.PullRequest.Title,
+		Body:      pullRequestDetailQuery.Organization.Repository.PullRequest.Body,
+		HTMLUrl:   pullRequestDetailQuery.Organization.Repository.PullRequest.Url,
 		Base: model.PRBranch{
-			Ref: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.BaseRef.Name,
+			Ref: pullRequestDetailQuery.Organization.Repository.PullRequest.BaseRef.Name,
 			Repo: model.Repository{
-				Name: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.BaseRef.Repository.Name,
+				Name: pullRequestDetailQuery.Organization.Repository.PullRequest.BaseRef.Repository.Name,
 			},
 		},
 		Head: model.PRBranch{
-			Ref: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.HeadRef.Name,
+			Ref: pullRequestDetailQuery.Organization.Repository.PullRequest.HeadRef.Name,
 			Repo: model.Repository{
-				Name: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.HeadRef.Repository.Name,
+				Name: pullRequestDetailQuery.Organization.Repository.PullRequest.HeadRef.Repository.Name,
 			},
 		},
 		Author: model.User{
-			Login: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Author.User.Login,
-			Name:  model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Author.User.Name,
+			Login: pullRequestDetailQuery.Organization.Repository.PullRequest.Author.User.Login,
+			Name:  pullRequestDetailQuery.Organization.Repository.PullRequest.Author.User.Name,
 		},
-		ReviewDecision:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ReviewDecision,
-		State:            model.PullRequestDetailsQuery.Organization.Repository.PullRequest.State,
-		Mergeable:        model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Mergeable,
-		MergeStateStatus: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergeStateStatus,
-		MergeAt:          model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergedAt,
+		ReviewDecision:   pullRequestDetailQuery.Organization.Repository.PullRequest.ReviewDecision,
+		State:            pullRequestDetailQuery.Organization.Repository.PullRequest.State,
+		Mergeable:        pullRequestDetailQuery.Organization.Repository.PullRequest.Mergeable,
+		MergeStateStatus: pullRequestDetailQuery.Organization.Repository.PullRequest.MergeStateStatus,
+		MergeAt:          pullRequestDetailQuery.Organization.Repository.PullRequest.MergedAt,
 		MergedBy: model.User{
-			Login: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergedBy.User.Name,
-			Name:  model.PullRequestDetailsQuery.Organization.Repository.PullRequest.MergedBy.User.Login,
+			Login: pullRequestDetailQuery.Organization.Repository.PullRequest.MergedBy.User.Name,
+			Name:  pullRequestDetailQuery.Organization.Repository.PullRequest.MergedBy.User.Login,
 		},
-		ReviewComments: model.PullRequestDetailsQuery.Organization.Repository.PullRequest.TotalCommentsCount,
-		Comments:       model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Comments.TotalCount,
-		Commits:        model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Commits.TotalCount,
-		Additions:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Additions,
-		Deletions:      model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Deletions,
-		ChangedFiles:   model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ChangedFiles,
+		ReviewComments: pullRequestDetailQuery.Organization.Repository.PullRequest.TotalCommentsCount,
+		Comments:       pullRequestDetailQuery.Organization.Repository.PullRequest.Comments.TotalCount,
+		Commits:        pullRequestDetailQuery.Organization.Repository.PullRequest.Commits.TotalCount,
+		Additions:      pullRequestDetailQuery.Organization.Repository.PullRequest.Additions,
+		Deletions:      pullRequestDetailQuery.Organization.Repository.PullRequest.Deletions,
+		ChangedFiles:   pullRequestDetailQuery.Organization.Repository.PullRequest.ChangedFiles,
 	}
 
-	for _, assignee := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Assignees.Edges {
-		pullRequestResponse.Assignees = append(pullRequestResponse.Assignees, model.User{
-			Login: assignee.Node.User.Name,
-			Name:  assignee.Node.User.Login,
-		})
-	}
+	prResponse.Assignees = populateAssignees(pullRequestDetailQuery.Organization.Repository.PullRequest.Assignees)
+	prResponse.Reviewers = populateReviewers(pullRequestDetailQuery.Organization.Repository.PullRequest.ReviewRequests)
 
-	for _, reviewer := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.ReviewRequests.Edges {
-		if reviewer.Node.RequestedReviewer.Type == "User" {
-			pullRequestResponse.Reviewers = append(pullRequestResponse.Reviewers, model.Actor{
-				Type: "User",
-				User: model.User{
-					Login: reviewer.Node.RequestedReviewer.User.Login,
-					Name:  reviewer.Node.RequestedReviewer.User.Name,
-				},
-			})
-		} else if reviewer.Node.RequestedReviewer.Type == "Team" {
-			pullRequestResponse.Reviewers = append(pullRequestResponse.Reviewers, model.Actor{
-				Type: "Team",
-				Team: model.Team{
-					Name: reviewer.Node.RequestedReviewer.User.Name,
-				},
-			})
-		}
-	}
-
-	for _, file := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Files.Edges {
+	for _, file := range pullRequestDetailQuery.Organization.Repository.PullRequest.Files.Edges {
 		pullRequestFilesResponse.Files = append(pullRequestFilesResponse.Files, model.PullRequestFile{
 			Filename:   file.Node.Path,
 			Additions:  file.Node.Additions,
@@ -323,7 +279,7 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		})
 	}
 
-	for _, commit := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Commits.Edges {
+	for _, commit := range pullRequestDetailQuery.Organization.Repository.PullRequest.Commits.Edges {
 		for _, checkSuite := range commit.Node.Commit.CheckSuites.Edges {
 			checkRunResponse.OverallConclusion = checkSuite.Node.Conclusion
 			for _, checkRun := range checkSuite.Node.CheckRuns.Edges {
@@ -344,10 +300,11 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		}
 	}
 
-	for _, review := range model.PullRequestDetailsQuery.Organization.Repository.PullRequest.Reviews.Edges {
+	for _, review := range pullRequestDetailQuery.Organization.Repository.PullRequest.Reviews.Edges {
 		prReviews = append(prReviews, model.ReviewPullRequestResponse{
 			User: model.User{
-				Login: review.Node.Author.Login,
+				Login: review.Node.Author.User.Login,
+				Name:  review.Node.Author.User.Name,
 			},
 			State:       review.Node.State,
 			Body:        review.Node.Body,
@@ -357,5 +314,39 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 		})
 	}
 
-	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews
+	return prResponse, pullRequestFilesResponse, checkRunResponse, prReviews
+}
+
+func populateAssignees(assigness model.AssigneesFragment) []model.User {
+	assignees := make([]model.User, 0)
+	for _, assignee := range assigness.Edges {
+		assignees = append(assignees, model.User{
+			Login: assignee.Node.Login,
+			Name:  assignee.Node.Name,
+		})
+	}
+	return assignees
+}
+
+func populateReviewers(reviewers model.ReviewRequestsFragment) []model.Actor {
+	reviewersList := make([]model.Actor, 0)
+	for _, reviewer := range reviewers.Edges {
+		if reviewer.Node.RequestedReviewer.Type == "User" {
+			reviewersList = append(reviewersList, model.Actor{
+				Type: "User",
+				User: model.User{
+					Login: reviewer.Node.RequestedReviewer.User.Login,
+					Name:  reviewer.Node.RequestedReviewer.User.Name,
+				},
+			})
+		} else if reviewer.Node.RequestedReviewer.Type == "Team" {
+			reviewersList = append(reviewersList, model.Actor{
+				Type: "Team",
+				Team: model.OrgTeam{
+					Name: reviewer.Node.RequestedReviewer.User.Name,
+				},
+			})
+		}
+	}
+	return reviewersList
 }

@@ -83,7 +83,6 @@ type GraphqlClient struct {
 
 func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{}) error {
 	if c.Verbose {
-		logger.Flog.Info().Msgf("Executing the query  %s", query)
 		logger.Flog.Info().Msgf("Executing the query with the variables %s", variables)
 	}
 

@@ -117,7 +117,7 @@ func (pr PullRequestResponse) FilterValue() string {
 type Actor struct {
 	Type string
 	User User
-	Team Team
+	Team OrgTeam
 }
 
 func (a Actor) Name() string {
@@ -377,14 +377,14 @@ type CheckRunOutput struct {
 	Text    string `json:"text"`
 }
 
-type Team struct {
+type OrgTeam struct {
 	Name         string
 	TotalMembers int
 	Url          string
-	Members      []Member
+	Members      []OrgTeamMember
 }
 
-type Member struct {
+type OrgTeamMember struct {
 	Login     string
 	Name      string
 	Url       string

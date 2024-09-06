@@ -408,7 +408,7 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 		return submittedAtI.After(submittedAtJ)
 	})
 	for _, review := range prReviews {
-		prReviewsRows = append(prReviewsRows, []string{review.User.Login, review.State, review.SubmittedAt, review.Body})
+		prReviewsRows = append(prReviewsRows, []string{review.User.Name, review.State, review.SubmittedAt, review.Body})
 	}
 
 	reviewsTable := ltable.New().

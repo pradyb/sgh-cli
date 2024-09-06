@@ -30,7 +30,7 @@ var (
 )
 
 type TableRowType interface {
-	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.Team
+	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.OrgTeam
 }
 
 type rowsConvertHandler[T TableRowType] func(data T) []string
@@ -561,12 +561,12 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 	return repoCommits
 }
 
-func PrintTeams(teams []model.Team) {
+func PrintTeams(teams []model.OrgTeam) {
 	if len(teams) == 0 {
 		printNoDataMessage("No Teams found for the given input")
 		return
 	}
-	rows := convertToRows(teams, func(team model.Team) []string {
+	rows := convertToRows(teams, func(team model.OrgTeam) []string {
 		members := make([]string, 0, len(team.Members))
 		for _, member := range team.Members {
 			members = append(members, fmt.Sprintf(HyperLinkFormat, member.PeopleUrl, member.Name))

@@ -30,12 +30,13 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 
 	repositories := make([]model.Repository, 0)
 	for {
-		err := service.Query(ctx, &model.SearchRepository, variables)
+		var searchRepositoriesQuery model.SearchRepositoriesQuery
+		err := service.Query(ctx, &searchRepositoriesQuery, variables)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, edge := range model.SearchRepository.Search.Edges {
+		for _, edge := range searchRepositoriesQuery.Search.Edges {
 			repo := edge.Node.Repository
 			repositories = append(repositories, model.Repository{
 				Name:                  repo.Name,
@@ -48,10 +49,10 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 				OpenPullRequestsCount: repo.PullRequests.TotalCount,
 			})
 		}
-		variables["repoCursor"] = githubv4.String(model.SearchRepository.Search.PageInfo.EndCursor)
-		logger.Flog.Info().Msgf("Next page details %t %s", model.SearchRepository.Search.PageInfo.HasNextPage, model.SearchRepository.Search.PageInfo.EndCursor)
+		variables["repoCursor"] = githubv4.String(searchRepositoriesQuery.Search.PageInfo.EndCursor)
+		logger.Flog.Info().Msgf("Next page details %t %s", searchRepositoriesQuery.Search.PageInfo.HasNextPage, searchRepositoriesQuery.Search.PageInfo.EndCursor)
 
-		if !model.SearchRepository.Search.PageInfo.HasNextPage {
+		if !searchRepositoriesQuery.Search.PageInfo.HasNextPage {
 			break
 		}
 	}

@@ -1,6 +1,8 @@
 package team
 
 import (
+	"fmt"
+
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/team"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -42,6 +44,15 @@ By default, it will list 50 members in each team.`,
 			$ sgh team list --org <owner> --team <team> --all-members
 		`),
 
+		Args: func(cmd *cobra.Command, args []string) error {
+			if allMembers && teamName == "" {
+				return fmt.Errorf("team name is required when listing all members")
+			}
+			if noOfMembers > 100 {
+				return fmt.Errorf("maximum number of members to list is 100")
+			}
+			return nil
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			teams, err := team.GetTeamAndMembers(ctx, orgName, teamName, noOfMembers, allMembers)
