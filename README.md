@@ -12,6 +12,7 @@ sgh config set tagger-email "b.pradeepkumar@gmail.com" -o prady-github-api
 
 
 ```json
+"no_of_workers": 1,
 {
     "name": "prady-github-api",
     "repositories": [

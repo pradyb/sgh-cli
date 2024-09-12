@@ -56,16 +56,17 @@ type PullRequestResponse struct {
 	Reviewers        []Actor  `json:"requested_reviewers"`
 	ReviewDecision   string   `json:"review_decision"`
 	Merged           bool     `json:"merged"`
-	Mergeable        string   `json:"mergeable"`
-	MergeStateStatus string   `json:"mergeable_state"`
-	MergedBy         User     `json:"merged_by"`
-	MergeAt          string   `json:"merged_at"`
-	Comments         int      `json:"comments"`
-	ReviewComments   int      `json:"review_comments"`
-	Commits          int      `json:"commits"`
-	ChangedFiles     int      `json:"changed_files"`
-	Additions        int      `json:"additions"`
-	Deletions        int      `json:"deletions"`
+	IsMergeable      bool     `json:"mergeable"`
+	Mergeable        string
+	MergeStateStatus string `json:"mergeable_state"`
+	MergedBy         User   `json:"merged_by"`
+	MergeAt          string `json:"merged_at"`
+	Comments         int    `json:"comments"`
+	ReviewComments   int    `json:"review_comments"`
+	Commits          int    `json:"commits"`
+	ChangedFiles     int    `json:"changed_files"`
+	Additions        int    `json:"additions"`
+	Deletions        int    `json:"deletions"`
 	ErrorMessage     string
 }
 

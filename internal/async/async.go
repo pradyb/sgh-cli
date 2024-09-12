@@ -4,8 +4,6 @@ import (
 	"sync"
 )
 
-const NO_OF_WORKERS = 5
-
 type ASyncJob[T any] struct {
 	Id      int
 	JobType string
@@ -45,8 +43,8 @@ func NewASyncJobQueue[T, R any](jobQueueSize int) *ASyncJobQueue[T, R] {
 	}
 }
 
-func (q *ASyncJobQueue[T, R]) Start(jobHandler ASyncJobHandler[T, R], resultHandler ASyncJobResultHandler[T, R], errorHandler ASyncJobErrorHandler[T]) {
-	for i := 0; i < NO_OF_WORKERS; i++ {
+func (q *ASyncJobQueue[T, R]) Start(jobHandler ASyncJobHandler[T, R], resultHandler ASyncJobResultHandler[T, R], errorHandler ASyncJobErrorHandler[T], noOfWorkers int) {
+	for i := 0; i < noOfWorkers; i++ {
 		q.wg.Add(1)
 		go q.worker(jobHandler)
 	}

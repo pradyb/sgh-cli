@@ -29,7 +29,7 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
 
-			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body)
+			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body, false)
 			if err != nil {
 				return model.PostReleaseResponse{RepositoryName: repoName}, err
 			}

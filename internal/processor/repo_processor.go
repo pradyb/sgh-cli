@@ -125,6 +125,11 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	}
 	jobQueue.Close()
 
+	noOfWorkers := ctx.Config.NoOfWorkers
+	if noOfWorkers == 0 {
+		noOfWorkers = 1
+	}
+
 	jobQueue.Start(
 		func(job async.ASyncJob[any]) (interface{}, error) {
 			response, err := operationHandler(ctx, orgName, job.JobData.(string))
@@ -135,7 +140,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 			resultHandler(result.JobData.(string), RepoOperationResult[R]{Result: result.Result.(R)})
 		}, func(err async.ASyncJobError[any]) {
 			errorHandler(err.JobData.(string), err.Error)
-		})
+		}, noOfWorkers)
 	fmt.Println()
 	return nil
 }

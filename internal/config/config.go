@@ -15,6 +15,7 @@ import (
 const DefaultFilename = "sgh.json"
 
 type Config struct {
+	NoOfWorkers   int                     `json:"no_of_workers,omitempty"`
 	Organizations []Organization          `json:"organizations"`
 	orgData       map[string]Organization `json:"-"`
 }

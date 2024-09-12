@@ -18,7 +18,7 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 
 	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
-			return CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body)
+			return CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body, true)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.PullRequestResponse]) {
 			responses = append(responses, result.Result)
@@ -29,7 +29,7 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 	return responses
 }
 
-func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName, baseRef, headRef, title, body string) (model.PullRequestResponse, error) {
+func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName, baseRef, headRef, title, body string, fetchPR bool) (model.PullRequestResponse, error) {
 	prResponse, err := service.CreateNewPullRequest(ctx, orgName, repoName, title, body, baseRef, headRef)
 	if err != nil {
 		return model.PullRequestResponse{}, err
@@ -39,7 +39,11 @@ func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName,
 		service.AddIssueAssignees(ctx, orgName, repoName, prResponse.PRNumber, assignees)
 		service.AddReviewers(ctx, orgName, repoName, prResponse.PRNumber, assignees)
 	}
-	return service.GetPullRequestInfo(ctx, orgName, repoName, prResponse.PRNumber)
+	if fetchPR {
+		return service.GetPullRequestInfo(ctx, orgName, repoName, prResponse.PRNumber)
+	} else {
+		return prResponse, nil
+	}
 }
 
 func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {
