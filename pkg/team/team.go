@@ -24,9 +24,12 @@ type TeamQuery struct {
 		Teams struct {
 			Edges []struct {
 				Node struct {
-					Name    string
-					Url     string
-					Members Members `graphql:"members(first: $noOfMembers, after: $memberCursor, orderBy: {field: LOGIN, direction: ASC})"`
+					Name         string
+					Url          string
+					Members      Members `graphql:"members(first: $noOfMembers, after: $memberCursor, orderBy: {field: LOGIN, direction: ASC})"`
+					Repositories struct {
+						TotalCount int
+					} `graphql:"repositories(first: 1)"`
 				}
 			}
 		} `graphql:"teams(first: 10, query: $teamName)"`
@@ -60,10 +63,11 @@ func GetTeamAndMembers(ctx *context.Context, orgName string, teamName string, no
 				break
 			} else {
 				teams = append(teams, model.OrgTeam{
-					Name:         team.Node.Name,
-					TotalMembers: team.Node.Members.TotalCount,
-					Url:          team.Node.Url,
-					Members:      currentMembers,
+					Name:              team.Node.Name,
+					TotalMembers:      team.Node.Members.TotalCount,
+					Url:               team.Node.Url,
+					Members:           currentMembers,
+					RepositoriesCount: team.Node.Repositories.TotalCount,
 				})
 				currentTeamNextPage = ""
 				currentMembers = make([]model.OrgTeamMember, 0)

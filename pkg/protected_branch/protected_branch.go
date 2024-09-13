@@ -2,27 +2,122 @@ package protectedbranch
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/shurcooL/githubv4"
 )
 
 func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListProtectedBranch,
-		func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-			return service.ListProtectedBranches(ctx, orgName, repoName, branchName)
-		},
-		func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
-			responses = append(responses, result.Result)
-		},
-		func(repoName string, err error) {
-			responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()})
-		})
+	if len(repoNames) <= 1 {
+		// Invoke via GraphQL
+		logger.Glog.Info().Msgf("Invoking GraphQL to list protected branches for %s", orgName)
+		queryString := getQueryString(ctx, orgName, repoNames)
+		variables := map[string]interface{}{
+			"queryString": githubv4.String(queryString),
+			"branchName":  githubv4.String(branchName),
+			"repoCursor":  (*githubv4.String)(nil),
+		}
+
+		var selectedBranchName string
+		for {
+			var searchProtectedBranchesQuery model.SearchProtectedBranchesQuery
+			err := service.Query(ctx, &searchProtectedBranchesQuery, variables)
+			if err != nil {
+				logger.Glog.Error().Err(err).Msg("Error in listing protected branches")
+				return responses
+			}
+			for _, edge := range searchProtectedBranchesQuery.Search.Edges {
+				if edge.Node.Repository.Refs.TotalCount != 0 {
+					node := edge.Node.Repository.Refs.Edges[0].Node
+					selectedBranchName = node.Name
+					if edge.Node.Repository.Refs.TotalCount > 1 {
+						for _, edge := range edge.Node.Repository.Refs.Edges {
+							if edge.Node.Name == branchName {
+								node = edge.Node
+								selectedBranchName = node.Name
+							}
+						}
+					}
+					checkContexts := make([]string, 0)
+					restrictionsUsers := make([]model.User, 0)
+					bypassPullRequestAllowances := make([]model.User, 0)
+					for _, check := range node.BranchProtectionRule.RequiredStatusChecks {
+						checkContexts = append(checkContexts, check.Context)
+					}
+					for _, edge := range node.BranchProtectionRule.PushAllowances.Edges {
+						restrictionsUsers = append(restrictionsUsers, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+					}
+					for _, edge := range node.BranchProtectionRule.BypassPullRequestAllowances.Edges {
+						bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+					}
+					responses = append(responses, model.ProtectedBranch{
+						RepositoryName:                 edge.Node.Repository.Name,
+						LockBranch:                     model.BoolData{Enabled: node.BranchProtectionRule.LockBranch},
+						EnforceAdmins:                  model.BoolData{Enabled: node.BranchProtectionRule.IsAdminEnforced},
+						RequiredConversationResolution: model.BoolData{Enabled: node.BranchProtectionRule.RequiresConversationResolution},
+						RequiredPullRequestReviews: model.RequiredPullRequestReviews{
+							DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
+							RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
+							RequireLastPushApproval:      node.BranchProtectionRule.RequireLastPushApproval,
+							RequiredApprovingReviewCount: node.BranchProtectionRule.RequiredApprovingReviewCount,
+							BypassPullRequestAllowances:  model.UserTeam{Users: bypassPullRequestAllowances},
+						},
+						RequiredStatusChecks: model.RequiredStatusChecks{Contexts: checkContexts},
+						Restrictions: model.Restriction{
+							Users: restrictionsUsers,
+						},
+					})
+				}
+			}
+			variables["repoCursor"] = githubv4.String(searchProtectedBranchesQuery.Search.PageInfo.EndCursor)
+			logger.Flog.Info().Msgf("Next page details %t %s", searchProtectedBranchesQuery.Search.PageInfo.HasNextPage, searchProtectedBranchesQuery.Search.PageInfo.EndCursor)
+
+			if !searchProtectedBranchesQuery.Search.PageInfo.HasNextPage {
+				break
+			}
+		}
+		if selectedBranchName != branchName {
+			logger.Glog.Warn().Msgf("selecting %s branch", selectedBranchName)
+		}
+
+	} else {
+		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListProtectedBranch,
+			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
+				return service.ListProtectedBranches(ctx, orgName, repoName, branchName)
+			},
+			func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
+				responses = append(responses, result.Result)
+			},
+			func(repoName string, err error) {
+				responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()})
+			})
+	}
 	return responses
+}
+
+func getQueryString(ctx *context.Context, orgName string, repoNames []string) string {
+	var queryString string
+	queryString = "org:" + orgName
+	if len(repoNames) == 0 {
+		if ctx.Config.IsOrganizationPresent(orgName) {
+			includes := ctx.Config.IncludePatterns(orgName)
+			if (len(includes)) == 1 {
+				queryString = queryString + " " + strings.ReplaceAll(includes[0], "*", "") + " in:name"
+			}
+		}
+	} else {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
+		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", orgName)
+		queryString = queryString + " " + actualRepoNames[0] + " in:name"
+	}
+	return queryString
 }
 
 func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool) []model.ProtectedBranch {

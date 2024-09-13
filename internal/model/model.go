@@ -215,23 +215,13 @@ func CreateNewCommonResponse(repoName, ref, refType, successMessage, errorMessag
 
 type ProtectedBranch struct {
 	RepositoryName                 string
-	LockBranch                     BoolData `json:"lock_branch"`
-	EnforceAdmins                  BoolData `json:"enforce_admins"`
-	RequiredConversationResolution BoolData `json:"required_conversation_resolution"`
-	RequiredPullRequestReviews     struct {
-		DismissStaleReviews          bool     `json:"dismiss_stale_reviews"`
-		RequireCodeOwnerReviews      bool     `json:"require_code_owner_reviews"`
-		RequiredApprovingReviewCount int      `json:"required_approving_review_count"`
-		RequireLastPushApproval      bool     `json:"require_last_push_approval"`
-		BypassPullRequestAllowances  UserTeam `json:"bypass_pull_request_allowances"`
-	} `json:"required_pull_request_reviews"`
-	RequiredStatusChecks struct {
-		Strict   bool     `json:"strict"`
-		Contexts []string `json:"contexts"`
-		Checks   []Check  `json:"checks"`
-	} `json:"required_status_checks"`
-	Restrictions Restriction `json:"restrictions"`
-	ErrorMessage string
+	LockBranch                     BoolData                   `json:"lock_branch"`
+	EnforceAdmins                  BoolData                   `json:"enforce_admins"`
+	RequiredConversationResolution BoolData                   `json:"required_conversation_resolution"`
+	RequiredPullRequestReviews     RequiredPullRequestReviews `json:"required_pull_request_reviews"`
+	RequiredStatusChecks           RequiredStatusChecks       `json:"required_status_checks"`
+	Restrictions                   Restriction                `json:"restrictions"`
+	ErrorMessage                   string
 }
 
 type UserTeam struct {
@@ -249,6 +239,20 @@ type Check struct {
 
 type BoolData struct {
 	Enabled bool `json:"enabled"`
+}
+
+type RequiredPullRequestReviews struct {
+	DismissStaleReviews          bool     `json:"dismiss_stale_reviews"`
+	RequireCodeOwnerReviews      bool     `json:"require_code_owner_reviews"`
+	RequiredApprovingReviewCount int      `json:"required_approving_review_count"`
+	RequireLastPushApproval      bool     `json:"require_last_push_approval"`
+	BypassPullRequestAllowances  UserTeam `json:"bypass_pull_request_allowances"`
+}
+
+type RequiredStatusChecks struct {
+	Strict   bool     `json:"strict"`
+	Contexts []string `json:"contexts"`
+	Checks   []Check  `json:"checks"`
 }
 
 type ProtectedBranchRequest struct {
@@ -379,10 +383,11 @@ type CheckRunOutput struct {
 }
 
 type OrgTeam struct {
-	Name         string
-	TotalMembers int
-	Url          string
-	Members      []OrgTeamMember
+	Name              string
+	TotalMembers      int
+	Url               string
+	Members           []OrgTeamMember
+	RepositoriesCount int
 }
 
 type OrgTeamMember struct {

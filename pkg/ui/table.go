@@ -278,7 +278,6 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(rows))})
 
 	fmt.Println()
-	fmt.Println()
 	t := table.New().
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
@@ -575,6 +574,7 @@ func PrintTeams(teams []model.OrgTeam) {
 			fmt.Sprintf(HyperLinkFormat, team.Url, team.Name),
 			strconv.Itoa(team.TotalMembers),
 			strings.Join(members, "\n"),
+			strconv.Itoa(team.RepositoriesCount),
 		}
 	})
 
@@ -592,7 +592,7 @@ func PrintTeams(teams []model.OrgTeam) {
 			}
 			if col == 0 {
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
-			} else if col == 1 {
+			} else if col == 1 || col == 3 {
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
 			}
 			if row == len(rows) {
@@ -600,7 +600,7 @@ func PrintTeams(teams []model.OrgTeam) {
 			}
 			return style
 		}).
-		Headers("Team Name", "Total Members", "Members").
+		Headers("Team Name", "Total Members", "Members", "Repositories Count").
 		Rows(rows...)
 
 	fmt.Println(t)

@@ -8,6 +8,8 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
+	pb "github.com/prady-lab/sgh-cli/pkg/protected_branch"
+
 	"github.com/prady-lab/sgh-cli/pkg/tag"
 )
 
@@ -26,9 +28,11 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 
 	responses := make([]model.PostReleaseResponse, 0)
 
+	// Lock the branch
+	pb.UpdateProtectedBranch(ctx, request.OrgName, request.RepoNames, request.HeadRef, true, false)
+
 	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
-
 			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body, false)
 			if err != nil {
 				return model.PostReleaseResponse{RepositoryName: repoName}, err

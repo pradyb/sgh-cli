@@ -229,3 +229,70 @@ type PullRequestDetailQuery struct {
 		} `graphql:"repository(name: $repoName)"`
 	} `graphql:"organization(login: $orgName)"`
 }
+
+type SearchProtectedBranchesQuery struct {
+	Search struct {
+		RepositoryCount int
+		PageInfo        struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+		Edges []struct {
+			Node struct {
+				Repository struct {
+					Name string
+					Refs struct {
+						TotalCount int
+						Edges      []struct {
+							Node struct {
+								Name                 string
+								BranchProtectionRule struct {
+									AllowsDeletions                bool
+									AllowsForcePushes              bool
+									BlocksCreations                bool
+									DismissesStaleReviews          bool
+									IsAdminEnforced                bool
+									LockAllowsFetchAndMerge        bool
+									LockBranch                     bool
+									Pattern                        string
+									RequireLastPushApproval        bool
+									RequiredApprovingReviewCount   int
+									RequiredDeploymentEnvironments []string
+									RequiresApprovingReviews       bool
+									RequiresCodeOwnerReviews       bool
+									RequiresCommitSignatures       bool
+									RequiresConversationResolution bool
+									RequiresDeployments            bool
+									RequiresLinearHistory          bool
+									RequiresStatusChecks           bool
+									RequiresStrictStatusChecks     bool
+									RestrictsPushes                bool
+									RestrictsReviewDismissals      bool
+									RequiredStatusChecks           []struct {
+										Context string
+									}
+									PushAllowances struct {
+										TotalCount int
+										Edges      []struct {
+											Node struct {
+												Actor ActorFragment
+											}
+										}
+									} `graphql:"pushAllowances(first: 10)"`
+									BypassPullRequestAllowances struct {
+										TotalCount int
+										Edges      []struct {
+											Node struct {
+												Actor ActorFragment
+											}
+										}
+									} `graphql:"bypassPullRequestAllowances(first: 10)"`
+								}
+							}
+						}
+					} `graphql:"refs(query: $branchName, refPrefix: \"refs/heads/\", first: 10)"`
+				} `graphql:"... on Repository"`
+			}
+		}
+	} `graphql:"search(query: $queryString, type: REPOSITORY, first: 50, after: $repoCursor)"`
+}
