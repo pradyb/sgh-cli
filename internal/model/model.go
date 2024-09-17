@@ -215,9 +215,9 @@ func CreateNewCommonResponse(repoName, ref, refType, successMessage, errorMessag
 
 type ProtectedBranch struct {
 	RepositoryName                 string
-	LockBranch                     BoolData                   `json:"lock_branch"`
-	EnforceAdmins                  BoolData                   `json:"enforce_admins"`
-	RequiredConversationResolution BoolData                   `json:"required_conversation_resolution"`
+	LockBranch                     bool
+	EnforceAdmins                  bool
+	RequiredConversationResolution bool
 	RequiredPullRequestReviews     RequiredPullRequestReviews `json:"required_pull_request_reviews"`
 	RequiredStatusChecks           RequiredStatusChecks       `json:"required_status_checks"`
 	Restrictions                   Restriction                `json:"restrictions"`
@@ -235,10 +235,6 @@ type Restriction struct {
 type Check struct {
 	Context string `json:"context"`
 	AppId   int    `json:"app_id"`
-}
-
-type BoolData struct {
-	Enabled bool `json:"enabled"`
 }
 
 type RequiredPullRequestReviews struct {

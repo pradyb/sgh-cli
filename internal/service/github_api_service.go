@@ -351,20 +351,6 @@ func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber i
 	return mergeResponse, nil
 }
 
-func ListProtectedBranches(ctx *context.Context, orgName, repoName, branchName string) (model.ProtectedBranch, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), nil)
-	if err != nil {
-		return model.ProtectedBranch{}, err
-	}
-	var branch model.ProtectedBranch
-	if err := json.Unmarshal(response, &branch); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branches response body")
-		return model.ProtectedBranch{}, err
-	}
-	branch.RepositoryName = repoName
-	return branch, nil
-}
-
 func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
 	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), bytes.NewReader(payload))
 	if err != nil {

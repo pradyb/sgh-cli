@@ -338,7 +338,7 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
 				strings.Join(pb.RequiredStatusChecks.Contexts, ","),
-				strconv.FormatBool(pb.LockBranch.Enabled),
+				strconv.FormatBool(pb.LockBranch),
 				strings.Join(bypassUsers, ","),
 				strings.Join(restrictionUsers, ","),
 			}

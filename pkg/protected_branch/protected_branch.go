@@ -58,7 +58,6 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 	} else {
 		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListProtectedBranch,
 			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-				// return service.ListProtectedBranches(ctx, orgName, repoName, branchName)
 				return getProtectedBranchDetails(ctx, orgName, repoName, branchName, githubv4.String("")), nil
 			},
 			func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
@@ -113,17 +112,9 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 	responses := make([]model.ProtectedBranch, 0)
 	for _, edge := range searchProtectedBranchesQuery.Search.Edges {
 		if edge.Node.Repository.Refs.TotalCount != 0 {
-			node := edge.Node.Repository.Refs.Edges[0].Node
+			node := getSelectedBranchRef(edge.Node.Repository, branchName)
 			selectedBranchName = node.Name
-			if edge.Node.Repository.Refs.TotalCount > 1 {
-				for _, edge := range edge.Node.Repository.Refs.Edges {
-					if edge.Node.Name == branchName {
-						node = edge.Node
-						selectedBranchName = node.Name
-						break
-					}
-				}
-			}
+
 			checkContexts := make([]string, 0)
 			restrictionsUsers := make([]model.User, 0)
 			bypassPullRequestAllowances := make([]model.User, 0)
@@ -139,9 +130,9 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 
 			responses = append(responses, model.ProtectedBranch{
 				RepositoryName:                 edge.Node.Repository.Name,
-				LockBranch:                     model.BoolData{Enabled: node.BranchProtectionRule.LockBranch},
-				EnforceAdmins:                  model.BoolData{Enabled: node.BranchProtectionRule.IsAdminEnforced},
-				RequiredConversationResolution: model.BoolData{Enabled: node.BranchProtectionRule.RequiresConversationResolution},
+				LockBranch:                     node.BranchProtectionRule.LockBranch,
+				EnforceAdmins:                  node.BranchProtectionRule.IsAdminEnforced,
+				RequiredConversationResolution: node.BranchProtectionRule.RequiresConversationResolution,
 				RequiredPullRequestReviews: model.RequiredPullRequestReviews{
 					DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
 					RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
@@ -157,6 +148,19 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 		}
 	}
 	return responses, selectedBranchName
+}
+
+func getSelectedBranchRef(repoFragment model.ProtectedBranchRepoFragment, branchName string) model.ProtectedBranchRefFragment {
+	node := repoFragment.Refs.Edges[0].Node
+	if repoFragment.Refs.TotalCount > 1 {
+		for _, edge := range repoFragment.Refs.Edges {
+			if edge.Node.Name == branchName {
+				node = edge.Node
+				break
+			}
+		}
+	}
+	return node
 }
 
 func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool) []model.ProtectedBranch {
