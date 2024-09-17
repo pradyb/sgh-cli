@@ -44,6 +44,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			ctx.SetVerbose(verbose)
 			logResponse, _ := cmd.Flags().GetBool("log-response")
 			ctx.SetLogResponse(logResponse)
+			workers, _ := cmd.Flags().GetInt("workers")
+			ctx.SetWorkerCount(workers)
 			userFlags := make([]string, 0)
 			flags := cmd.Flags()
 			flags.VisitAll(func(f *pflag.Flag) {
@@ -62,6 +64,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
+	rootCmd.PersistentFlags().IntP("workers", "w", 5, "number of workers")
 	rootCmd.MarkPersistentFlagRequired("org")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))

@@ -55,3 +55,7 @@ func (c *Context) SetVerbose(verbose bool) {
 func (c *Context) SetLogResponse(logResponse bool) {
 	c.HttpClient.LogResponse = logResponse
 }
+
+func (c *Context) SetWorkerCount(noOfWorkers int) {
+	c.Config.NoOfWorkers = noOfWorkers
+}
