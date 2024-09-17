@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
@@ -28,8 +29,13 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 
 	responses := make([]model.PostReleaseResponse, 0)
 
-	// Lock the branch
+	// lock the Head branch and add the required status checks
+	logger.Glog.Info().Msgf("locking the Head branch %s and adding the required status checks", request.HeadRef)
 	pb.UpdateProtectedBranch(ctx, request.OrgName, request.RepoNames, request.HeadRef, true, false)
+
+	logger.Glog.Info().Msgf("unlocking the Base branch %s and removing the required status checks", request.BaseRef)
+	// unlock the Base branch and remove the required status checks
+	pb.UpdateProtectedBranch(ctx, request.OrgName, request.RepoNames, request.BaseRef, false, true)
 
 	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
@@ -59,5 +65,9 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 		func(repoName string, err error) {
 			responses = append(responses, model.PostReleaseResponse{RepositoryName: repoName, ErrorMessage: err.Error()})
 		})
+
+	// lock the Base branch and add the required status checks
+	logger.Glog.Info().Msgf("locking the Base branch %s and adding the required status checks", request.BaseRef)
+	pb.UpdateProtectedBranch(ctx, request.OrgName, request.RepoNames, request.BaseRef, true, false)
 	return responses
 }

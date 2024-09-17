@@ -18,7 +18,13 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 	if len(repoNames) <= 1 {
 		// Invoke via GraphQL
 		logger.Glog.Info().Msgf("Invoking GraphQL to list protected branches for %s", orgName)
-		queryString := getQueryString(ctx, orgName, repoNames)
+		repoName := ""
+		if len(repoNames) == 1 {
+			actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
+			logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", "Listing Protected Branch", orgName)
+			repoName = actualRepoNames[0]
+		}
+		queryString := getQueryString(ctx, orgName, repoName)
 		variables := map[string]interface{}{
 			"queryString": githubv4.String(queryString),
 			"branchName":  githubv4.String(branchName),
@@ -26,6 +32,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 		}
 
 		var selectedBranchName string
+		var branches []model.ProtectedBranch
 		for {
 			var searchProtectedBranchesQuery model.SearchProtectedBranchesQuery
 			err := service.Query(ctx, &searchProtectedBranchesQuery, variables)
@@ -33,49 +40,10 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 				logger.Glog.Error().Err(err).Msg("Error in listing protected branches")
 				return responses
 			}
-			for _, edge := range searchProtectedBranchesQuery.Search.Edges {
-				if edge.Node.Repository.Refs.TotalCount != 0 {
-					node := edge.Node.Repository.Refs.Edges[0].Node
-					selectedBranchName = node.Name
-					if edge.Node.Repository.Refs.TotalCount > 1 {
-						for _, edge := range edge.Node.Repository.Refs.Edges {
-							if edge.Node.Name == branchName {
-								node = edge.Node
-								selectedBranchName = node.Name
-							}
-						}
-					}
-					checkContexts := make([]string, 0)
-					restrictionsUsers := make([]model.User, 0)
-					bypassPullRequestAllowances := make([]model.User, 0)
-					for _, check := range node.BranchProtectionRule.RequiredStatusChecks {
-						checkContexts = append(checkContexts, check.Context)
-					}
-					for _, edge := range node.BranchProtectionRule.PushAllowances.Edges {
-						restrictionsUsers = append(restrictionsUsers, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
-					}
-					for _, edge := range node.BranchProtectionRule.BypassPullRequestAllowances.Edges {
-						bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
-					}
-					responses = append(responses, model.ProtectedBranch{
-						RepositoryName:                 edge.Node.Repository.Name,
-						LockBranch:                     model.BoolData{Enabled: node.BranchProtectionRule.LockBranch},
-						EnforceAdmins:                  model.BoolData{Enabled: node.BranchProtectionRule.IsAdminEnforced},
-						RequiredConversationResolution: model.BoolData{Enabled: node.BranchProtectionRule.RequiresConversationResolution},
-						RequiredPullRequestReviews: model.RequiredPullRequestReviews{
-							DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
-							RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
-							RequireLastPushApproval:      node.BranchProtectionRule.RequireLastPushApproval,
-							RequiredApprovingReviewCount: node.BranchProtectionRule.RequiredApprovingReviewCount,
-							BypassPullRequestAllowances:  model.UserTeam{Users: bypassPullRequestAllowances},
-						},
-						RequiredStatusChecks: model.RequiredStatusChecks{Contexts: checkContexts},
-						Restrictions: model.Restriction{
-							Users: restrictionsUsers,
-						},
-					})
-				}
-			}
+
+			branches, selectedBranchName = transformToProtectedBranch(searchProtectedBranchesQuery, branchName)
+			responses = append(responses, branches...)
+
 			variables["repoCursor"] = githubv4.String(searchProtectedBranchesQuery.Search.PageInfo.EndCursor)
 			logger.Flog.Info().Msgf("Next page details %t %s", searchProtectedBranchesQuery.Search.PageInfo.HasNextPage, searchProtectedBranchesQuery.Search.PageInfo.EndCursor)
 
@@ -90,7 +58,8 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 	} else {
 		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListProtectedBranch,
 			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-				return service.ListProtectedBranches(ctx, orgName, repoName, branchName)
+				// return service.ListProtectedBranches(ctx, orgName, repoName, branchName)
+				return getProtectedBranchDetails(ctx, orgName, repoName, branchName, githubv4.String("")), nil
 			},
 			func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
 				responses = append(responses, result.Result)
@@ -102,10 +71,10 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 	return responses
 }
 
-func getQueryString(ctx *context.Context, orgName string, repoNames []string) string {
+func getQueryString(ctx *context.Context, orgName string, repoName string) string {
 	var queryString string
 	queryString = "org:" + orgName
-	if len(repoNames) == 0 {
+	if repoName == "" {
 		if ctx.Config.IsOrganizationPresent(orgName) {
 			includes := ctx.Config.IncludePatterns(orgName)
 			if (len(includes)) == 1 {
@@ -113,11 +82,81 @@ func getQueryString(ctx *context.Context, orgName string, repoNames []string) st
 			}
 		}
 	} else {
-		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
-		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", orgName)
-		queryString = queryString + " " + actualRepoNames[0] + " in:name"
+		queryString = queryString + " " + repoName + " in:name"
 	}
 	return queryString
+}
+
+func getProtectedBranchDetails(ctx *context.Context, orgName, repoName, branchName string, repoCursor githubv4.String) model.ProtectedBranch {
+	queryString := getQueryString(ctx, orgName, repoName)
+	variables := map[string]interface{}{
+		"queryString": githubv4.String(queryString),
+		"branchName":  githubv4.String(branchName),
+		"repoCursor":  repoCursor,
+	}
+
+	var searchProtectedBranchesQuery model.SearchProtectedBranchesQuery
+	err := service.Query(ctx, &searchProtectedBranchesQuery, variables)
+	if err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in listing protected branches")
+		return model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()}
+	}
+	branches, _ := transformToProtectedBranch(searchProtectedBranchesQuery, branchName)
+	if len(branches) > 0 {
+		return branches[0]
+	}
+	return model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: "No protected branch found"}
+}
+
+func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtectedBranchesQuery, branchName string) ([]model.ProtectedBranch, string) {
+	var selectedBranchName string
+	responses := make([]model.ProtectedBranch, 0)
+	for _, edge := range searchProtectedBranchesQuery.Search.Edges {
+		if edge.Node.Repository.Refs.TotalCount != 0 {
+			node := edge.Node.Repository.Refs.Edges[0].Node
+			selectedBranchName = node.Name
+			if edge.Node.Repository.Refs.TotalCount > 1 {
+				for _, edge := range edge.Node.Repository.Refs.Edges {
+					if edge.Node.Name == branchName {
+						node = edge.Node
+						selectedBranchName = node.Name
+						break
+					}
+				}
+			}
+			checkContexts := make([]string, 0)
+			restrictionsUsers := make([]model.User, 0)
+			bypassPullRequestAllowances := make([]model.User, 0)
+			for _, check := range node.BranchProtectionRule.RequiredStatusChecks {
+				checkContexts = append(checkContexts, check.Context)
+			}
+			for _, edge := range node.BranchProtectionRule.PushAllowances.Edges {
+				restrictionsUsers = append(restrictionsUsers, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+			}
+			for _, edge := range node.BranchProtectionRule.BypassPullRequestAllowances.Edges {
+				bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+			}
+
+			responses = append(responses, model.ProtectedBranch{
+				RepositoryName:                 edge.Node.Repository.Name,
+				LockBranch:                     model.BoolData{Enabled: node.BranchProtectionRule.LockBranch},
+				EnforceAdmins:                  model.BoolData{Enabled: node.BranchProtectionRule.IsAdminEnforced},
+				RequiredConversationResolution: model.BoolData{Enabled: node.BranchProtectionRule.RequiresConversationResolution},
+				RequiredPullRequestReviews: model.RequiredPullRequestReviews{
+					DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
+					RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
+					RequireLastPushApproval:      node.BranchProtectionRule.RequireLastPushApproval,
+					RequiredApprovingReviewCount: node.BranchProtectionRule.RequiredApprovingReviewCount,
+					BypassPullRequestAllowances:  model.UserTeam{Users: bypassPullRequestAllowances},
+				},
+				RequiredStatusChecks: model.RequiredStatusChecks{Contexts: checkContexts},
+				Restrictions: model.Restriction{
+					Users: restrictionsUsers,
+				},
+			})
+		}
+	}
+	return responses, selectedBranchName
 }
 
 func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool) []model.ProtectedBranch {
