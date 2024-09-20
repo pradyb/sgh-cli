@@ -70,7 +70,8 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 			repoNames, _ := cmd.Flags().GetStringArray("repository")
 			branchName, _ := cmd.Flags().GetString("branch")
-			branchResponses := pb.UpdateProtectedBranch(ctx, orgName, repoNames, branchName, lock, removeStatus)
+			pb.UpdateProtectedBranch(ctx, orgName, repoNames, branchName, lock, removeStatus)
+			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
 	}

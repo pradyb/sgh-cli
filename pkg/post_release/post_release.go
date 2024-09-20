@@ -28,7 +28,6 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 	responses := make([]model.PostReleaseResponse, 0)
 	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
-
 			// lock the Head branch and add the required status checks
 			pb.UpdateProtectedBranchForRepo(ctx, request.OrgName, repoName, request.HeadRef, true, false)
 			// unlock the Base branch and remove the required status checks
@@ -36,11 +35,13 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 
 			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body, false)
 			if err != nil {
+				postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 				return model.PostReleaseResponse{RepositoryName: repoName}, err
 			}
 			// merge to main/develop
 			mrResponse := pr.MergePullRequest(ctx, orgName, repoName, prResponse.PRNumber, request.Title, request.Body)
 			if mrResponse.ErrorMessage != "" {
+				postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 				return model.PostReleaseResponse{RepositoryName: repoName}, errors.New(mrResponse.ErrorMessage)
 			}
 
@@ -48,13 +49,13 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 			if request.CreateTag {
 				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, request.TagName, request.BaseRef, request.Title)
 				if err != nil {
+					postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 					return model.PostReleaseResponse{RepositoryName: repoName}, err
 				}
 				return model.PostReleaseResponse{RepositoryName: repoName, PRNumber: prResponse.PRNumber, PRHtmlUrl: prResponse.HTMLUrl, TagHtmlUrl: tagResponse.Url, TagCommitSHA: tagResponse.Object.SHA}, nil
 			}
 
-			// lock the Base branch and add the required status checks
-			pb.UpdateProtectedBranchForRepo(ctx, request.OrgName, repoName, request.BaseRef, true, false)
+			postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 
 			return model.PostReleaseResponse{RepositoryName: repoName, PRNumber: prResponse.PRNumber, PRHtmlUrl: prResponse.HTMLUrl}, nil
 		}, func(repoName string, result processor.RepoOperationResult[model.PostReleaseResponse]) {
@@ -64,4 +65,9 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 			responses = append(responses, model.PostReleaseResponse{RepositoryName: repoName, ErrorMessage: err.Error()})
 		})
 	return responses
+}
+
+func postProcessing(ctx *context.Context, orgName, repoName, baseRef string) {
+	// lock the Base branch and add the required status checks
+	pb.UpdateProtectedBranchForRepo(ctx, orgName, repoName, baseRef, true, false)
 }

@@ -2,6 +2,7 @@ package protectedbranch
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -115,36 +116,11 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 			node := getSelectedBranchRef(edge.Node.Repository, branchName)
 			selectedBranchName = node.Name
 
-			checkContexts := make([]string, 0)
-			restrictionsUsers := make([]model.User, 0)
-			bypassPullRequestAllowances := make([]model.User, 0)
-			for _, check := range node.BranchProtectionRule.RequiredStatusChecks {
-				checkContexts = append(checkContexts, check.Context)
+			if node.BranchProtectionRule.Pattern != "" {
+				responses = append(responses, transformBranchProtectionRuleToProtectedBranch(node, edge.Node.Repository.Name))
+			} else {
+				responses = append(responses, transformRuleSetToProtectedBranch(node, edge.Node.Repository.Name))
 			}
-			for _, edge := range node.BranchProtectionRule.PushAllowances.Edges {
-				restrictionsUsers = append(restrictionsUsers, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
-			}
-			for _, edge := range node.BranchProtectionRule.BypassPullRequestAllowances.Edges {
-				bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
-			}
-
-			responses = append(responses, model.ProtectedBranch{
-				RepositoryName:                 edge.Node.Repository.Name,
-				LockBranch:                     node.BranchProtectionRule.LockBranch,
-				EnforceAdmins:                  node.BranchProtectionRule.IsAdminEnforced,
-				RequiredConversationResolution: node.BranchProtectionRule.RequiresConversationResolution,
-				RequiredPullRequestReviews: model.RequiredPullRequestReviews{
-					DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
-					RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
-					RequireLastPushApproval:      node.BranchProtectionRule.RequireLastPushApproval,
-					RequiredApprovingReviewCount: node.BranchProtectionRule.RequiredApprovingReviewCount,
-					BypassPullRequestAllowances:  model.UserTeam{Users: bypassPullRequestAllowances},
-				},
-				RequiredStatusChecks: model.RequiredStatusChecks{Contexts: checkContexts},
-				Restrictions: model.Restriction{
-					Users: restrictionsUsers,
-				},
-			})
 		}
 	}
 	return responses, selectedBranchName
@@ -161,6 +137,101 @@ func getSelectedBranchRef(repoFragment model.ProtectedBranchRepoFragment, branch
 		}
 	}
 	return node
+}
+
+func transformBranchProtectionRuleToProtectedBranch(node model.ProtectedBranchRefFragment, repoName string) model.ProtectedBranch {
+	checkContexts := make([]string, 0)
+	restrictionsUsers := make([]model.User, 0)
+	bypassPullRequestAllowances := make([]model.User, 0)
+
+	for _, check := range node.BranchProtectionRule.RequiredStatusChecks {
+		checkContexts = append(checkContexts, check.Context)
+	}
+	for _, edge := range node.BranchProtectionRule.PushAllowances.Edges {
+		restrictionsUsers = append(restrictionsUsers, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+	}
+	for _, edge := range node.BranchProtectionRule.BypassPullRequestAllowances.Edges {
+		bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: edge.Node.Actor.User.Login, Name: edge.Node.Actor.User.Name})
+	}
+
+	return model.ProtectedBranch{
+		RepositoryName:                 repoName,
+		Type:                           "Branch Protection",
+		LockBranch:                     node.BranchProtectionRule.LockBranch,
+		EnforceAdmins:                  node.BranchProtectionRule.IsAdminEnforced,
+		RequiredConversationResolution: node.BranchProtectionRule.RequiresConversationResolution,
+		RequiredPullRequestReviews: model.RequiredPullRequestReviews{
+			DismissStaleReviews:          node.BranchProtectionRule.DismissesStaleReviews,
+			RequireCodeOwnerReviews:      node.BranchProtectionRule.RequiresCodeOwnerReviews,
+			RequireLastPushApproval:      node.BranchProtectionRule.RequireLastPushApproval,
+			RequiredApprovingReviewCount: node.BranchProtectionRule.RequiredApprovingReviewCount,
+			BypassPullRequestAllowances:  model.UserTeam{Users: bypassPullRequestAllowances},
+		},
+		RequiredStatusChecks: model.RequiredStatusChecks{Contexts: checkContexts},
+		Restrictions: model.Restriction{
+			Users: restrictionsUsers,
+		},
+	}
+}
+
+func transformRuleSetToProtectedBranch(node model.ProtectedBranchRefFragment, repoName string) model.ProtectedBranch {
+	bypassPullRequestAllowances := make([]model.User, 0)
+	checkContexts := make([]string, 0)
+	rulesetNames := make([]string, 0)
+
+	pb := model.ProtectedBranch{
+		RepositoryName: repoName,
+		Type:           "Repository Rule",
+	}
+
+	if len(node.Rules.Edges) > 0 {
+		repositoryRulesetNames := map[string][]string{}
+		for _, edge := range node.Rules.Edges {
+			for _, actorEdge := range edge.Node.RepositoryRuleset.BypassActors.Edges {
+				if !slices.Contains(repositoryRulesetNames[edge.Node.RepositoryRuleset.Name], actorEdge.Node.Actor.Team.Name) {
+					repositoryRulesetNames[edge.Node.RepositoryRuleset.Name] = append(repositoryRulesetNames[edge.Node.RepositoryRuleset.Name], actorEdge.Node.Actor.Team.Name)
+				}
+			}
+			checkContexts = getRuleParamerters(edge.Node.Type, edge.Node.Parameters, checkContexts, &pb)
+		}
+
+		for k, v := range repositoryRulesetNames {
+			rulesetNames = append(rulesetNames, k)
+			bypassPullRequestAllowances = append(bypassPullRequestAllowances, model.User{Login: k, Name: strings.Join(v, ",")})
+		}
+
+	}
+	pb.RepositoryRulesetNames = rulesetNames
+	pb.RequiredStatusChecks = model.RequiredStatusChecks{Contexts: checkContexts}
+	pb.RequiredPullRequestReviews.BypassPullRequestAllowances = model.UserTeam{Users: bypassPullRequestAllowances}
+	return pb
+}
+
+func getRuleParamerters(paramType string, parameters model.RuleParameters, checkContexts []string, pb *model.ProtectedBranch) []string {
+	if paramType == "REQUIRED_STATUS_CHECKS" {
+		checkContexts = getRuleCheckContexts(parameters.RequiredStatusChecksParam)
+	} else if paramType == "PULL_REQUEST" {
+		pb.RequiredPullRequestReviews = getRulePullRequestParams(parameters.PullRequestParam)
+	}
+	return checkContexts
+}
+
+func getRuleCheckContexts(node model.RuleParamStatusChecksParam) []string {
+	checkContexts := make([]string, 0)
+	for _, context := range node.RequiredStatusChecks {
+		checkContexts = append(checkContexts, context.Context)
+	}
+	return checkContexts
+}
+
+func getRulePullRequestParams(node model.RulePullRequestParam) model.RequiredPullRequestReviews {
+	return model.RequiredPullRequestReviews{
+		DismissStaleReviews:            node.DismissStaleReviewsOnPush,
+		RequireCodeOwnerReviews:        node.RequireCodeOwnerReview,
+		RequireLastPushApproval:        node.RequireLastPushApproval,
+		RequiredApprovingReviewCount:   node.RequiredApprovingReviewCount,
+		RequiredReviewThreadResolution: node.RequiredReviewThreadResolution,
+	}
 }
 
 const payload = `

@@ -294,7 +294,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users").
+		Headers(repositoryNameDisplayName, "Type", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users", "Rule set names").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -320,27 +320,41 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 	}
 }
 func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]string) {
+
+	sort.Slice(pbResponses, func(i, j int) bool {
+		if pbResponses[i].Type == pbResponses[j].Type {
+			return pbResponses[i].RepositoryName < pbResponses[j].RepositoryName
+		}
+		return pbResponses[i].Type < pbResponses[j].Type
+	})
+
 	failedRows := make([][]string, 0)
 	rows := convertToRows(pbResponses, func(pb model.ProtectedBranch) []string {
 		var bypassUsers []string
 		var restrictionUsers []string
 		for _, user := range pb.RequiredPullRequestReviews.BypassPullRequestAllowances.Users {
-			bypassUsers = append(bypassUsers, user.Login)
+			bypassUsers = append(bypassUsers, user.Name)
 		}
 		for _, user := range pb.Restrictions.Users {
-			restrictionUsers = append(restrictionUsers, user.Login)
+			restrictionUsers = append(restrictionUsers, user.Name)
+		}
+		var lockBranch = strconv.FormatBool(pb.LockBranch)
+		if len(pb.RepositoryRulesetNames) != 0 {
+			lockBranch = ""
 		}
 		if pb.ErrorMessage == "" {
 			return []string{
 				pb.RepositoryName,
+				pb.Type,
 				strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
 				strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
 				strings.Join(pb.RequiredStatusChecks.Contexts, ","),
-				strconv.FormatBool(pb.LockBranch),
+				lockBranch,
 				strings.Join(bypassUsers, ","),
 				strings.Join(restrictionUsers, ","),
+				strings.Join(pb.RepositoryRulesetNames, ","),
 			}
 		} else {
 			failedRows = append(failedRows, []string{pb.RepositoryName, pb.ErrorMessage})
@@ -355,11 +369,11 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 		printNoDataMessage("No Post Release activity performed for the given input")
 		return
 	}
-	failedRows := make([][]string, 0)
+	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
 		if pr.ErrorMessage != "" {
-			failedRows = append(failedRows, []string{pr.RepositoryName, pr.ErrorMessage})
+			errorMessageMap[pr.ErrorMessage] = append(errorMessageMap[pr.ErrorMessage], pr.RepositoryName)
 		} else {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
@@ -370,41 +384,40 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 			})
 		}
 	}
-	rows = append(rows, []string{"", "Total", strconv.Itoa(len(rows))})
 
-	fmt.Println()
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(BorderStyle).
-		BorderRow(true).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(prResponses), true)
+	if len(rows) > 0 {
 
-			return style
-		}).
-		Headers("PR #", repositoryNameDisplayName, "PR URL", "Tag URL", "Tag CommitSha").
-		Rows(rows...)
-
-	fmt.Println(t)
-
-	if len(failedRows) > 0 {
+		rows = append(rows, []string{"", "Total", strconv.Itoa(len(rows))})
 		fmt.Println()
-		fmt.Println("Failed to process post release activity the following repositories")
-		t = table.New().
+		t := table.New().
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
-				var style lipgloss.Style
-				if col == 1 && row != 0 {
-					style = style.Foreground(lipgloss.Color(Red))
-				}
+				style := defaultTableStyle(row, col, len(prResponses), true)
+
 				return style
 			}).
-			Headers(repositoryNameDisplayName, errorMessageDisplayName).
-			Rows(failedRows...)
+			Headers("PR #", repositoryNameDisplayName, "PR URL", "Tag URL", "Tag CommitSha").
+			Rows(rows...)
 
 		fmt.Println(t)
+	}
+
+	if len(errorMessageMap) > 0 {
+		fmt.Println()
+		fmt.Println("Failed to process post release activity the following repositories")
+		for errorMessage, repos := range errorMessageMap {
+			fmt.Println(lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color(Red)).
+				Render(errorMessage))
+
+			fmt.Println(lipgloss.NewStyle().
+				Italic(true).
+				Render(strings.Join(repos, "\n")))
+		}
+		fmt.Println()
 	}
 }
 

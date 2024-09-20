@@ -215,12 +215,14 @@ func CreateNewCommonResponse(repoName, ref, refType, successMessage, errorMessag
 
 type ProtectedBranch struct {
 	RepositoryName                 string
+	Type                           string
 	LockBranch                     bool
 	EnforceAdmins                  bool
 	RequiredConversationResolution bool
 	RequiredPullRequestReviews     RequiredPullRequestReviews `json:"required_pull_request_reviews"`
 	RequiredStatusChecks           RequiredStatusChecks       `json:"required_status_checks"`
 	Restrictions                   Restriction                `json:"restrictions"`
+	RepositoryRulesetNames         []string
 	ErrorMessage                   string
 }
 
@@ -238,11 +240,12 @@ type Check struct {
 }
 
 type RequiredPullRequestReviews struct {
-	DismissStaleReviews          bool     `json:"dismiss_stale_reviews"`
-	RequireCodeOwnerReviews      bool     `json:"require_code_owner_reviews"`
-	RequiredApprovingReviewCount int      `json:"required_approving_review_count"`
-	RequireLastPushApproval      bool     `json:"require_last_push_approval"`
-	BypassPullRequestAllowances  UserTeam `json:"bypass_pull_request_allowances"`
+	DismissStaleReviews            bool     `json:"dismiss_stale_reviews"`
+	RequireCodeOwnerReviews        bool     `json:"require_code_owner_reviews"`
+	RequiredApprovingReviewCount   int      `json:"required_approving_review_count"`
+	RequireLastPushApproval        bool     `json:"require_last_push_approval"`
+	BypassPullRequestAllowances    UserTeam `json:"bypass_pull_request_allowances"`
+	RequiredReviewThreadResolution bool
 }
 
 type RequiredStatusChecks struct {

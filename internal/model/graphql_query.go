@@ -257,46 +257,96 @@ type ProtectedBranchRepoFragment struct {
 
 type ProtectedBranchRefFragment struct {
 	Name                 string
-	BranchProtectionRule struct {
-		AllowsDeletions                bool
-		AllowsForcePushes              bool
-		BlocksCreations                bool
-		DismissesStaleReviews          bool
-		IsAdminEnforced                bool
-		LockAllowsFetchAndMerge        bool
-		LockBranch                     bool
-		Pattern                        string
-		RequireLastPushApproval        bool
-		RequiredApprovingReviewCount   int
-		RequiredDeploymentEnvironments []string
-		RequiresApprovingReviews       bool
-		RequiresCodeOwnerReviews       bool
-		RequiresCommitSignatures       bool
-		RequiresConversationResolution bool
-		RequiresDeployments            bool
-		RequiresLinearHistory          bool
-		RequiresStatusChecks           bool
-		RequiresStrictStatusChecks     bool
-		RestrictsPushes                bool
-		RestrictsReviewDismissals      bool
-		RequiredStatusChecks           []struct {
-			Context string
-		}
-		PushAllowances struct {
-			TotalCount int
-			Edges      []struct {
-				Node struct {
-					Actor ActorFragment
-				}
-			}
-		} `graphql:"pushAllowances(first: 10)"`
-		BypassPullRequestAllowances struct {
-			TotalCount int
-			Edges      []struct {
-				Node struct {
-					Actor ActorFragment
-				}
-			}
-		} `graphql:"bypassPullRequestAllowances(first: 10)"`
+	Rules                RulesEdgeFragment `graphql:"rules(first: 5)"`
+	BranchProtectionRule ProtectedBranchRuleFragment
+}
+
+type ProtectedBranchRuleFragment struct {
+	AllowsDeletions                bool
+	AllowsForcePushes              bool
+	BlocksCreations                bool
+	DismissesStaleReviews          bool
+	IsAdminEnforced                bool
+	LockAllowsFetchAndMerge        bool
+	LockBranch                     bool
+	Pattern                        string
+	RequireLastPushApproval        bool
+	RequiredApprovingReviewCount   int
+	RequiredDeploymentEnvironments []string
+	RequiresApprovingReviews       bool
+	RequiresCodeOwnerReviews       bool
+	RequiresCommitSignatures       bool
+	RequiresConversationResolution bool
+	RequiresDeployments            bool
+	RequiresLinearHistory          bool
+	RequiresStatusChecks           bool
+	RequiresStrictStatusChecks     bool
+	RestrictsPushes                bool
+	RestrictsReviewDismissals      bool
+	RequiredStatusChecks           []struct {
+		Context string
 	}
+	PushAllowances struct {
+		TotalCount int
+		Edges      []struct {
+			Node struct {
+				Actor ActorFragment
+			}
+		}
+	} `graphql:"pushAllowances(first: 10)"`
+	BypassPullRequestAllowances struct {
+		TotalCount int
+		Edges      []struct {
+			Node struct {
+				Actor ActorFragment
+			}
+		}
+	} `graphql:"bypassPullRequestAllowances(first: 10)"`
+}
+
+type RulesEdgeFragment struct {
+	TotalCount int
+	Edges      []struct {
+		Node RuleFragment
+	}
+}
+
+type RuleFragment struct {
+	Id                string
+	Type              string
+	Parameters        RuleParameters
+	RepositoryRuleset struct {
+		Name         string
+		Enforcement  string
+		BypassActors struct {
+			TotalCount int
+			Edges      []struct {
+				Node struct {
+					Actor struct {
+						Team TeamFragment `graphql:"... on Team"`
+					}
+				}
+			}
+		} `graphql:"bypassActors(first: 1)"`
+	}
+}
+
+type RuleParameters struct {
+	TypeName                  string                     `graphql:"__typename"`
+	RequiredStatusChecksParam RuleParamStatusChecksParam `graphql:"... on RequiredStatusChecksParameters"`
+	PullRequestParam          RulePullRequestParam       `graphql:"... on PullRequestParameters"`
+}
+
+type RuleParamStatusChecksParam struct {
+	RequiredStatusChecks []struct {
+		Context string
+	}
+}
+
+type RulePullRequestParam struct {
+	RequiredApprovingReviewCount   int
+	DismissStaleReviewsOnPush      bool
+	RequireCodeOwnerReview         bool
+	RequireLastPushApproval        bool
+	RequiredReviewThreadResolution bool
 }

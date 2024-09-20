@@ -362,6 +362,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName s
 		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
 	branch.RepositoryName = repoName
+	branch.Type = "Branch Protection"
 	return branch, nil
 }
 
