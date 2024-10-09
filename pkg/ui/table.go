@@ -80,6 +80,24 @@ func printNoDataMessage(message string) {
 	fmt.Println(style.Render(message))
 }
 
+func printErrorMessageMap(errorMessageMap map[string][]string) {
+	if len(errorMessageMap) > 0 {
+		fmt.Println()
+		fmt.Println("Failed to process the request the following repositories")
+		for errorMessage, repos := range errorMessageMap {
+			fmt.Println(lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color(Red)).
+				Render(errorMessage))
+
+			fmt.Println(lipgloss.NewStyle().
+				Italic(true).
+				Render(strings.Join(repos, "\n")))
+		}
+		fmt.Println()
+	}
+}
+
 func PrintRepositories(repos []model.Repository) {
 
 	rows := convertToRows(repos, func(repo model.Repository) []string {
@@ -189,11 +207,12 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 		printNoDataMessage("No Pull Requests found for the given input")
 		return
 	}
+	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
 		refs := fmt.Sprintf("%s <- %s", pr.Base.Ref, pr.Head.Ref)
 		if pr.ErrorMessage != "" {
-			rows = append(rows, []string{pr.RepositoryName(), pr.ErrorMessage})
+			errorMessageMap[pr.ErrorMessage] = append(errorMessageMap[pr.ErrorMessage], pr.RepositoryName())
 		} else {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
@@ -208,32 +227,40 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			})
 		}
 	}
-	rows = append(rows, []string{"", "Total Pull Requests", strconv.Itoa(len(prResponses))})
 
-	fmt.Println()
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(BorderStyle).
-		BorderRow(true).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), true)
+	if len(rows) > 0 {
+		rows = append(rows, []string{"", "Total Pull Requests", strconv.Itoa(len(prResponses))})
+		fmt.Println()
+		t := table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				return pullRequestStyle(row, col, rows)
+			}).
+			Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
+			Rows(rows...)
 
-			if col == 2 {
-				style = style.Width(40)
-			}
-			if row != 0 && row < len(rows) {
-				if col == 6 && rows[row-1][6] == "closed" {
-					style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
-				} else if col == 6 {
-					style = style.Foreground(lipgloss.Color("#DFC57B"))
-				}
-			}
-			return style
-		}).
-		Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
-		Rows(rows...)
+		fmt.Println(t)
+	}
 
-	fmt.Println(t)
+	printErrorMessageMap(errorMessageMap)
+}
+
+func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
+	style := defaultTableStyle(row, col, len(rows), true)
+
+	if col == 2 {
+		style = style.Width(40)
+	}
+	if row != 0 && row < len(rows) {
+		if col == 6 && rows[row-1][6] == "closed" {
+			style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
+		} else if col == 6 {
+			style = style.Foreground(lipgloss.Color("#DFC57B"))
+		}
+	}
+	return style
 }
 
 func PrintMergeResponses(mergeResponses []model.MergeResponse) {
@@ -352,9 +379,9 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 				strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
 				strings.Join(pb.RequiredStatusChecks.Contexts, ","),
 				lockBranch,
-				strings.Join(bypassUsers, ","),
-				strings.Join(restrictionUsers, ","),
-				strings.Join(pb.RepositoryRulesetNames, ","),
+				strings.Join(bypassUsers, "\n"),
+				strings.Join(restrictionUsers, "\n"),
+				strings.Join(pb.RepositoryRulesetNames, "\n"),
 			}
 		} else {
 			failedRows = append(failedRows, []string{pb.RepositoryName, pb.ErrorMessage})
@@ -404,21 +431,7 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 		fmt.Println(t)
 	}
 
-	if len(errorMessageMap) > 0 {
-		fmt.Println()
-		fmt.Println("Failed to process post release activity the following repositories")
-		for errorMessage, repos := range errorMessageMap {
-			fmt.Println(lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color(Red)).
-				Render(errorMessage))
-
-			fmt.Println(lipgloss.NewStyle().
-				Italic(true).
-				Render(strings.Join(repos, "\n")))
-		}
-		fmt.Println()
-	}
+	printErrorMessageMap(errorMessageMap)
 }
 
 func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCommits bool) {

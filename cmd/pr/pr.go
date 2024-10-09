@@ -47,6 +47,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			responses := pr.CreateNewPullRequest(ctx, orgName, repoNames, baseRef, headRef, title, body)
+			logger.Flog.Info().Msg("Pull request created successfully")
 			ui.PrintPullRequestResponses(responses)
 		},
 	}
