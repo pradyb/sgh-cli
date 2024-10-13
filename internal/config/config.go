@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -301,6 +302,10 @@ func configFile() string {
 
 func configDir() string {
 	d, _ := os.UserHomeDir()
+	switch os := runtime.GOOS; os {
+	case "darwin":
+		d = d + "/.config/sgh"
+	}
 	return d
 }
 
