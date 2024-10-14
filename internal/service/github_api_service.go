@@ -12,7 +12,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/apperrors"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 const GITHUB_BASE_URL = "https://api.github.com"

@@ -4,8 +4,8 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/spf13/cobra"
 )

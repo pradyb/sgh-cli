@@ -8,7 +8,7 @@ import (
 
 	"github.com/prady-lab/sgh-cli/cmd"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 func main() {

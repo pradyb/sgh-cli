@@ -7,9 +7,9 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/async"
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-	logger "github.com/prady-lab/sgh-cli/utils"
 )
 
 type OperationEnum int

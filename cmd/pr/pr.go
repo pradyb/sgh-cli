@@ -3,10 +3,10 @@ package pr
 import (
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/pr/prompt"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"

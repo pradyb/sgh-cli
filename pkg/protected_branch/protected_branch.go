@@ -9,7 +9,7 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/shurcooL/githubv4"
 )
 

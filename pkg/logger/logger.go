@@ -3,9 +3,9 @@ package logger
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
+	"github.com/prady-lab/sgh-cli/utils"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -21,11 +21,8 @@ func init() {
 	}
 	Glog = zerolog.New(output).With().Timestamp().Caller().Logger()*/
 
-	d, _ := os.UserHomeDir()
-	switch os := runtime.GOOS; os {
-	case "darwin":
-		d = d + "/.config/sgh"
-	}
+	d := utils.ConfigDir()
+
 	runLogFile, _ := os.OpenFile(filepath.Join(d, "sgh.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 	multi := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, runLogFile)
 

@@ -18,7 +18,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

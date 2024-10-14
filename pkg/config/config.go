@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 func AddOrganization(ctx *context.Context, orgName string) bool {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
-	logger "github.com/prady-lab/sgh-cli/utils"
 )
 
 func CloneRepositories(ctx *context.Context, orgName string, repos []string, branch string) error {

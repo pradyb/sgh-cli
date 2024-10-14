@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
 const DefaultFilename = "sgh.json"
@@ -297,16 +297,7 @@ func (config *Config) Save() error {
 }
 
 func configFile() string {
-	return filepath.Join(configDir(), DefaultFilename)
-}
-
-func configDir() string {
-	d, _ := os.UserHomeDir()
-	switch os := runtime.GOOS; os {
-	case "darwin":
-		d = d + "/.config/sgh"
-	}
-	return d
+	return filepath.Join(utils.ConfigDir(), DefaultFilename)
 }
 
 func matchPatterns(patterns []string, repoName string) bool {

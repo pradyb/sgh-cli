@@ -12,7 +12,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/config"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"

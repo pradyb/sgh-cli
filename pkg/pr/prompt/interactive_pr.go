@@ -10,9 +10,9 @@ import (
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"

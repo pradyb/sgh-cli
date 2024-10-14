@@ -33,7 +33,7 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 			// unlock the Base branch and remove the required status checks
 			pb.UpdateProtectedBranchForRepo(ctx, request.OrgName, repoName, request.BaseRef, false, true)
 
-			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, orgName, repoName, request.BaseRef, request.HeadRef, request.Title, request.Body, false)
+			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, pr.PullRequestRequest{OrgName: orgName, RepoName: repoName, BaseRef: request.BaseRef, HeadRef: request.HeadRef, Title: request.Title, Body: request.Body}, false)
 			if err != nil {
 				postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 				return model.PostReleaseResponse{RepositoryName: repoName}, err

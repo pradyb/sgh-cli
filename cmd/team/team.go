@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/team"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-	logger "github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"

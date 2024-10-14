@@ -9,16 +9,25 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	logger "github.com/prady-lab/sgh-cli/utils"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/shurcooL/githubv4"
 )
+
+type PullRequestRequest struct {
+	OrgName  string
+	RepoName string
+	BaseRef  string
+	HeadRef  string
+	Title    string
+	Body     string
+}
 
 func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef, title, body string) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
 	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
-			return CreateNewPullRequestForRepo(ctx, orgName, repoName, baseRef, headRef, title, body, true)
+			return CreateNewPullRequestForRepo(ctx, PullRequestRequest{orgName, repoName, baseRef, headRef, title, body}, true)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.PullRequestResponse]) {
 			responses = append(responses, result.Result)
@@ -29,18 +38,18 @@ func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []stri
 	return responses
 }
 
-func CreateNewPullRequestForRepo(ctx *context.Context, orgName string, repoName, baseRef, headRef, title, body string, fetchPR bool) (model.PullRequestResponse, error) {
-	prResponse, err := service.CreateNewPullRequest(ctx, orgName, repoName, title, body, baseRef, headRef)
+func CreateNewPullRequestForRepo(ctx *context.Context, request PullRequestRequest, fetchPR bool) (model.PullRequestResponse, error) {
+	prResponse, err := service.CreateNewPullRequest(ctx, request.OrgName, request.RepoName, request.Title, request.Body, request.BaseRef, request.HeadRef)
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
-	assignees := ctx.Config.PullRequestAssignees(orgName)
+	assignees := ctx.Config.PullRequestAssignees(request.OrgName)
 	if len(assignees) > 0 {
-		service.AddIssueAssignees(ctx, orgName, repoName, prResponse.PRNumber, assignees)
-		service.AddReviewers(ctx, orgName, repoName, prResponse.PRNumber, assignees)
+		service.AddIssueAssignees(ctx, request.OrgName, request.RepoName, prResponse.PRNumber, assignees)
+		service.AddReviewers(ctx, request.OrgName, request.RepoName, prResponse.PRNumber, assignees)
 	}
 	if fetchPR {
-		return service.GetPullRequestInfo(ctx, orgName, repoName, prResponse.PRNumber)
+		return service.GetPullRequestInfo(ctx, request.OrgName, request.RepoName, prResponse.PRNumber)
 	} else {
 		return prResponse, nil
 	}
