@@ -102,9 +102,9 @@ type SearchRepositoriesQuery struct {
 					PullRequests struct {
 						TotalCount int
 					} `graphql:"pullRequests(first:1, states: OPEN)"`
-					Issues struct {
+					/*Issues struct {
 						TotalCount int
-					} `graphql:"issues(first:1, states: OPEN)"`
+					} `graphql:"issues(first:1, states: OPEN)"`*/
 				} `graphql:"... on Repository"`
 			}
 		}

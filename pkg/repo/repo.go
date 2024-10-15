@@ -45,8 +45,9 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 				Description:           repo.Description,
 				DefaultBranch:         repo.DefaultBranchRef.Name,
 				Language:              repo.PrimaryLanguage.Name,
-				OpenIssuesCount:       repo.Issues.TotalCount,
+				Private:               repo.IsPrivate,
 				OpenPullRequestsCount: repo.PullRequests.TotalCount,
+				//OpenIssuesCount:       repo.Issues.TotalCount,
 			})
 		}
 		variables["repoCursor"] = githubv4.String(searchRepositoriesQuery.Search.PageInfo.EndCursor)

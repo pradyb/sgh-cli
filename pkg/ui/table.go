@@ -46,7 +46,7 @@ func convertToRows[T TableRowType](data []T, rowsConvertHandler rowsConvertHandl
 	return rows
 }
 
-func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.Style {
+func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bool) lipgloss.Style {
 	var style lipgloss.Style
 	switch {
 	case row == 0:
@@ -57,7 +57,7 @@ func defaultTableStyle(row, col, totalRows int, isFooterPresent bool) lipgloss.S
 		style = OddRowStyle
 	}
 
-	if col == 1 {
+	if col == repoColIndex {
 		//style = style.Width(22)
 		style = style.Foreground(Green)
 	}
@@ -111,11 +111,11 @@ func PrintRepositories(repos []model.Repository) {
 		}
 
 		return []string{
-			strconv.Itoa(repo.Id),
 			repo.Name,
 			repo.Description,
 			repo.DefaultBranch,
 			repo.Language,
+			strconv.FormatBool(repo.Private),
 			repo.SSHUrl,
 			fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl, "Link"),
 			prCount,
@@ -123,7 +123,7 @@ func PrintRepositories(repos []model.Repository) {
 		}
 	})
 
-	rows = append(rows, []string{"", "Total Repositories", strconv.Itoa(len(repos))})
+	rows = append(rows, []string{"Total Repositories", strconv.Itoa(len(repos))})
 
 	fmt.Println()
 	t := table.New().
@@ -131,10 +131,10 @@ func PrintRepositories(repos []model.Repository) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), true)
+			style := defaultTableStyle(row, col, len(rows), 0, true)
 
-			if col == 2 {
-				style = style.Width(40)
+			if col == 1 {
+				style = style.Width(50)
 			}
 			if row != 0 && row < len(rows) {
 				if (col == 7 || col == 8) && rows[row-1][col] != "0" {
@@ -143,7 +143,7 @@ func PrintRepositories(repos []model.Repository) {
 			}
 			return style
 		}).
-		Headers("Id", repositoryNameDisplayName, "Description", "Default branch", "Language", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
+		Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -171,7 +171,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
-				style := defaultTableStyle(row, col, len(rows), true)
+				style := defaultTableStyle(row, col, len(rows), 0, true)
 				return style
 			}).
 			Headers(repositoryNameDisplayName, "Status Message").
@@ -189,7 +189,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
-				style := defaultTableStyle(row, col, len(failedRows), true)
+				style := defaultTableStyle(row, col, len(failedRows), 0, true)
 				if col == 1 && row != 0 && row != len(failedRows) {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
@@ -248,7 +248,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 }
 
 func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
-	style := defaultTableStyle(row, col, len(rows), true)
+	style := defaultTableStyle(row, col, len(rows), 1, true)
 
 	if col == 2 {
 		style = style.Width(40)
@@ -282,7 +282,7 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(mergeResponses), true)
+			style := defaultTableStyle(row, col, len(mergeResponses), 0, true)
 			if row != 0 && row < len(rows)+1 {
 				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
 					style = style.Foreground(lipgloss.Color(Red))
@@ -310,15 +310,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), true)
-
-			if col == 1 && row != 0 && row != len(rows) {
-				style = style.UnsetForeground()
-			}
-			if col == 0 && row != 0 && row != len(rows) {
-				style = style.Foreground(Green)
-			}
-
+			style := defaultTableStyle(row, col, len(rows), 0, true)
 			return style
 		}).
 		Headers(repositoryNameDisplayName, "Type", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users", "Rule set names").
@@ -421,8 +413,7 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
-				style := defaultTableStyle(row, col, len(prResponses), true)
-
+				style := defaultTableStyle(row, col, len(prResponses), 1, true)
 				return style
 			}).
 			Headers("PR #", repositoryNameDisplayName, "PR URL", "Tag URL", "Tag CommitSha").
@@ -447,7 +438,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), true)
+			style := defaultTableStyle(row, col, len(rows), 0, true)
 
 			if col == 1 && row != 0 && row != len(rows) {
 				style = style.UnsetForeground()
