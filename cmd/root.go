@@ -1,12 +1,12 @@
-/*
-Copyright © 2024 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
@@ -19,15 +19,12 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 func NewRootCommand(ctx *context.Context) *cobra.Command {
-
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		Use:   "sgh <command> <subcommand> [flags]",
-		Short: "Simple GitHub CLI",
+		Short: "Simple GitHub Command Line Interface",
 		Long:  `Simple CLI to process the all or selected repositories in an organization.`,
 		Example: heredoc.Doc(`
 				$ sgh branch create

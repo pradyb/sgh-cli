@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 )
 
@@ -58,7 +59,7 @@ func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bo
 	}
 
 	if col == repoColIndex {
-		//style = style.Width(22)
+		// style = style.Width(22)
 		style = style.Foreground(Green)
 	}
 
@@ -70,7 +71,7 @@ func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bo
 }
 
 func printNoDataMessage(message string) {
-	var style = lipgloss.NewStyle().
+	style := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#FAFAFA")).
 		PaddingTop(1).
@@ -99,7 +100,6 @@ func printErrorMessageMap(errorMessageMap map[string][]string) {
 }
 
 func PrintRepositories(repos []model.Repository) {
-
 	rows := convertToRows(repos, func(repo model.Repository) []string {
 		prCount := strconv.Itoa(repo.OpenPullRequestsCount)
 		if repo.OpenPullRequestsCount != 0 {
@@ -338,8 +338,8 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		fmt.Println(t)
 	}
 }
-func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]string) {
 
+func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]string) {
 	sort.Slice(pbResponses, func(i, j int) bool {
 		if pbResponses[i].Type == pbResponses[j].Type {
 			return pbResponses[i].RepositoryName < pbResponses[j].RepositoryName
@@ -357,7 +357,7 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 		for _, user := range pb.Restrictions.Users {
 			restrictionUsers = append(restrictionUsers, user.Name)
 		}
-		var lockBranch = strconv.FormatBool(pb.LockBranch)
+		lockBranch := strconv.FormatBool(pb.LockBranch)
 		if len(pb.RepositoryRulesetNames) != 0 {
 			lockBranch = ""
 		}
