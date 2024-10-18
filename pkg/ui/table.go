@@ -119,7 +119,7 @@ func PrintRepositories(repos []model.Repository) {
 			repo.SSHUrl,
 			fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl, "Link"),
 			prCount,
-			issueCount,
+			// issueCount,
 		}
 	})
 
@@ -143,7 +143,8 @@ func PrintRepositories(repos []model.Repository) {
 			}
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
+		// Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
+		Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs").
 		Rows(rows...)
 
 	fmt.Println(t)

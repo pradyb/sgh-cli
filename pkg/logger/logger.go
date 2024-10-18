@@ -5,13 +5,16 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/prady-lab/sgh-cli/utils"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
-var Glog zerolog.Logger
-var Flog zerolog.Logger
+var (
+	Glog zerolog.Logger
+	Flog zerolog.Logger
+)
 
 func init() {
 	/*output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
