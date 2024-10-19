@@ -5,12 +5,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/shurcooL/githubv4"
 )
 
 func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.ProtectedBranch {
@@ -118,8 +119,10 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 
 			if node.BranchProtectionRule.Pattern != "" {
 				responses = append(responses, transformBranchProtectionRuleToProtectedBranch(node, edge.Node.Repository.Name))
-			} else {
+			} else if node.Rules.TotalCount != 0 {
 				responses = append(responses, transformRuleSetToProtectedBranch(node, edge.Node.Repository.Name))
+			} else {
+				responses = append(responses, model.ProtectedBranch{RepositoryName: edge.Node.Repository.Name, Type: "NA"})
 			}
 		}
 	}

@@ -363,18 +363,25 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 			lockBranch = ""
 		}
 		if pb.ErrorMessage == "" {
-			return []string{
-				pb.RepositoryName,
-				pb.Type,
-				strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
-				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
-				strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
-				strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
-				strings.Join(pb.RequiredStatusChecks.Contexts, ","),
-				lockBranch,
-				strings.Join(bypassUsers, "\n"),
-				strings.Join(restrictionUsers, "\n"),
-				strings.Join(pb.RepositoryRulesetNames, "\n"),
+			if pb.Type == "NA" {
+				return []string{
+					pb.RepositoryName,
+					pb.Type,
+				}
+			} else {
+				return []string{
+					pb.RepositoryName,
+					pb.Type,
+					strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
+					strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
+					strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
+					strconv.FormatBool(pb.RequiredPullRequestReviews.DismissStaleReviews),
+					strings.Join(pb.RequiredStatusChecks.Contexts, ","),
+					lockBranch,
+					strings.Join(bypassUsers, "\n"),
+					strings.Join(restrictionUsers, "\n"),
+					strings.Join(pb.RepositoryRulesetNames, "\n"),
+				}
 			}
 		} else {
 			failedRows = append(failedRows, []string{pb.RepositoryName, pb.ErrorMessage})
