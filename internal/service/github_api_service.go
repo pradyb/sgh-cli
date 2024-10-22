@@ -15,9 +15,11 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
-const GITHUB_BASE_URL = "https://api.github.com"
-const UPDATE_REF_URI = "%s/repos/%s/%s/git/refs"
-const PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
+const (
+	GITHUB_BASE_URL      = "https://api.github.com"
+	UPDATE_REF_URI       = "%s/repos/%s/%s/git/refs"
+	PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
+)
 
 func invokeAPI(ctx *context.Context, method, url string, reqBody io.Reader) ([]byte, error) {
 	req, err := http.NewRequest(method, url, reqBody)
@@ -51,7 +53,6 @@ func GetReposWithOrg(ctx *context.Context, orgName string) ([]model.Repository, 
 		return nil, err
 	}
 	return repositories, nil
-
 }
 
 type refResponse struct {

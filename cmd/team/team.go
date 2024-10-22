@@ -3,18 +3,17 @@ package team
 import (
 	"fmt"
 
+	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/team"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/MakeNowJust/heredoc"
-	"github.com/spf13/cobra"
 )
 
 func NewTeamCommand(ctx *context.Context) *cobra.Command {
-
-	var teamCmd = &cobra.Command{
+	teamCmd := &cobra.Command{
 		Use:   "team <command>",
 		Short: "Organization teams",
 		Long:  `Organization teams`,
@@ -27,12 +26,14 @@ func NewTeamCommand(ctx *context.Context) *cobra.Command {
 	return teamCmd
 }
 
-var allMembers bool
-var noOfMembers int
-var teamName string
+var (
+	allMembers  bool
+	noOfMembers int
+	teamName    string
+)
 
 func listCommand(ctx *context.Context) *cobra.Command {
-	var listCmd = &cobra.Command{
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List team and members for the given owner/organization",
 		Long: `List team and members for the given owner/organization.

@@ -1,19 +1,21 @@
 package clone
 
 import (
-	"github.com/prady-lab/sgh-cli/pkg/context"
-
 	"github.com/MakeNowJust/heredoc"
-	"github.com/prady-lab/sgh-cli/pkg/clone"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/spf13/cobra"
+
+	"github.com/prady-lab/sgh-cli/pkg/clone"
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
-var branch string
-var repoNames []string
+var (
+	branch    string
+	repoNames []string
+)
 
 func NewCloneCommand(ctx *context.Context) *cobra.Command {
-	var cloneCmd = &cobra.Command{
+	cloneCmd := &cobra.Command{
 		Use:     "clone",
 		Short:   "Clone all the selected repositories for the given owner/organization",
 		Long:    `Clone all the selected repositories for the given owner/organization.`,
@@ -30,7 +32,6 @@ func NewCloneCommand(ctx *context.Context) *cobra.Command {
 			if err != nil {
 				logger.Glog.Error().Err(err).Msgf("Error in getting the Repos for the organization %s", orgName)
 			}
-
 		},
 	}
 

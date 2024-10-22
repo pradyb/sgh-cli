@@ -4,13 +4,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/shurcooL/githubv4"
 )
 
 type PullRequestRequest struct {
@@ -194,7 +195,6 @@ func MergePullRequest(ctx *context.Context, orgName string, repoName string, prN
 }
 
 func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
-
 	var wg sync.WaitGroup
 	var pullRequestResponse model.PullRequestResponse
 	var pullRequestFilesResponse model.PullRequestFilesResponse
@@ -224,7 +224,6 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 }
 
 func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
-
 	variables := map[string]interface{}{
 		"orgName":  githubv4.String(orgName),
 		"repoName": githubv4.String(repoName),

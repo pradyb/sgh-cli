@@ -1,24 +1,24 @@
 package tag
 
 import (
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/tag"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
+
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/tag"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
-var tagName string
-var refBranchName string
-var repoNames []string
-var message string
+var (
+	tagName       string
+	refBranchName string
+	repoNames     []string
+	message       string
+)
 
 func NewTagCommand(ctx *context.Context) *cobra.Command {
-
-	var tagCmd = &cobra.Command{
+	tagCmd := &cobra.Command{
 		Use:   "tag <command>",
 		Short: "Manage tags.",
 		Long:  `Perform Tag operations like create/delete .`,
@@ -30,7 +30,7 @@ func NewTagCommand(ctx *context.Context) *cobra.Command {
 }
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
-	var createCmd = &cobra.Command{
+	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new tag from a existing branch",
 		Long:    `Create a new tag from a existing branch for given repos or all the selected reps in the given org/owner`,
@@ -65,7 +65,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 }
 
 func DeleteCommand(ctx *context.Context) *cobra.Command {
-	var deleteCmd = &cobra.Command{
+	deleteCmd := &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a new tag",
 		Long:    `Delete a new tag for given repos or all the selected repos in the given org/owner`,

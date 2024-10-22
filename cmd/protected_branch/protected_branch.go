@@ -2,16 +2,15 @@ package protectedbranch
 
 import (
 	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	pb "github.com/prady-lab/sgh-cli/pkg/protected_branch"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/spf13/cobra"
 )
 
 func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
-
-	var pbCmd = &cobra.Command{
+	pbCmd := &cobra.Command{
 		Use:   "pb <command>",
 		Short: "Manage protected branches",
 		Long:  `Perform operations like list/update/delete protected branches.`,
@@ -23,11 +22,13 @@ func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
 	return pbCmd
 }
 
-var repoNames []string
-var branchName string
+var (
+	repoNames  []string
+	branchName string
+)
 
 func ListCommand(ctx *context.Context) *cobra.Command {
-	var listCmd = &cobra.Command{
+	listCmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List protected branches",
 		Long:    `List protected branches for given repos or all the selected reps in the given org/owner`,
@@ -52,11 +53,13 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	return listCmd
 }
 
-var lock bool
-var removeStatus bool
+var (
+	lock         bool
+	removeStatus bool
+)
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
-	var updateCmd = &cobra.Command{
+	updateCmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update protected branches",
 		Long:    `Update protected branches for given repos or all the selected reps in the given org/owner`,
@@ -87,7 +90,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 }
 
 func DeleteCommand(ctx *context.Context) *cobra.Command {
-	var deleteCmd = &cobra.Command{
+	deleteCmd := &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete protected branches",
 		Long:    `Delete protected branches for given repos or all the selected reps in the given org/owner`,

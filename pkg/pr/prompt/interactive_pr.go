@@ -8,18 +8,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/pr"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	ltable "github.com/charmbracelet/lipgloss/table"
+
+	"github.com/prady-lab/sgh-cli/internal/model"
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/pr"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 const (
@@ -75,7 +75,7 @@ func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef,
 		items[i] = pr
 	}
 
-	var delegateKeys = newDelegateKeyMap()
+	delegateKeys := newDelegateKeyMap()
 
 	delegate := newItemDelegate(ctx, orgName, delegateKeys)
 	prList := list.New(items, delegate, 0, 0)

@@ -3,13 +3,11 @@ package postrelease
 import (
 	"errors"
 
-	"github.com/prady-lab/sgh-cli/pkg/context"
-
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
+	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	pb "github.com/prady-lab/sgh-cli/pkg/protected_branch"
-
 	"github.com/prady-lab/sgh-cli/pkg/tag"
 )
 

@@ -3,10 +3,11 @@ package team
 import (
 	"strings"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/shurcooL/githubv4"
 )
 
 type Members struct {
@@ -46,7 +47,7 @@ func GetTeamAndMembers(ctx *context.Context, orgName string, teamName string, no
 
 	teams := make([]model.OrgTeam, 0)
 
-	var currentMembers = make([]model.OrgTeamMember, 0)
+	currentMembers := make([]model.OrgTeamMember, 0)
 	var currentTeamNextPage string
 
 	for {
@@ -82,7 +83,7 @@ func GetTeamAndMembers(ctx *context.Context, orgName string, teamName string, no
 }
 
 func getMembers(members Members, peopleBaseUrl string) []model.OrgTeamMember {
-	var teamMembers = make([]model.OrgTeamMember, 0)
+	teamMembers := make([]model.OrgTeamMember, 0)
 	for _, member := range members.Edges {
 		teamMembers = append(teamMembers, model.OrgTeamMember{
 			Login:     member.Node.Login,

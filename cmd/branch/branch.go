@@ -3,19 +3,17 @@ package branch
 import (
 	"fmt"
 
-	"github.com/prady-lab/sgh-cli/pkg/branch"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
+
+	"github.com/prady-lab/sgh-cli/pkg/branch"
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
-
-	var branchCmd = &cobra.Command{
+	branchCmd := &cobra.Command{
 		Use:   "branch <command>",
 		Short: "Manage branches",
 		Long:  `Perform branch operations like create/delete`,
@@ -26,13 +24,15 @@ func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	return branchCmd
 }
 
-var branchName string
-var refBranchName string
-var commitSHA string
-var repoNames []string
+var (
+	branchName    string
+	refBranchName string
+	commitSHA     string
+	repoNames     []string
+)
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
-	var createCmd = &cobra.Command{
+	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new branch from a existing branch",
 		Long:    `Create a new branch from a existing branch for given repos or all the selected reps in the given org/owner`,
@@ -80,7 +80,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 }
 
 func DeleteCommand(ctx *context.Context) *cobra.Command {
-	var deleteCmd = &cobra.Command{
+	deleteCmd := &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a new branch.",
 		Long:    `Delete a new branch for given repositories or all the selected repositories in the given organization/owner.`,

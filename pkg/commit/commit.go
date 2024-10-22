@@ -1,11 +1,10 @@
 package commit
 
 import (
-	"github.com/prady-lab/sgh-cli/pkg/context"
-
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
+	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
 func ListCommits(ctx *context.Context, orgName string, repoNames []string, branchName string, noOfDays int) []model.CommitResponse {

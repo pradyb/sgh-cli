@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/client"
-	"github.com/prady-lab/sgh-cli/internal/config"
-
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
+
+	"github.com/prady-lab/sgh-cli/internal/client"
+	"github.com/prady-lab/sgh-cli/internal/config"
 )
 
 type Context struct {

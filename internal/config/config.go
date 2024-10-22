@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
+
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/utils"
 )
@@ -74,6 +75,7 @@ func (config *Config) RepositoriesNames(orgName string) []string {
 func (config *Config) IncludePatterns(orgName string) []string {
 	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Include
 }
+
 func (config *Config) ExcludePatterns(orgName string) []string {
 	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Exclude
 }

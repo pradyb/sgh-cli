@@ -1,25 +1,26 @@
 package postrelease
 
 import (
+	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	postrelease "github.com/prady-lab/sgh-cli/pkg/post_release"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/MakeNowJust/heredoc"
-	"github.com/spf13/cobra"
 )
 
-var title string
-var body string
-var baseRef string
-var headRef string
-var repoNames []string
-var createTag bool
-var tagName string
+var (
+	title     string
+	body      string
+	baseRef   string
+	headRef   string
+	repoNames []string
+	createTag bool
+	tagName   string
+)
 
 func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
-
-	var postReleaseCmd = &cobra.Command{
+	postReleaseCmd := &cobra.Command{
 		Use:   "post-release",
 		Short: "Perform Post release activities like merging to main/develop and tagging",
 		Long:  `Perform Post release activities like merging to main/develop and tagging`,

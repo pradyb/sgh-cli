@@ -85,9 +85,11 @@ type RepoOperationResult[R OperationResultType] struct {
 	Result        R
 }
 
-type RepoOperationHandler[R OperationResultType] func(ctx *context.Context, orgName, repoName string) (R, error)
-type RepoOperationResultHandler[R OperationResultType] func(repoName string, result RepoOperationResult[R])
-type RepoOperationErrorHandler func(repoName string, err error)
+type (
+	RepoOperationHandler[R OperationResultType]       func(ctx *context.Context, orgName, repoName string) (R, error)
+	RepoOperationResultHandler[R OperationResultType] func(repoName string, result RepoOperationResult[R])
+	RepoOperationErrorHandler                         func(repoName string, err error)
+)
 
 type BranchOperationData struct {
 	NewBranchName string

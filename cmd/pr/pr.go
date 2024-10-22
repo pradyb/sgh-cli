@@ -1,20 +1,19 @@
 package pr
 
 import (
+	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/pr/prompt"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
-
-	"github.com/MakeNowJust/heredoc"
-	"github.com/spf13/cobra"
 )
 
 func NewPRCommand(ctx *context.Context) *cobra.Command {
-
-	var prCmd = &cobra.Command{
+	prCmd := &cobra.Command{
 		Use:   "pr <command>",
 		Short: "Manage pull requests",
 		Long:  `Perform PR operations like create/review/merge/close/update`,
@@ -27,14 +26,16 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 	return prCmd
 }
 
-var title string
-var body string
-var baseRef string
-var headRef string
-var repoNames []string
+var (
+	title     string
+	body      string
+	baseRef   string
+	headRef   string
+	repoNames []string
+)
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
-	var createCmd = &cobra.Command{
+	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a pull request",
 		Long:    `Create a pull request on GitHub for given repos or all the selected reps in the given org/owner`,
@@ -65,11 +66,13 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	return createCmd
 }
 
-var allPullRequests bool
-var interactive bool
+var (
+	allPullRequests bool
+	interactive     bool
+)
 
 func ListCommand(ctx *context.Context) *cobra.Command {
-	var listCmd = &cobra.Command{
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List pull requests",
 		Long: `List pull requests on GitHub for given repos or all the selected reps in the given org/owner
@@ -104,12 +107,14 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	return listCmd
 }
 
-var prNumber int
-var action string
-var repoName string
+var (
+	prNumber int
+	action   string
+	repoName string
+)
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
-	var updateCmd = &cobra.Command{
+	updateCmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update a pull request",
 		Long:    `Update a pull request on GitHub for given repo`,
@@ -143,7 +148,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 }
 
 func MergeCommand(ctx *context.Context) *cobra.Command {
-	var mergeCmd = &cobra.Command{
+	mergeCmd := &cobra.Command{
 		Use:     "merge",
 		Short:   "merge a pull request",
 		Long:    `merge a pull request on GitHub for given repo`,

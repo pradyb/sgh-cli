@@ -6,18 +6,16 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/prady-lab/sgh-cli/pkg/config"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
+
+	"github.com/prady-lab/sgh-cli/pkg/config"
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 func NewConfigCommand(ctx *context.Context) *cobra.Command {
-
-	var configCmd = &cobra.Command{
+	configCmd := &cobra.Command{
 		Use:   "config <command>",
 		Short: "Manage configuration for sgh",
 		Long:  `Add/Remove/List the configuration for sgh.`,
@@ -33,11 +31,13 @@ func NewConfigCommand(ctx *context.Context) *cobra.Command {
 	return configCmd
 }
 
-var include bool
-var exclude bool
+var (
+	include bool
+	exclude bool
+)
 
 func addCommand(ctx *context.Context) *cobra.Command {
-	var configAddCmd = &cobra.Command{
+	configAddCmd := &cobra.Command{
 		Use:   "add <key> <value>",
 		Short: "Add a configuration for sgh",
 		Long: `Add following configurations for sgh:
@@ -101,7 +101,7 @@ include/exclude patterns to select the repository.`,
 }
 
 func setCommand(ctx *context.Context) *cobra.Command {
-	var configSetCmd = &cobra.Command{
+	configSetCmd := &cobra.Command{
 		Use:   "set",
 		Short: "Set a configuration for sgh",
 		Long:  `Set attribute values`,

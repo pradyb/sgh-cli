@@ -73,12 +73,14 @@ type PullRequestResponse struct {
 func (pr PullRequestResponse) RepositoryName() string {
 	return pr.Base.Repo.Name
 }
+
 func (pr PullRequestResponse) AuthorName() string {
 	if pr.Author.Name == "" {
 		return pr.Author.Login
 	}
 	return pr.Author.Name
 }
+
 func (pr PullRequestResponse) AssigneesName() string {
 	assignees := make([]string, 0)
 	for _, assignee := range pr.Assignees {
@@ -86,6 +88,7 @@ func (pr PullRequestResponse) AssigneesName() string {
 	}
 	return strings.Join(assignees, "\n")
 }
+
 func (pr PullRequestResponse) ReviewersName() string {
 	reviewers := make([]string, 0)
 	for _, reviewer := range pr.Reviewers {
@@ -108,9 +111,11 @@ func (pr PullRequestResponse) FirstReviewerName() string {
 func (pr PullRequestResponse) Title() string {
 	return strconv.Itoa(pr.PRNumber) + " " + pr.TitleName + " (" + pr.RepositoryName() + ")"
 }
+
 func (pr PullRequestResponse) Description() string {
 	return pr.AuthorName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
 }
+
 func (pr PullRequestResponse) FilterValue() string {
 	return pr.Title()
 }

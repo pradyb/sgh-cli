@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/shurcooL/githubv4"
+
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 type HttpClient struct {
@@ -87,7 +88,6 @@ func (c *GraphqlClient) Query(query interface{}, variables map[string]interface{
 	}
 
 	err := c.Client.Query(context.Background(), query, variables)
-
 	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in executing the query")
 	}
