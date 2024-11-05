@@ -276,12 +276,26 @@ const payload = `
     }
 	`
 
-func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool) []model.ProtectedBranch {
+func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool, addUsers, removeUsers []string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
+	protectedbranchMap := make(map[string]model.ProtectedBranch)
+	if removeUsers != nil {
+		existingProtectedBranches := ListProtectedBranches(ctx, orgName, repoNames, branchName)
+
+		if len(existingProtectedBranches) == 0 {
+			for _, existingProtectedBranch := range existingProtectedBranches {
+				protectedbranchMap[existingProtectedBranch.RepositoryName] = existingProtectedBranch
+			}
+		}
+	}
 
 	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationUpdateProtectedBranch,
 		func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-			return UpdateProtectedBranchForRepo(ctx, orgName, repoName, branchName, lock, removeStatus)
+			var existingProtectedBranch model.ProtectedBranch
+			if pb, ok := protectedbranchMap[repoName]; ok {
+				existingProtectedBranch = pb
+			}
+			return UpdateProtectedBranchForRepo(ctx, orgName, repoName, branchName, lock, removeStatus, addUsers, removeUsers, existingProtectedBranch)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
 			responses = append(responses, result.Result)
@@ -292,7 +306,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 	return responses
 }
 
-func UpdateProtectedBranchForRepo(ctx *context.Context, orgName string, repoName string, branchName string, lock, removeStatus bool) (model.ProtectedBranch, error) {
+func UpdateProtectedBranchForRepo(ctx *context.Context, orgName string, repoName string, branchName string, lock, removeStatus bool, addUsers, removeUsers []string, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranch, error) {
 	var requestPayload model.ProtectedBranchRequest
 	if err := json.Unmarshal([]byte(payload), &requestPayload); err != nil {
 		return model.ProtectedBranch{RepositoryName: repoName}, err
@@ -305,7 +319,26 @@ func UpdateProtectedBranchForRepo(ctx *context.Context, orgName string, repoName
 		requestPayload.LockBranch = true
 	}
 
+	// Add configured users to bypass pull request review
 	requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, ctx.Config.ProtectedBranchDetail(orgName).BypassPullRequestUsers...)
+	// Add parameter users to bypass pull request review
+	if len(addUsers) > 0 {
+		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, addUsers...)
+	}
+	// Add existing users to bypass pull request review
+	if len(existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users) > 0 {
+		for _, user := range existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users {
+			if !slices.Contains(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Name) {
+				requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Login)
+			}
+		}
+	}
+	// Remove parameter users from bypass pull request review
+	if len(removeUsers) > 0 {
+		for _, user := range removeUsers {
+			requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = RemoveItem(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user)
+		}
+	}
 
 	requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, ctx.Config.ProtectedBranchDetail(orgName).AllowedRestrictionsUsers...)
 	requestPayload.RequiredPullRequestReviews.RequiredApprovingReviewCount = ctx.Config.ProtectedBranchDetail(orgName).ApprovingReviewCount
@@ -331,4 +364,14 @@ func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_PROTECTED_BRANCH", "", err.Error()))
 		})
 	return responses
+}
+
+func RemoveItem(list []string, item string) []string {
+	var result []string
+	for _, v := range list {
+		if v != item {
+			result = append(result, v)
+		}
+	}
+	return result
 }

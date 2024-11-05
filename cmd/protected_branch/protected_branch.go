@@ -56,6 +56,8 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 var (
 	lock         bool
 	removeStatus bool
+	addUsers     []string
+	removeUsers  []string
 )
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
@@ -73,7 +75,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 			repoNames, _ := cmd.Flags().GetStringArray("repository")
 			branchName, _ := cmd.Flags().GetString("branch")
-			pb.UpdateProtectedBranch(ctx, orgName, repoNames, branchName, lock, removeStatus)
+			pb.UpdateProtectedBranch(ctx, orgName, repoNames, branchName, lock, removeStatus, addUsers, removeUsers)
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
@@ -83,6 +85,8 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to update the protected branches. If not provided, it will update for all the repositories in the organization")
 	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "lock the protected branch")
 	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "remove the status checks in protected branch")
+	updateCmd.Flags().StringArrayVarP(&addUsers, "add-user", "a", []string{}, "add user(s) to the protected branch")
+	updateCmd.Flags().StringArrayVarP(&removeUsers, "remove-user", "u", []string{}, "remove user(s) from the protected branch")
 
 	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("branch")
