@@ -7,6 +7,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	pb "github.com/prady-lab/sgh-cli/pkg/protected_branch"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
 func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
@@ -23,8 +24,9 @@ func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
 }
 
 var (
-	repoNames  []string
-	branchName string
+	repoNames        []string
+	excludeRepoNames []string
+	branchName       string
 )
 
 func ListCommand(ctx *context.Context) *cobra.Command {
@@ -39,13 +41,13 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			repoNames, _ := cmd.Flags().GetStringArray("repository")
-			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, branchName)
+			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to list the protected branches. If not provided, it will list for all the repositories in the organization")
+	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from listing the protected branches")
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to list the protected branches")
 
 	listCmd.MarkPersistentFlagRequired("org")
@@ -73,16 +75,15 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			repoNames, _ := cmd.Flags().GetStringArray("repository")
-			branchName, _ := cmd.Flags().GetString("branch")
-			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddUsers: addUsers, RemoveUsers: removeUsers})
-			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, branchName)
+			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddUsers: addUsers, RemoveUsers: removeUsers}, excludeRepoNames)
+			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
 	}
 
 	updateCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to update the protected branch")
 	updateCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to update the protected branches. If not provided, it will update for all the repositories in the organization")
+	updateCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from updating the protected branches")
 	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "lock the protected branch")
 	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "remove the status checks in protected branch")
 	updateCmd.Flags().StringArrayVarP(&addUsers, "add-user", "a", []string{}, "add user(s) to the protected branch")
@@ -105,13 +106,14 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			branchResponses := pb.DeleteProtectedBranch(ctx, orgName, repoNames, branchName)
+			branchResponses := pb.DeleteProtectedBranch(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintResponses(branchResponses)
 		},
 	}
 
 	deleteCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to delete the protected branch")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the protected branches. If not provided, it will delete for all the repositories in the organization")
+	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from deleting the protected branches")
 
 	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("branch")

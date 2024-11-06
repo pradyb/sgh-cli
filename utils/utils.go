@@ -13,3 +13,7 @@ func ConfigDir() string {
 	}
 	return d
 }
+
+const (
+	EXCLUDE_REPOSITORY_FLAG = "exclude-repository"
+)

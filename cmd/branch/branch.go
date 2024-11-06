@@ -10,6 +10,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
@@ -25,10 +26,11 @@ func NewBranchCommand(ctx *context.Context) *cobra.Command {
 }
 
 var (
-	branchName    string
-	refBranchName string
-	commitSHA     string
-	repoNames     []string
+	branchName       string
+	refBranchName    string
+	commitSHA        string
+	repoNames        []string
+	excludeRepoNames []string
 )
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
@@ -61,7 +63,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				ui.PrintResponses(branchResponses)
 				return
 			}
-			branchResponses := branch.CreateNewBranches(ctx, orgName, repoNames, branchName, refBranchName)
+			branchResponses := branch.CreateNewBranches(ctx, orgName, repoNames, excludeRepoNames, branchName, refBranchName)
 			ui.PrintResponses(branchResponses)
 		},
 	}
@@ -70,6 +72,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&refBranchName, "ref", "R", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringVarP(&commitSHA, "commit", "c", "", "The `commit sha` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
+	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch creation")
 
 	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("new")
@@ -98,13 +101,14 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			branchResponses := branch.DeleteBranches(ctx, orgName, repos, branchName)
+			branchResponses := branch.DeleteBranches(ctx, orgName, repos, excludeRepoNames, branchName)
 			ui.PrintResponses(branchResponses)
 		},
 	}
 
 	deleteCmd.Flags().StringVarP(&branchName, "branch", "B", "", "The `branch` which you want to be deleted")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the branch. If not provided, it will delete for all the repositories in the organization")
+	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch deletion")
 
 	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("branch")

@@ -17,10 +17,10 @@ func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranc
 	return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], newBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", response.Object.SHA)}
 }
 
-func CreateNewBranches(ctx *context.Context, orgName string, repoNames []string, newBranchName, refBranchName string) []model.RefUIResponse {
+func CreateNewBranches(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, newBranchName, refBranchName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreateBranch,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationCreateBranch,
 		func(ctx *context.Context, orgName, repoName string) (model.RefResponse, error) {
 			return service.CreateNewBranch(ctx, orgName, repoName, newBranchName, refBranchName)
 		},
@@ -33,10 +33,10 @@ func CreateNewBranches(ctx *context.Context, orgName string, repoNames []string,
 	return responses
 }
 
-func DeleteBranches(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.RefUIResponse {
+func DeleteBranches(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, branchName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationDeleteBranch,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationDeleteBranch,
 		func(ctx *context.Context, orgName, repoName string) (bool, error) {
 			return service.DeleteBranch(ctx, orgName, repoName, branchName)
 		},

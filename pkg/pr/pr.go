@@ -26,7 +26,7 @@ type PullRequestRequest struct {
 func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef, title, body string) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreatePullRequest,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, []string{}, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
 			return CreateNewPullRequestForRepo(ctx, PullRequestRequest{orgName, repoName, baseRef, headRef, title, body}, true)
 		},
@@ -108,7 +108,7 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 		}
 		return responses
 	} else {
-		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListPullRequest,
+		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, []string{}, processor.OperationListPullRequest,
 			func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
 				return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
 			},

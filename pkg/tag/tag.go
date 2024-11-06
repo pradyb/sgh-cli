@@ -7,10 +7,10 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
-func CreateNewTags(ctx *context.Context, orgName string, repoNames []string, tagName, refBranchName string, message string) []model.RefUIResponse {
+func CreateNewTags(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, tagName, refBranchName string, message string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationCreateTag,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationCreateTag,
 		func(ctx *context.Context, orgName, repoName string) (model.RefResponse, error) {
 			return service.CreateNewTag(ctx, orgName, repoName, tagName, refBranchName, message)
 		},
@@ -23,14 +23,14 @@ func CreateNewTags(ctx *context.Context, orgName string, repoNames []string, tag
 	return responses
 }
 
-func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
+func CreateNewTag(ctx *context.Context, orgName, repoName string, excludeRepoNames []string, tagName, refBranchName, message string) (model.RefResponse, error) {
 	return service.CreateNewTag(ctx, orgName, repoName, tagName, refBranchName, message)
 }
 
-func DeleteTags(ctx *context.Context, orgName string, repoNames []string, tagName string) []model.RefUIResponse {
+func DeleteTags(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, tagName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationDeleteTag,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationDeleteTag,
 		func(ctx *context.Context, orgName, repoName string) (bool, error) {
 			return service.DeleteTag(ctx, orgName, repoName, tagName)
 		},

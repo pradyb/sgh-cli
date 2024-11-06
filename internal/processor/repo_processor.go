@@ -96,7 +96,7 @@ type BranchOperationData struct {
 	RefBranchName string
 }
 
-func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, orgName string, repos []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
+func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, orgName string, repos, excludeRepos []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
 	repoNames := make([]string, 0)
 	message := RepoOperationConfig[operation]["message"]
 
@@ -113,7 +113,31 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", message, orgName)
 		repoNames = append(repoNames, actualRepoNames...)
 	}
-	return process(ctx, orgName, repoNames, operation, operationHandler, resultHandler, errorHandler)
+
+	// Exclude repositories
+	filteredRepoNames := make([]string, 0)
+	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
+	for _, repoName := range repoNames {
+		if !contains(actualExcludeRepoNames, repoName) {
+			filteredRepoNames = append(filteredRepoNames, repoName)
+		}
+	}
+
+	if len(filteredRepoNames) == 0 {
+		logger.Glog.Info().Msgf("No repositories to process")
+		return nil
+	}
+
+	return process(ctx, orgName, filteredRepoNames, operation, operationHandler, resultHandler, errorHandler)
+}
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
 }
 
 func process[R OperationResultType](ctx *context.Context, orgName string, repoNames []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {

@@ -24,7 +24,7 @@ type PostReleaseRequest struct {
 
 func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []model.PostReleaseResponse {
 	responses := make([]model.PostReleaseResponse, 0)
-	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
+	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, []string{}, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
 			// lock the Head branch and add the required status checks
 			pb.UpdateProtectedBranchForRepo(ctx, repoName, pb.ProtectedBranchRequest{OrgName: orgName, BranchName: request.HeadRef, Lock: true, RemoveStatus: false, AddUsers: nil, RemoveUsers: nil}, model.ProtectedBranch{})
@@ -45,7 +45,7 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 
 			// create tag
 			if request.CreateTag {
-				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, request.TagName, request.BaseRef, request.Title)
+				tagResponse, err := tag.CreateNewTag(ctx, orgName, repoName, []string{}, request.TagName, request.BaseRef, request.Title)
 				if err != nil {
 					postProcessing(ctx, request.OrgName, repoName, request.BaseRef)
 					return model.PostReleaseResponse{RepositoryName: repoName}, err

@@ -14,7 +14,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
-func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.ProtectedBranch {
+func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []string, excludeRepoNames []string, branchName string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 
 	if len(repoNames) <= 1 {
@@ -58,7 +58,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 		}
 
 	} else {
-		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationListProtectedBranch,
+		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationListProtectedBranch,
 			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
 				return getProtectedBranchDetails(ctx, orgName, repoName, branchName, githubv4.String("")), nil
 			},
@@ -286,11 +286,11 @@ type ProtectedBranchRequest struct {
 	RemoveUsers  []string
 }
 
-func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest) []model.ProtectedBranch {
+func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest, excludeRepoNames []string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 	protectedbranchMap := make(map[string]model.ProtectedBranch)
 	if request.RemoveUsers != nil {
-		existingProtectedBranches := ListProtectedBranches(ctx, request.OrgName, request.RepoNames, request.BranchName)
+		existingProtectedBranches := ListProtectedBranches(ctx, request.OrgName, request.RepoNames, excludeRepoNames, request.BranchName)
 
 		if len(existingProtectedBranches) == 0 {
 			for _, existingProtectedBranch := range existingProtectedBranches {
@@ -299,7 +299,7 @@ func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest)
 		}
 	}
 
-	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationUpdateProtectedBranch,
+	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, excludeRepoNames, processor.OperationUpdateProtectedBranch,
 		func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
 			var existingProtectedBranch model.ProtectedBranch
 			if pb, ok := protectedbranchMap[repoName]; ok {
@@ -388,10 +388,10 @@ func addRestrictions(ctx *context.Context, request ProtectedBranchRequest, exist
 	}
 }
 
-func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.RefUIResponse {
+func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []string, excludeRepoNames []string, branchName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationDeleteProtectedBranch,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationDeleteProtectedBranch,
 		func(ctx *context.Context, orgName, repoName string) (bool, error) {
 			return service.DeleteProtectedBranch(ctx, orgName, repoName, branchName)
 		},

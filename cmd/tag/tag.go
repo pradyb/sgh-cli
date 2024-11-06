@@ -8,13 +8,15 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/tag"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
 var (
-	tagName       string
-	refBranchName string
-	repoNames     []string
-	message       string
+	tagName          string
+	refBranchName    string
+	repoNames        []string
+	excludeRepoNames []string
+	message          string
 )
 
 func NewTagCommand(ctx *context.Context) *cobra.Command {
@@ -47,7 +49,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.CreateNewTags(ctx, orgName, repoNames, tagName, refBranchName, message)
+			responses := tag.CreateNewTags(ctx, orgName, repoNames, excludeRepoNames, tagName, refBranchName, message)
 			ui.PrintResponses(responses)
 		},
 	}
@@ -55,6 +57,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
 	createCmd.Flags().StringVarP(&refBranchName, "head", "H", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the tag. If not provided, it will create for all the repositories in the organization")
+	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from creating the tag")
 	createCmd.Flags().StringVarP(&message, "message", "m", "", "The `message` for the tagging")
 
 	createCmd.MarkPersistentFlagRequired("org")
@@ -82,13 +85,14 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.DeleteTags(ctx, orgName, repoNames, tagName)
+			responses := tag.DeleteTags(ctx, orgName, repoNames, excludeRepoNames, tagName)
 			ui.PrintResponses(responses)
 		},
 	}
 
 	deleteCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
+	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from deleting the tag")
 
 	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("tag")
