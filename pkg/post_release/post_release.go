@@ -27,9 +27,9 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
 			// lock the Head branch and add the required status checks
-			pb.UpdateProtectedBranchForRepo(ctx, request.OrgName, repoName, request.HeadRef, true, false, nil, nil, model.ProtectedBranch{})
+			pb.UpdateProtectedBranchForRepo(ctx, repoName, pb.ProtectedBranchRequest{OrgName: orgName, BranchName: request.HeadRef, Lock: true, RemoveStatus: false, AddUsers: nil, RemoveUsers: nil}, model.ProtectedBranch{})
 			// unlock the Base branch and remove the required status checks
-			pb.UpdateProtectedBranchForRepo(ctx, request.OrgName, repoName, request.BaseRef, false, true, nil, nil, model.ProtectedBranch{})
+			pb.UpdateProtectedBranchForRepo(ctx, repoName, pb.ProtectedBranchRequest{OrgName: orgName, BranchName: request.BaseRef, Lock: false, RemoveStatus: true, AddUsers: nil, RemoveUsers: nil}, model.ProtectedBranch{})
 
 			prResponse, err := pr.CreateNewPullRequestForRepo(ctx, pr.PullRequestRequest{OrgName: orgName, RepoName: repoName, BaseRef: request.BaseRef, HeadRef: request.HeadRef, Title: request.Title, Body: request.Body}, false)
 			if err != nil {
@@ -67,5 +67,5 @@ func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []mode
 
 func postProcessing(ctx *context.Context, orgName, repoName, baseRef string) {
 	// lock the Base branch and add the required status checks
-	pb.UpdateProtectedBranchForRepo(ctx, orgName, repoName, baseRef, true, false, nil, nil, model.ProtectedBranch{})
+	pb.UpdateProtectedBranchForRepo(ctx, repoName, pb.ProtectedBranchRequest{OrgName: orgName, BranchName: baseRef, Lock: true, RemoveStatus: false, AddUsers: nil, RemoveUsers: nil}, model.ProtectedBranch{})
 }

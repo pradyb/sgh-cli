@@ -19,7 +19,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 
 	if len(repoNames) <= 1 {
 		// Invoke via GraphQL
-		logger.Glog.Info().Msgf("Invoking GraphQL to list protected branches for %s", orgName)
+		// logger.Glog.Info().Msgf("Invoking GraphQL to list protected branches for %s", orgName)
 		repoName := ""
 		if len(repoNames) == 1 {
 			actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
@@ -276,11 +276,21 @@ const payload = `
     }
 	`
 
-func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string, lock, removeStatus bool, addUsers, removeUsers []string) []model.ProtectedBranch {
+type ProtectedBranchRequest struct {
+	OrgName      string
+	RepoNames    []string
+	BranchName   string
+	Lock         bool
+	RemoveStatus bool
+	AddUsers     []string
+	RemoveUsers  []string
+}
+
+func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 	protectedbranchMap := make(map[string]model.ProtectedBranch)
-	if removeUsers != nil {
-		existingProtectedBranches := ListProtectedBranches(ctx, orgName, repoNames, branchName)
+	if request.RemoveUsers != nil {
+		existingProtectedBranches := ListProtectedBranches(ctx, request.OrgName, request.RepoNames, request.BranchName)
 
 		if len(existingProtectedBranches) == 0 {
 			for _, existingProtectedBranch := range existingProtectedBranches {
@@ -289,13 +299,13 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 		}
 	}
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, processor.OperationUpdateProtectedBranch,
+	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, processor.OperationUpdateProtectedBranch,
 		func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
 			var existingProtectedBranch model.ProtectedBranch
 			if pb, ok := protectedbranchMap[repoName]; ok {
 				existingProtectedBranch = pb
 			}
-			return UpdateProtectedBranchForRepo(ctx, orgName, repoName, branchName, lock, removeStatus, addUsers, removeUsers, existingProtectedBranch)
+			return UpdateProtectedBranchForRepo(ctx, repoName, request, existingProtectedBranch)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
 			responses = append(responses, result.Result)
@@ -306,26 +316,51 @@ func UpdateProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 	return responses
 }
 
-func UpdateProtectedBranchForRepo(ctx *context.Context, orgName string, repoName string, branchName string, lock, removeStatus bool, addUsers, removeUsers []string, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranch, error) {
-	var requestPayload model.ProtectedBranchRequest
-	if err := json.Unmarshal([]byte(payload), &requestPayload); err != nil {
+func UpdateProtectedBranchForRepo(ctx *context.Context, repoName string, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranch, error) {
+	requestPayload, err := createRequestPayload(ctx, repoName, request, existingProtectedBranch)
+	if err != nil {
 		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
-	if !removeStatus && !ctx.Config.IsRepoPresentInIgnoreForStatusCheck(orgName, repoName) {
+
+	jsonBody, err := json.Marshal(requestPayload)
+	if err != nil {
+		return model.ProtectedBranch{RepositoryName: repoName}, err
+	}
+	return service.UpdateProtectedBranch(ctx, request.OrgName, repoName, request.BranchName, jsonBody)
+}
+
+func createRequestPayload(ctx *context.Context, repoName string, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranchRequest, error) {
+	var requestPayload model.ProtectedBranchRequest
+	if err := json.Unmarshal([]byte(payload), &requestPayload); err != nil {
+		return requestPayload, err
+	}
+
+	addStatusChecks(ctx, repoName, request, &requestPayload)
+	addUsersToBypassPullRequestReview(ctx, request, existingProtectedBranch, &requestPayload)
+	addRestrictions(ctx, request, existingProtectedBranch, &requestPayload)
+
+	requestPayload.RequiredPullRequestReviews.RequiredApprovingReviewCount = ctx.Config.ProtectedBranchDetail(request.OrgName).ApprovingReviewCount
+
+	return requestPayload, nil
+}
+
+func addStatusChecks(ctx *context.Context, repoName string, request ProtectedBranchRequest, requestPayload *model.ProtectedBranchRequest) {
+	if !request.RemoveStatus && !ctx.Config.IsRepoPresentInIgnoreForStatusCheck(request.OrgName, repoName) {
 		requestPayload.RequiredStatusChecks.Checks = append(requestPayload.RequiredStatusChecks.Checks, model.CheckRequest{Context: "Build", AppID: 15368})
 	}
 
-	if lock {
+	if request.Lock {
 		requestPayload.LockBranch = true
 	}
+}
 
-	// Add configured users to bypass pull request review
-	requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, ctx.Config.ProtectedBranchDetail(orgName).BypassPullRequestUsers...)
-	// Add parameter users to bypass pull request review
-	if len(addUsers) > 0 {
-		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, addUsers...)
+func addUsersToBypassPullRequestReview(ctx *context.Context, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch, requestPayload *model.ProtectedBranchRequest) {
+	requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).BypassPullRequestUsers...)
+
+	if len(request.AddUsers) > 0 {
+		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, request.AddUsers...)
 	}
-	// Add existing users to bypass pull request review
+
 	if len(existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users) > 0 {
 		for _, user := range existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users {
 			if !slices.Contains(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Name) {
@@ -333,21 +368,24 @@ func UpdateProtectedBranchForRepo(ctx *context.Context, orgName string, repoName
 			}
 		}
 	}
-	// Remove parameter users from bypass pull request review
-	if len(removeUsers) > 0 {
-		for _, user := range removeUsers {
+
+	if len(request.RemoveUsers) > 0 {
+		for _, user := range request.RemoveUsers {
 			requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = RemoveItem(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user)
 		}
 	}
+}
 
-	requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, ctx.Config.ProtectedBranchDetail(orgName).AllowedRestrictionsUsers...)
-	requestPayload.RequiredPullRequestReviews.RequiredApprovingReviewCount = ctx.Config.ProtectedBranchDetail(orgName).ApprovingReviewCount
+func addRestrictions(ctx *context.Context, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch, requestPayload *model.ProtectedBranchRequest) {
+	requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).AllowedRestrictionsUsers...)
 
-	jsonBody, err := json.Marshal(requestPayload)
-	if err != nil {
-		return model.ProtectedBranch{RepositoryName: repoName}, err
+	if len(existingProtectedBranch.Restrictions.Users) > 0 {
+		for _, user := range existingProtectedBranch.Restrictions.Users {
+			if !slices.Contains(requestPayload.Restrictions.Users, user.Login) {
+				requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, user.Login)
+			}
+		}
 	}
-	return service.UpdateProtectedBranch(ctx, orgName, repoName, branchName, jsonBody)
 }
 
 func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []string, branchName string) []model.RefUIResponse {
