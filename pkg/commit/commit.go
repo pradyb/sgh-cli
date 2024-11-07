@@ -7,10 +7,10 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
-func ListCommits(ctx *context.Context, orgName string, repoNames []string, branchName string, noOfDays int) []model.CommitResponse {
+func ListCommits(ctx *context.Context, orgName string, repoNames []string, excludeRepos []string, branchName string, noOfDays int) []model.CommitResponse {
 	responses := make([]model.CommitResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, []string{}, processor.OperationListPullRequest,
+	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepos, processor.OperationListPullRequest,
 		func(ctx *context.Context, orgName, repoName string) ([]model.CommitResponse, error) {
 			return service.ListCommits(ctx, orgName, repoName, branchName, noOfDays)
 		},

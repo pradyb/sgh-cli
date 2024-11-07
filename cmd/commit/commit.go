@@ -6,13 +6,13 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/utils"
 
 	"github.com/spf13/cobra"
 )
 
 func NewCommitCommand(ctx *context.Context) *cobra.Command {
-
-	var commitCmd = &cobra.Command{
+	commitCmd := &cobra.Command{
 		Use:   "commit <command>",
 		Short: "Manage commits",
 		Long:  `Perform Commits operations like list/commit status`,
@@ -22,14 +22,17 @@ func NewCommitCommand(ctx *context.Context) *cobra.Command {
 	return commitCmd
 }
 
-var repoNames []string
-var branchName string
-var noOfDays int
-var details bool
-var includeMergeCommits bool
+var (
+	repoNames           []string
+	excludeRepos        []string
+	branchName          string
+	noOfDays            int
+	details             bool
+	includeMergeCommits bool
+)
 
 func ListCommand(ctx *context.Context) *cobra.Command {
-	var listCmd = &cobra.Command{
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List commits for all the repositories in the given org/owner",
 		Long: `List commits on GitHub for given repos or all the selected reps in the given org/owner
@@ -40,11 +43,12 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 			$ sgh commit list --org sample-org
 			$ sgh commit list --org sample-org -r sample-repo1 -r sample-repo2
 			$ sgh commit list --org sample-org -r sample-repo1 -r sample-repo2 -n 5"
+			$ sgh commit list --org sample-org -e sample-repo3 -e sample-repo4
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			responses := commit.ListCommits(ctx, orgName, repoNames, branchName, noOfDays)
+			responses := commit.ListCommits(ctx, orgName, repoNames, excludeRepos, branchName, noOfDays)
 			if details {
 				logger.Glog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
 				ui.PrintCommitResponses(responses, includeMergeCommits)
@@ -55,7 +59,8 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 		},
 	}
 
-	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
+	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
+	listCmd.Flags().StringArrayVarP(&excludeRepos, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "main", "The `branch` for which you want to fetch commits")
 	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "number of days to fetch commits")
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")

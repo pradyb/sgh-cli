@@ -12,19 +12,20 @@ import (
 )
 
 type PostReleaseRequest struct {
-	OrgName   string
-	RepoNames []string
-	BaseRef   string
-	HeadRef   string
-	Title     string
-	Body      string
-	CreateTag bool
-	TagName   string
+	OrgName      string
+	RepoNames    []string
+	ExcludeRepos []string
+	BaseRef      string
+	HeadRef      string
+	Title        string
+	Body         string
+	CreateTag    bool
+	TagName      string
 }
 
 func ProcessPostRelease(ctx *context.Context, request PostReleaseRequest) []model.PostReleaseResponse {
 	responses := make([]model.PostReleaseResponse, 0)
-	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, []string{}, processor.OperationPostRelease,
+	processor.ProcessRepositoriesOperation(ctx, request.OrgName, request.RepoNames, request.ExcludeRepos, processor.OperationPostRelease,
 		func(ctx *context.Context, orgName, repoName string) (model.PostReleaseResponse, error) {
 			// lock the Head branch and add the required status checks
 			pb.UpdateProtectedBranchForRepo(ctx, repoName, pb.ProtectedBranchRequest{OrgName: orgName, BranchName: request.HeadRef, Lock: true, RemoveStatus: false, AddUsers: nil, RemoveUsers: nil}, model.ProtectedBranch{})
