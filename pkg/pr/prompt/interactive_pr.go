@@ -69,7 +69,7 @@ type eventStatusResponse struct {
 type sectionEvent []string
 
 func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
-	pullRequests := pr.ListPullRequests(ctx, orgName, repoNames, baseRef, headRef, all)
+	pullRequests := pr.ListPullRequests(ctx, orgName, repoNames, []string{}, baseRef, headRef, all)
 	items := make([]list.Item, len(pullRequests))
 	for i, pr := range pullRequests {
 		items[i] = pr
