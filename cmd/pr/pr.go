@@ -10,6 +10,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/pr/prompt"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/utils"
 )
 
 func NewPRCommand(ctx *context.Context) *cobra.Command {
@@ -27,11 +28,12 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 }
 
 var (
-	title     string
-	body      string
-	baseRef   string
-	headRef   string
-	repoNames []string
+	title           string
+	body            string
+	baseRef         string
+	headRef         string
+	repoNames       []string
+	exclueRepoNames []string
 )
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
@@ -47,7 +49,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			responses := pr.CreateNewPullRequest(ctx, orgName, repoNames, baseRef, headRef, title, body)
+			responses := pr.CreateNewPullRequest(ctx, orgName, repoNames, exclueRepoNames, baseRef, headRef, title, body)
 			logger.Flog.Info().Msg("Pull request created successfully")
 			ui.PrintPullRequestResponses(responses)
 		},
@@ -58,6 +60,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	createCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
+	createCmd.Flags().StringArrayVarP(&exclueRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 
 	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("title")
@@ -88,7 +91,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			if !interactive {
-				responses := pr.ListPullRequests(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
+				responses := pr.ListPullRequests(ctx, orgName, repoNames, exclueRepoNames, baseRef, headRef, allPullRequests)
 				ui.PrintPullRequestResponses(responses)
 			} else {
 				prompt.RunInteractivePR(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
@@ -97,6 +100,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
+	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones. Default is false")
 	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
