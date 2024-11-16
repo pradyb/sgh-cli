@@ -50,7 +50,7 @@ func convertToRows[T TableRowType](data []T, rowsConvertHandler rowsConvertHandl
 func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bool) lipgloss.Style {
 	var style lipgloss.Style
 	switch {
-	case row == 0:
+	case row == -1:
 		return HeaderStyle
 	case row%2 == 0:
 		style = EvenRowStyle
@@ -63,7 +63,7 @@ func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bo
 		style = style.Foreground(Green)
 	}
 
-	if isFooterPresent && row == totalRows {
+	if isFooterPresent && row == totalRows-1 {
 		style = FooterStyle
 	}
 
@@ -105,10 +105,10 @@ func PrintRepositories(repos []model.Repository) {
 		if repo.OpenPullRequestsCount != 0 {
 			prCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
 		}
-		issueCount := strconv.Itoa(repo.OpenIssuesCount)
+		/*issueCount := strconv.Itoa(repo.OpenIssuesCount)
 		if repo.OpenIssuesCount != 0 {
 			issueCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/issues", issueCount)
-		}
+		}*/
 
 		return []string{
 			repo.Name,
@@ -136,8 +136,8 @@ func PrintRepositories(repos []model.Repository) {
 			if col == 1 {
 				style = style.Width(50)
 			}
-			if row != 0 && row < len(rows) {
-				if (col == 7 || col == 8) && rows[row-1][col] != "0" {
+			if row > -1 && row < len(rows)-1 {
+				if (col == 7 || col == 8) && rows[row][col] != "0" {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}
@@ -254,8 +254,8 @@ func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
 	if col == 2 {
 		style = style.Width(40)
 	}
-	if row != 0 && row < len(rows) {
-		if col == 6 && rows[row-1][6] == "closed" {
+	if row > 0 && row < len(rows)-1 {
+		if col == 6 && rows[row][6] == "closed" {
 			style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
 		} else if col == 6 {
 			style = style.Foreground(lipgloss.Color("#DFC57B"))
@@ -284,8 +284,8 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(mergeResponses), 0, true)
-			if row != 0 && row < len(rows)+1 {
-				if col == 1 && strings.Contains(rows[row-1][col], "documentation_url") {
+			if row > 0 && row < len(rows) {
+				if col == 1 && strings.Contains(rows[row][col], "documentation_url") {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 			}

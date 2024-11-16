@@ -348,13 +348,13 @@ func getPRTableStyle(col int, responseRows [][]string, row int) lipgloss.Style {
 		style = style.Foreground(ui.Gray).AlignHorizontal(lipgloss.Right)
 	} else {
 		style = style.Foreground(ui.White)
-		if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "true" {
+		if responseRows[row][0] == mergeableTitle && responseRows[row][1] == "true" {
 			style = style.Foreground(lipgloss.Color(ui.CrayolaGreen)).Blink(true)
-		} else if responseRows[row-1][0] == mergeableTitle && responseRows[row-1][1] == "false" {
+		} else if responseRows[row][0] == mergeableTitle && responseRows[row][1] == "false" {
 			style = style.Foreground(lipgloss.Color(ui.Red))
-		} else if responseRows[row-1][0] == mergeableStateTitle && responseRows[row-1][1] == "clean" {
+		} else if responseRows[row][0] == mergeableStateTitle && responseRows[row][1] == "clean" {
 			style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
-		} else if responseRows[row-1][0] == mergeableStateTitle {
+		} else if responseRows[row][0] == mergeableStateTitle {
 			style = style.Foreground(lipgloss.Color(ui.Red))
 		}
 	}
