@@ -191,7 +191,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				style := defaultTableStyle(row, col, len(failedRows), 0, true)
-				if col == 1 && row != 0 && row != len(failedRows) {
+				if col == 1 && row != -1 && row != len(failedRows)-1 {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
@@ -328,7 +328,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
-				if col == 1 && row != 0 {
+				if col == 1 && row != -1 {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
@@ -448,10 +448,10 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), 0, true)
 
-			if col == 1 && row != 0 && row != len(rows) {
+			if col == 1 && row != 0 && row != len(rows)-1 {
 				style = style.UnsetForeground()
 			}
-			if col == 0 && row != 0 && row != len(rows) {
+			if col == 0 && row != 0 && row != len(rows)-1 {
 				style = style.Foreground(Green)
 			}
 
