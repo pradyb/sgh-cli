@@ -448,10 +448,10 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), 0, true)
 
-			if col == 1 && row != 0 && row != len(rows)-1 {
+			if col == 1 && row != -1 && row != len(rows)-1 {
 				style = style.UnsetForeground()
 			}
-			if col == 0 && row != 0 && row != len(rows)-1 {
+			if col == 0 && row != -1 && row != len(rows)-1 {
 				style = style.Foreground(Green)
 			}
 
@@ -471,7 +471,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
-				if col == 1 && row != 0 {
+				if col == 1 && row != -1 {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
 				return style
@@ -556,7 +556,7 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			var style lipgloss.Style
-			if row == 0 {
+			if row == -1 {
 				return HeaderStyle
 			}
 			if col == 0 {
@@ -612,7 +612,7 @@ func PrintTeams(teams []model.OrgTeam) {
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := CellStyle
-			if row == 0 {
+			if row == -1 {
 				return HeaderStyle
 			}
 			if col == 0 {
@@ -620,7 +620,7 @@ func PrintTeams(teams []model.OrgTeam) {
 			} else if col == 1 || col == 3 {
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
 			}
-			if row == len(rows) {
+			if row == len(rows)-1 {
 				style = FooterStyle
 			}
 			return style
