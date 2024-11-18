@@ -374,18 +374,18 @@ func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := CellStyle
 
-			if row == 0 {
+			if row == -1 {
 				return HeaderStyle
 			}
 			if col == 0 {
 				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
-			} else if col == 2 {
+			} else if col == 2 && row != -1 {
 				style = CellStyle.Foreground(ui.White)
-				if checkRunRows[row-1][2] == "SUCCESS" {
+				if checkRunRows[row][2] == "SUCCESS" {
 					style = style.Foreground(lipgloss.Color(ui.Green))
-				} else if checkRunRows[row-1][2] == "FAILURE" {
+				} else if checkRunRows[row][2] == "FAILURE" {
 					style = style.Foreground(lipgloss.Color(ui.Red))
-				} else if checkRunRows[row-1][2] == "SKIPPED" {
+				} else if checkRunRows[row][2] == "SKIPPED" {
 					style = style.Foreground(lipgloss.Color("#FFA500"))
 				}
 			}
@@ -418,15 +418,15 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := CellStyle
 
-			if row == 0 {
+			if row == -1 {
 				return HeaderStyle
 			}
 			if col == 0 {
 				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
-			} else if col == 1 && row == 1 {
-				if prReviewsRows[row-1][1] == "APPROVED" {
+			} else if col == 1 && row == 0 {
+				if prReviewsRows[row][1] == "APPROVED" {
 					style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
-				} else if prReviewsRows[row-1][1] == "CHANGES_REQUESTED" {
+				} else if prReviewsRows[row][1] == "CHANGES_REQUESTED" {
 					style = style.Foreground(lipgloss.Color(ui.Red))
 				} else {
 					style = style.Foreground(lipgloss.Color("#FFA500"))
