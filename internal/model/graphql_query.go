@@ -252,7 +252,7 @@ type ProtectedBranchRepoFragment struct {
 		Edges      []struct {
 			Node ProtectedBranchRefFragment
 		}
-	} `graphql:"refs(query: $branchName, refPrefix: \"refs/heads/\", first: 10)"`
+	} `graphql:"refs(query: $branchName, refPrefix: \"refs/heads/\", first: 20)"`
 }
 
 type ProtectedBranchRefFragment struct {

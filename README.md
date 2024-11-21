@@ -1,42 +1,41 @@
 # Simple Github CLI
 
+### Commands to perform Github operations.
 
 ```sh
-sgh config add org prady-github-api
 
-sgh config add pattern "(.)*" -o prady-github-api -i
+Usage:
+  sgh <command> <subcommand> [flags]
+  sgh [command]
 
-sgh config set tagger-name "Pradeep Kumar Balakrishnan" -o prady-github-api
-sgh config set tagger-email "b.pradeepkumar@gmail.com" -o prady-github-api
-```
+Examples:
+$ sgh branch create
+$ sgh tag create
+$ sgh pb update --org sample-org -r sample-repo1 --branch sample-branch  -l -d
+$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop"
+$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
 
 
-```json
-"no_of_workers": 1,
-{
-    "name": "prady-github-api",
-    "repositories": [
-        "user-service",
-        "admin-service",
-        "public-repo"
-    ],
-    "repo_patterns": {
-        "include": [
-            "(.)*"
-        ]
-    },
-    "tagger": {
-        "name": "Pradeep Kumar Balakrishnan",
-        "email": "b.pradeepkumar@gmail.com"
-    },
-    "protected_branch": {
-        "bypass_pull_request_users": [
-            "pradyb"
-        ],
-        "allowed_restrictions_users": [
-            "pradyb"
-        ],
-        "approving_review_count": 1
-    }
-}
+Available Commands:
+  branch       Manage branches
+  clone        Clone all the selected repositories for the given owner/organization
+  commit       Manage commits
+  config       Manage configuration for sgh
+  help         Help about any command
+  pb           Manage protected branches
+  post-release Perform Post release activities like merging to main/develop and tagging
+  pr           Manage pull requests
+  repo         Repository operations for the given organization
+  tag          Manage tags.
+  team         Organization teams
+
+Flags:
+  -h, --help           help for sgh
+  -L, --log-response   log HTTP response
+  -o, --org string     organization name
+  -v, --verbose        verbose output
+  -w, --workers int    number of workers (default 5)
+
+Use "sgh [command] --help" for more information about a command.
+
 ```
