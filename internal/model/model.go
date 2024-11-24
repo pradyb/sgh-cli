@@ -113,6 +113,9 @@ func (pr PullRequestResponse) Title() string {
 }
 
 func (pr PullRequestResponse) Description() string {
+	if pr.FirstReviewerName() == "" {
+		return pr.AuthorName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
+	}
 	return pr.AuthorName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
 }
 
