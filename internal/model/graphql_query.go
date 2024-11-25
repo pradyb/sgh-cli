@@ -121,21 +121,23 @@ type SearchPullRequestsQuery struct {
 		Edges []struct {
 			Node struct {
 				PullRequest struct {
-					Number         int
-					Title          string
-					Url            string
-					Body           string
-					BaseRef        RefFragment `graphql:"baseRef"`
-					BaseRefName    string
-					HeadRef        RefFragment `graphql:"headRef"`
-					HeadRefName    string
-					Author         ActorFragment
-					ReviewRequests ReviewRequestsFragment `graphql:"reviewRequests(first: 3)"`
-					Assignees      AssigneesFragment      `graphql:"assignees(first: 3)"`
+					Number           int
+					Title            string
+					Url              string
+					Body             string
+					BaseRef          RefFragment `graphql:"baseRef"`
+					BaseRefName      string
+					HeadRef          RefFragment `graphql:"headRef"`
+					HeadRefName      string
+					State            string
+					MergeStateStatus string
+					Author           ActorFragment
+					ReviewRequests   ReviewRequestsFragment `graphql:"reviewRequests(first: 3)"`
+					Assignees        AssigneesFragment      `graphql:"assignees(first: 3)"`
 				} `graphql:"... on PullRequest"`
 			}
 		}
-	} `graphql:"search(query: $queryString, type: ISSUE, last: 20, after: $prCursor)"`
+	} `graphql:"search(query: $queryString, type: ISSUE, last: $lastCount, after: $prCursor)"`
 }
 
 type PullRequestDetailQuery struct {

@@ -56,18 +56,32 @@ func CreateNewPullRequestForRepo(ctx *context.Context, request PullRequestReques
 	}
 }
 
-func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, exclueRepoNames []string, baseRef, headRef string, all bool) []model.PullRequestResponse {
+type PRRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	BaseRef          string
+	HeadRef          string
+	LastCount        int
+	Author           string
+	Assignee         string
+	Reviewer         string
+	All              bool
+}
+
+func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
-	if len(repoNames) <= 1 {
+	if len(prRequest.RepoNames) <= 1 {
 		// Invoke via GraphQL
-		logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", orgName)
+		logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", prRequest.OrgName)
 
-		queryString := getSearchQuery(ctx, orgName, repoNames, baseRef, headRef)
+		queryString := getSearchQuery(ctx, prRequest)
 
 		variables := map[string]interface{}{
 			"queryString": githubv4.String(queryString),
 			"prCursor":    (*githubv4.String)(nil),
+			"lastCount":   githubv4.Int(prRequest.LastCount),
 		}
 
 		var pullRequestQuery model.SearchPullRequestsQuery
@@ -99,6 +113,8 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 					Login: pr.Author.User.Login,
 					Name:  pr.Author.User.Name,
 				},
+				State:            pr.State,
+				MergeStateStatus: pr.MergeStateStatus,
 			}
 
 			prResponse.Assignees = populateAssignees(pr.Assignees)
@@ -108,9 +124,9 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 		}
 		return responses
 	} else {
-		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, exclueRepoNames, processor.OperationListPullRequest,
+		processor.ProcessRepositoriesOperation(ctx, prRequest.OrgName, prRequest.RepoNames, prRequest.ExcludeRepoNames, processor.OperationListPullRequest,
 			func(ctx *context.Context, orgName, repoName string) ([]model.PullRequestResponse, error) {
-				return service.ListPullRequests(ctx, orgName, repoName, baseRef, headRef, all)
+				return service.ListPullRequests(ctx, orgName, repoName, prRequest.BaseRef, prRequest.HeadRef, prRequest.All)
 			},
 			func(repoName string, result processor.RepoOperationResult[[]model.PullRequestResponse]) {
 				responses = append(responses, result.Result...)
@@ -122,21 +138,30 @@ func ListPullRequests(ctx *context.Context, orgName string, repoNames []string, 
 	}
 }
 
-func getSearchQuery(ctx *context.Context, orgName string, repoNames []string, baseRef string, headRef string) string {
+func getSearchQuery(ctx *context.Context, prRequest PRRequest) string {
 	var queryString string
-	if len(repoNames) == 1 {
-		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
-		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", orgName)
-		queryString = "repo:" + orgName + "/" + actualRepoNames[0]
+	if len(prRequest.RepoNames) == 1 {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(prRequest.OrgName, prRequest.RepoNames)
+		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", prRequest.OrgName)
+		queryString = "repo:" + prRequest.OrgName + "/" + actualRepoNames[0]
 	} else {
-		queryString = "org:" + orgName
+		queryString = "org:" + prRequest.OrgName
 	}
 	queryString = queryString + " type:pr state:open sort:created-desc"
-	if baseRef != "" {
-		queryString = queryString + " base:" + baseRef
+	if prRequest.BaseRef != "" {
+		queryString = queryString + " base:" + prRequest.BaseRef
 	}
-	if headRef != "" {
-		queryString = queryString + " head:" + headRef
+	if prRequest.HeadRef != "" {
+		queryString = queryString + " head:" + prRequest.HeadRef
+	}
+	if prRequest.Author != "" {
+		queryString = queryString + " author:" + prRequest.Author
+	}
+	if prRequest.Assignee != "" {
+		queryString = queryString + " assignee:" + prRequest.Assignee
+	}
+	if prRequest.Reviewer != "" {
+		queryString = queryString + " review-requested:" + prRequest.Reviewer
 	}
 	return queryString
 }

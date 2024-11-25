@@ -68,8 +68,8 @@ type eventStatusResponse struct {
 
 type sectionEvent []string
 
-func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) prModel {
-	pullRequests := pr.ListPullRequests(ctx, orgName, repoNames, []string{}, baseRef, headRef, all)
+func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
+	pullRequests := pr.ListPullRequests(ctx, prRequest)
 	items := make([]list.Item, len(pullRequests))
 	for i, pr := range pullRequests {
 		items[i] = pr
@@ -77,7 +77,7 @@ func newModel(ctx *context.Context, orgName string, repoNames []string, baseRef,
 
 	delegateKeys := newDelegateKeyMap()
 
-	delegate := newItemDelegate(ctx, orgName, delegateKeys)
+	delegate := newItemDelegate(ctx, prRequest.OrgName, delegateKeys)
 	prList := list.New(items, delegate, 0, 0)
 	prList.Title = "Interactive Pull Request options"
 	prList.Styles.Title = titleStyle
@@ -161,8 +161,8 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func RunInteractivePR(ctx *context.Context, orgName string, repoNames []string, baseRef, headRef string, all bool) error {
-	m := newModel(ctx, orgName, repoNames, baseRef, headRef, all)
+func RunInteractivePR(ctx *context.Context, prRequest pr.PRRequest) error {
+	m := newModel(ctx, prRequest)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		return err

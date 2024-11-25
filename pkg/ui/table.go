@@ -222,7 +222,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 				pr.AuthorName(),
 				pr.AssigneesName(),
 				pr.ReviewersName(),
-				pr.State,
+				pr.State + " / " + pr.MergeStateStatus,
 				refs,
 				fmt.Sprintf(HyperLinkFormat, pr.HTMLUrl, "Open"),
 			})
@@ -239,7 +239,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				return pullRequestStyle(row, col, rows)
 			}).
-			Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status", "Refs", "HTMLUrl").
+			Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl").
 			Rows(rows...)
 
 		fmt.Println(t)

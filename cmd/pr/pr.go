@@ -72,6 +72,10 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 var (
 	allPullRequests bool
 	interactive     bool
+	lastCount       int
+	author          string
+	assignee        string
+	reviewer        string
 )
 
 func ListCommand(ctx *context.Context) *cobra.Command {
@@ -84,27 +88,32 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pr list --org sample-org
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 -a
+			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --all-status
 			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --head "feature-branch" --base "develop"
+			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop" --author "john-doe" --assignee "jane-doe"
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			if !interactive {
-				responses := pr.ListPullRequests(ctx, orgName, repoNames, exclueRepoNames, baseRef, headRef, allPullRequests)
+				responses := pr.ListPullRequests(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests})
 				ui.PrintPullRequestResponses(responses)
 			} else {
-				prompt.RunInteractivePR(ctx, orgName, repoNames, baseRef, headRef, allPullRequests)
+				prompt.RunInteractivePR(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests})
 			}
 		},
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&exclueRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
-	listCmd.Flags().BoolVarP(&allPullRequests, "all", "a", false, "to fetch all the pull requests including closed ones. Default is false")
+	listCmd.Flags().BoolVar(&allPullRequests, "all-status", false, "to fetch all the pull requests including closed ones. Default is false")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
 	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode to select the PR to merge")
+	listCmd.Flags().IntVarP(&lastCount, "last", "l", 20, "The `number` of pull requests to fetch")
+	listCmd.Flags().StringVarP(&author, "author", "a", "", "The `author` of the pull request")
+	listCmd.Flags().StringVarP(&assignee, "assignee", "A", "", "The `assignee` of the pull request")
+	listCmd.Flags().StringVarP(&reviewer, "reviewer", "R", "", "The `reviewer` of the pull request")
 
 	listCmd.MarkPersistentFlagRequired("org")
 
