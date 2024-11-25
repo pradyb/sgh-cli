@@ -99,7 +99,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 				responses := pr.ListPullRequests(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests})
 				ui.PrintPullRequestResponses(responses)
 			} else {
-				prompt.RunInteractivePR(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests})
+				prompt.RunInteractivePR(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests, IsInteractive: interactive})
 			}
 		},
 	}

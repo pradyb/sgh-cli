@@ -67,6 +67,7 @@ type PRRequest struct {
 	Assignee         string
 	Reviewer         string
 	All              bool
+	IsInteractive    bool
 }
 
 func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullRequestResponse {
@@ -74,7 +75,9 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 
 	if len(prRequest.RepoNames) <= 1 {
 		// Invoke via GraphQL
-		logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", prRequest.OrgName)
+		if !prRequest.IsInteractive {
+			logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", prRequest.OrgName)
+		}
 
 		queryString := getSearchQuery(ctx, prRequest)
 

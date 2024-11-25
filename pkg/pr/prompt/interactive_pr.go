@@ -47,13 +47,29 @@ var (
 	HeaderStyle = re.NewStyle().Foreground(ui.White).Bold(true).Align(lipgloss.Center)
 )
 
+type listKeyMap struct {
+	refresh key.Binding
+}
+
+func newListKeyMap() *listKeyMap {
+	return &listKeyMap{
+		refresh: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "refresh pr list"),
+		),
+	}
+}
+
 type prModel struct {
 	list           list.Model
+	keys           *listKeyMap
 	delegateKeys   *delegateKeyMap
 	showEventPanel bool
 	sections       []string
 	showSpinner    bool
 	spinner        spinner.Model
+	ctx            *context.Context
+	prRequest      pr.PRRequest
 }
 
 type eventStatusResponse struct {
@@ -76,11 +92,22 @@ func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
 	}
 
 	delegateKeys := newDelegateKeyMap()
+	listKeys := newListKeyMap()
 
 	delegate := newItemDelegate(ctx, prRequest.OrgName, delegateKeys)
 	prList := list.New(items, delegate, 0, 0)
 	prList.Title = "Interactive Pull Request options"
 	prList.Styles.Title = titleStyle
+	prList.AdditionalFullHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			listKeys.refresh,
+		}
+	}
+	prList.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			listKeys.refresh,
+		}
+	}
 
 	s := spinner.New()
 	s.Spinner = spinner.Points
@@ -88,10 +115,13 @@ func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
 
 	return prModel{
 		list:           prList,
+		keys:           listKeys,
 		delegateKeys:   delegateKeys,
 		showEventPanel: false,
 		showSpinner:    false,
 		spinner:        s,
+		ctx:            ctx,
+		prRequest:      prRequest,
 	}
 }
 
@@ -145,6 +175,15 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.list.FilterState() == list.Filtering {
 			break
+		}
+		switch {
+		case key.Matches(msg, m.keys.refresh):
+			m.list.SetItems(nil)
+			pullRequests := pr.ListPullRequests(m.ctx, m.prRequest)
+			for i, pr := range pullRequests {
+				m.list.InsertItem(i, pr)
+			}
+			return m, nil
 		}
 		if key.Matches(msg, m.list.KeyMap.CursorDown, m.list.KeyMap.CursorUp, m.list.KeyMap.Filter, m.list.KeyMap.ClearFilter, m.list.KeyMap.Quit, m.list.KeyMap.GoToStart, m.list.KeyMap.GoToEnd) {
 			m.showEventPanel = false
