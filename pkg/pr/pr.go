@@ -23,12 +23,12 @@ type PullRequestRequest struct {
 	Body     string
 }
 
-func CreateNewPullRequest(ctx *context.Context, orgName string, repoNames []string, exclueRepoNames []string, baseRef, headRef, title, body string) []model.PullRequestResponse {
+func CreateNewPullRequest(ctx *context.Context, prRequest PRRequest) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, exclueRepoNames, processor.OperationCreatePullRequest,
+	processor.ProcessRepositoriesOperation(ctx, prRequest.OrgName, prRequest.RepoNames, prRequest.ExcludeRepoNames, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
-			return CreateNewPullRequestForRepo(ctx, PullRequestRequest{orgName, repoName, baseRef, headRef, title, body}, true)
+			return CreateNewPullRequestForRepo(ctx, PullRequestRequest{orgName, repoName, prRequest.BaseRef, prRequest.HeadRef, prRequest.Title, prRequest.Body}, true)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.PullRequestResponse]) {
 			responses = append(responses, result.Result)
@@ -68,6 +68,8 @@ type PRRequest struct {
 	Reviewer         string
 	All              bool
 	IsInteractive    bool
+	Title            string
+	Body             string
 }
 
 func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullRequestResponse {

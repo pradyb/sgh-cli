@@ -254,7 +254,7 @@ func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
 	if col == 2 {
 		style = style.Width(40)
 	}
-	if row > 0 && row < len(rows)-1 {
+	if row >= 0 && row < len(rows)-1 {
 		if col == 6 && rows[row][6] == "closed" {
 			style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
 		} else if col == 6 {
