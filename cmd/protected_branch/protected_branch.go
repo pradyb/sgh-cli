@@ -74,8 +74,8 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 			$ sgh pb update --org sample-org --branch sample-branch 
 			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
 			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d -a john-doe -a jane-doe
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d -u john-doe -u jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
