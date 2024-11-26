@@ -56,10 +56,12 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 }
 
 var (
-	lock         bool
-	removeStatus bool
-	addUsers     []string
-	removeUsers  []string
+	lock              bool
+	removeStatus      bool
+	addBypassUsers    []string
+	removeBypassUsers []string
+	addPushUsers      []string
+	removePushUsers   []string
 )
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
@@ -77,7 +79,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddUsers: addUsers, RemoveUsers: removeUsers}, excludeRepoNames)
+			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
@@ -88,8 +90,10 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from updating the protected branches")
 	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "lock the protected branch")
 	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "remove the status checks in protected branch")
-	updateCmd.Flags().StringArrayVarP(&addUsers, "add-user", "a", []string{}, "add user(s) to the protected branch")
-	updateCmd.Flags().StringArrayVarP(&removeUsers, "remove-user", "u", []string{}, "remove user(s) from the protected branch")
+	updateCmd.Flags().StringArrayVar(&addBypassUsers, "add-bypass-user", []string{}, "add user(s) to bypass required pull requests")
+	updateCmd.Flags().StringArrayVar(&removeBypassUsers, "remove-bypass-user", []string{}, "remove user(s) from bypass required pull requests")
+	updateCmd.Flags().StringArrayVar(&addPushUsers, "add-push-user", []string{}, "specify user(s) allowed to push to matching branches")
+	updateCmd.Flags().StringArrayVar(&removePushUsers, "remove-push-user", []string{}, "remove user(s) allowed to push to matching branches")
 
 	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("branch")

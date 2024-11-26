@@ -183,7 +183,7 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, pr := range pullRequests {
 				m.list.InsertItem(i, pr)
 			}
-			return m, nil
+			// return m, nil
 		}
 		if key.Matches(msg, m.list.KeyMap.CursorDown, m.list.KeyMap.CursorUp, m.list.KeyMap.Filter, m.list.KeyMap.ClearFilter, m.list.KeyMap.Quit, m.list.KeyMap.GoToStart, m.list.KeyMap.GoToEnd) {
 			m.showEventPanel = false
