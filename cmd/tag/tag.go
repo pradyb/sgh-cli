@@ -22,7 +22,7 @@ var (
 func NewTagCommand(ctx *context.Context) *cobra.Command {
 	tagCmd := &cobra.Command{
 		Use:   "tag <command>",
-		Short: "Manage tags.",
+		Short: "Create and delete tags",
 		Long:  `Perform Tag operations like create/delete .`,
 	}
 
@@ -38,8 +38,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Create a new tag from a existing branch for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh tag create --Tag Release-1.0 --Head Release-1.0 -o sample-org -m 'Tag for Release 1.0'
-			$ sgh tag create --Tag Release-1.0 --Head Release-1.0 -o sample-org -m 'Tag for Release 1.0' -r sample-repo1 -r sample-repo2
+			$ sgh tag create --org sample-org --tag Release-1.0 --Head Release-1.0 -m 'Tag for Release 1.0'
+			$ sgh tag create --org sample-org --tag Release-1.0 --Head Release-1.0 -m 'Tag for Release 1.0' --repo sample-repo1 --repo sample-repo2
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -75,7 +75,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh tag delete --Tag Release-1.0 --org sample-org
-			$ sgh tag delete --Tag Release-1.0 --org sample-org -r sample-repo1 -r sample-repo2
+			$ sgh tag delete --Tag Release-1.0 --org sample-org --repo sample-repo1 --repo sample-repo2
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {

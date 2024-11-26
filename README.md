@@ -4,30 +4,32 @@
 
 ```sh
 
+Simple CLI to process the all or selected repositories in an organization.
+
 Usage:
   sgh <command> <subcommand> [flags]
   sgh [command]
 
 Examples:
-$ sgh branch create
-$ sgh tag create
-$ sgh pb update --org sample-org -r sample-repo1 --branch sample-branch  -l -d
-$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop"
-$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
+$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0
+$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
+$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --base "develop"
+$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
 
 
 Available Commands:
-  branch       Manage branches
+  branch       Create and delete branches
   clone        Clone all the selected repositories for the given owner/organization
-  commit       Manage commits
+  commit       List recent commits for all the repositories
   config       Manage configuration for sgh
   help         Help about any command
-  pb           Manage protected branches
+  pb           Perform operations like view/update/delete protected branches.
   post-release Perform Post release activities like merging to main/develop and tagging
-  pr           Manage pull requests
-  repo         Repository operations for the given organization
-  tag          Manage tags.
-  team         Organization teams
+  pr           Perform PR operations like create/review/merge/close/update/list
+  repo         List the repositories details for the given owner/organization
+  tag          Create and delete tags
+  team         List teams and corresponding members in each team
 
 Flags:
   -h, --help           help for sgh

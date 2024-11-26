@@ -2,20 +2,20 @@ package commit
 
 import (
 	"github.com/MakeNowJust/heredoc"
+	"github.com/spf13/cobra"
+
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/prady-lab/sgh-cli/utils"
-
-	"github.com/spf13/cobra"
 )
 
 func NewCommitCommand(ctx *context.Context) *cobra.Command {
 	commitCmd := &cobra.Command{
 		Use:   "commit <command>",
-		Short: "Manage commits",
-		Long:  `Perform Commits operations like list/commit status`,
+		Short: "List recent commits for all the repositories",
+		Long:  `List recent commits for all the repositories`,
 	}
 
 	commitCmd.AddCommand(ListCommand(ctx))
@@ -41,8 +41,8 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh commit list --org sample-org
-			$ sgh commit list --org sample-org -r sample-repo1 -r sample-repo2
-			$ sgh commit list --org sample-org -r sample-repo1 -r sample-repo2 -n 5"
+			$ sgh commit list --org sample-org --repo sample-repo1 --repo sample-repo2
+			$ sgh commit list --org sample-org --repo sample-repo1 --repo sample-repo2 -n 5"
 			$ sgh commit list --org sample-org -e sample-repo3 -e sample-repo4
 		`),
 

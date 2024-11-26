@@ -16,7 +16,7 @@ import (
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	branchCmd := &cobra.Command{
 		Use:   "branch <command>",
-		Short: "Manage branches",
+		Short: "Create and delete branches",
 		Long:  `Perform branch operations like create/delete`,
 	}
 
@@ -40,9 +40,9 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Create a new branch from a existing branch for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh branch create --new Release-1.1 --ref Release-1.0 --org sample-org
-			$ sgh branch create --new Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 --org sample-org --repo sample-repo1
-			$ sgh branch create --new Release-1.1 --ref Release-1.0 --org sample-org -r sample-repo1 -r sample-repo2
+			$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0
+			$ sgh branch create --org sample-org --new Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 --repo sample-repo1
+			$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 --repo sample-repo1 --repo sample-repo2
 		`),
 
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -89,8 +89,8 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Delete a new branch for given repositories or all the selected repositories in the given organization/owner.`,
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
-			$ sgh branch delete --branch Release-1.0 --org sample-org
-			$ sgh branch delete --branch Release-1.0 --org sample-org -r sample-repo1 -r sample-repo2
+			$ sgh branch delete --org sample-org --branch Release-1.0 
+			$ sgh branch delete --org sample-org --branch Release-1.0 --repo sample-repo1 --repo sample-repo2
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {

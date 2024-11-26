@@ -15,8 +15,8 @@ import (
 func NewTeamCommand(ctx *context.Context) *cobra.Command {
 	teamCmd := &cobra.Command{
 		Use:   "team <command>",
-		Short: "Organization teams",
-		Long:  `Organization teams`,
+		Short: "List teams and corresponding members in each team",
+		Long:  `List teams and corresponding members in each team for the given owner/organization.`,
 		Example: heredoc.Doc(`
 			$ sgh team list --org <owner>
 		`),
@@ -35,8 +35,8 @@ var (
 func listCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
-		Short: "List team and members for the given owner/organization",
-		Long: `List team and members for the given owner/organization.
+		Short: "List teams and corresponding members in each team",
+		Long: `List teams and corresponding members in each team for the given owner/organization.
 By default, it will list 50 members in each team.`,
 
 		Aliases: []string{"ls"},

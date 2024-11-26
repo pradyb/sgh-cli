@@ -15,8 +15,8 @@ var isAllRepos bool
 func NewRepoCommand(ctx *context.Context) *cobra.Command {
 	repoCmd := &cobra.Command{
 		Use:   "repo <command>",
-		Short: "Repository operations for the given organization",
-		Long:  `Repository operations for the given organization`,
+		Short: "List the repositories details for the given owner/organization",
+		Long:  `List the repositories details for the given owner/organization`,
 		Example: heredoc.Doc(`
 			$ sgh repo list <owner>
 		`),

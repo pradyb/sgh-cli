@@ -27,11 +27,11 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 		Short: "Simple GitHub Command Line Interface",
 		Long:  `Simple CLI to process the all or selected repositories in an organization.`,
 		Example: heredoc.Doc(`
-				$ sgh branch create
-				$ sgh tag create
-				$ sgh pb update --org sample-org -r sample-repo1 --branch sample-branch  -l -d
-				$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop"
-				$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
+				$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 
+				$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
+				$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+				$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --base "develop"
+				$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cmd.HasParent() && (cmd.Parent().Name() == "config" || cmd.Parent().Name() == "repo") {

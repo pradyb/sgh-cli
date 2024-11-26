@@ -16,8 +16,8 @@ import (
 func NewPRCommand(ctx *context.Context) *cobra.Command {
 	prCmd := &cobra.Command{
 		Use:   "pr <command>",
-		Short: "Manage pull requests",
-		Long:  `Perform PR operations like create/review/merge/close/update`,
+		Short: "Perform PR operations like create/review/merge/close/update/list",
+		Long:  `Perform PR operations like create/review/merge/close/update/list`,
 	}
 
 	prCmd.AddCommand(CreateCommand(ctx))
@@ -43,8 +43,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Create a pull request on GitHub for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh pr create --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "develop" --org sample-org
-			$ sgh pr create --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "main" --org sample-org -r sample-repo1 -r sample-repo2
+			$ sgh pr create --org sample-org --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "develop"
+			$ sgh pr create --org sample-org --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "main"  --repo sample-repo1 --repo sample-repo2
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -88,9 +88,9 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pr list --org sample-org
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --all-status
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --head "feature-branch" --base "develop"
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop" --author "john-doe" --assignee "jane-doe"
+			$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --all-status
+			$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --head "feature-branch" --base "develop"
+			$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --base "develop" --author "john-doe" --assignee "jane-doe"
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -133,8 +133,8 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Update a pull request on GitHub for given repo`,
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
-			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action close 
-			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action open
+			$ sgh pr update --org sample-org --repo sample-repo1 --pr 1 --action close 
+			$ sgh pr update --org sample-org --repo sample-repo1 --pr 1 --action open
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -167,8 +167,8 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 		Long:    `merge a pull request on GitHub for given repo`,
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
-			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge" 
-			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge" --body "This PR is for post release merge"
+			$ sgh pr merge --org sample-org --repo sample-repo1 --pr 1 --title "Post Release merge" 
+			$ sgh pr merge --org sample-org --repo sample-repo1 --pr 1 --title "Post Release merge" --body "This PR is for post release merge"
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")

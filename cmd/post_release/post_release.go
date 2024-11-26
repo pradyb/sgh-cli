@@ -27,10 +27,10 @@ func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 		Short: "Perform Post release activities like merging to main/develop and tagging",
 		Long:  `Perform Post release activities like merging to main/develop and tagging`,
 		Example: heredoc.Doc(`
-			$ sgh post-release -o sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
-			$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0"
-			$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --base "main" --head "Release-1.0" --create-tag
-			$ sgh post-release -o sample-org -r sample-repo1 -r sample-repo2 --exclude-repos sample-repo1 --base "main" --head "Release-1.0" --create-tag
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --repo sample-repo1 --repo sample-repo2
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --repo sample-repo1 --repo sample-repo2 
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --repo sample-repo1 --repo sample-repo2 --exclude-repos sample-repo1
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {

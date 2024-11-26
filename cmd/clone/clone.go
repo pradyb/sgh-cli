@@ -21,9 +21,9 @@ func NewCloneCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Clone all the selected repositories for the given owner/organization.`,
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
-			$ sgh clone -o sample-org
-			$ sgh clone -o sample-org -b <branch>
-			$ sgh clone -o sample-org -b <branch> -r sample-repo1 -r sample-repo2
+			$ sgh clone --org sample-org
+			$ sgh clone --org sample-org --branch <branch>
+			$ sgh clone --org sample-org --branch <branch> --repo sample-repo1 --repo sample-repo2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")

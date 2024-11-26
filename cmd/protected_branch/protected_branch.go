@@ -13,8 +13,8 @@ import (
 func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
 	pbCmd := &cobra.Command{
 		Use:   "pb <command>",
-		Short: "Manage protected branches",
-		Long:  `Perform operations like list/update/delete protected branches.`,
+		Short: "Perform operations like view/update/delete protected branches.",
+		Long:  `Perform operations like view/update/delete protected branches.`,
 	}
 
 	pbCmd.AddCommand(ListCommand(ctx))
@@ -37,7 +37,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pb list --org sample-org --branch sample-branch
-			$ sgh pb list --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
+			$ sgh pb list --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -72,10 +72,10 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
 			$ sgh pb update --org sample-org --branch sample-branch 
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
+			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d
+			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -108,7 +108,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh pb delete --org sample-org --branch sample-branch
-			$ sgh pb delete --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
+			$ sgh pb delete --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
