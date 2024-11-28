@@ -82,7 +82,10 @@ type eventStatusResponse struct {
 	actionSuccess            bool
 }
 
-type sectionEvent []string
+type (
+	sectionEvent []string
+	refreshEvent []model.PullRequestResponse
+)
 
 func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
 	pullRequests := pr.ListPullRequests(ctx, prRequest)
@@ -168,6 +171,14 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sections = []string(msg)
 		m.showSpinner = false
 
+	case refreshEvent:
+		pullRequests := msg
+		for i, pr := range pullRequests {
+			m.list.InsertItem(i, pr)
+		}
+		m.showSpinner = false
+		m.showEventPanel = false
+
 	case tea.WindowSizeMsg:
 		h, v := listStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
@@ -179,13 +190,14 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.refresh):
 			m.list.SetItems(nil)
-			m.showEventPanel = false
+			m.showEventPanel = true
 			m.sections = nil
-			pullRequests := pr.ListPullRequests(m.ctx, m.prRequest)
-			for i, pr := range pullRequests {
-				m.list.InsertItem(i, pr)
+			m.showSpinner = true
+
+			cmd := func() tea.Msg {
+				return refreshEvent(pr.ListPullRequests(m.ctx, m.prRequest))
 			}
-			// return m, nil
+			cmds = append(cmds, cmd)
 		}
 		if key.Matches(msg, m.list.KeyMap.CursorDown, m.list.KeyMap.CursorUp, m.list.KeyMap.Filter, m.list.KeyMap.ClearFilter, m.list.KeyMap.Quit, m.list.KeyMap.GoToStart, m.list.KeyMap.GoToEnd) {
 			m.showEventPanel = false
