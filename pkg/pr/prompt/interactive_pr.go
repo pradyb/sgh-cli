@@ -179,6 +179,8 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.refresh):
 			m.list.SetItems(nil)
+			m.showEventPanel = false
+			m.sections = nil
 			pullRequests := pr.ListPullRequests(m.ctx, m.prRequest)
 			for i, pr := range pullRequests {
 				m.list.InsertItem(i, pr)
