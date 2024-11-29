@@ -2,6 +2,7 @@ package protectedbranch
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -160,6 +161,7 @@ func transformBranchProtectionRuleToProtectedBranch(node model.ProtectedBranchRe
 	return model.ProtectedBranch{
 		RepositoryName:                 repoName,
 		Type:                           "Branch Protection",
+		Name:                           node.Name,
 		LockBranch:                     node.BranchProtectionRule.LockBranch,
 		EnforceAdmins:                  node.BranchProtectionRule.IsAdminEnforced,
 		RequiredConversationResolution: node.BranchProtectionRule.RequiresConversationResolution,
@@ -185,6 +187,7 @@ func transformRuleSetToProtectedBranch(node model.ProtectedBranchRefFragment, re
 	pb := model.ProtectedBranch{
 		RepositoryName: repoName,
 		Type:           "Repository Rule",
+		Name:           node.Name,
 	}
 
 	if len(node.Rules.Edges) > 0 {
@@ -291,13 +294,11 @@ type ProtectedBranchRequest struct {
 func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest, excludeRepoNames []string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 	protectedbranchMap := make(map[string]model.ProtectedBranch)
-	if request.RemoveBypassUsers != nil || request.RemovePushUsers != nil {
-		existingProtectedBranches := ListProtectedBranches(ctx, request.OrgName, request.RepoNames, excludeRepoNames, request.BranchName)
-
-		if len(existingProtectedBranches) == 0 {
-			for _, existingProtectedBranch := range existingProtectedBranches {
-				protectedbranchMap[existingProtectedBranch.RepositoryName] = existingProtectedBranch
-			}
+	existingProtectedBranches := ListProtectedBranches(ctx, request.OrgName, request.RepoNames, excludeRepoNames, request.BranchName)
+	fmt.Println()
+	if len(existingProtectedBranches) > 0 {
+		for _, existingProtectedBranch := range existingProtectedBranches {
+			protectedbranchMap[existingProtectedBranch.RepositoryName] = existingProtectedBranch
 		}
 	}
 
@@ -357,18 +358,19 @@ func addStatusChecks(ctx *context.Context, repoName string, request ProtectedBra
 }
 
 func addUsersToBypassPullRequestReview(ctx *context.Context, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch, requestPayload *model.ProtectedBranchRequest) {
-	requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).BypassPullRequestUsers...)
-
-	if len(request.AddBypassUsers) > 0 {
-		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, request.AddBypassUsers...)
+	if existingProtectedBranch.Name == "" {
+		// Add default bypass users while creating new protected branch
+		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).BypassPullRequestUsers...)
 	}
 
 	if len(existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users) > 0 {
 		for _, user := range existingProtectedBranch.RequiredPullRequestReviews.BypassPullRequestAllowances.Users {
-			if !slices.Contains(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Name) {
-				requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Login)
-			}
+			requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, user.Login)
 		}
+	}
+
+	if len(request.AddBypassUsers) > 0 {
+		requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users = append(requestPayload.RequiredPullRequestReviews.BypassPullRequestAllowances.Users, request.AddBypassUsers...)
 	}
 
 	if len(request.RemoveBypassUsers) > 0 {
@@ -379,18 +381,18 @@ func addUsersToBypassPullRequestReview(ctx *context.Context, request ProtectedBr
 }
 
 func addRestrictions(ctx *context.Context, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch, requestPayload *model.ProtectedBranchRequest) {
-	requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).AllowedRestrictionsUsers...)
-
-	if len(request.AddPushUsers) > 0 {
-		requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, request.AddPushUsers...)
+	if existingProtectedBranch.Name == "" {
+		requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, ctx.Config.ProtectedBranchDetail(request.OrgName).AllowedRestrictionsUsers...)
 	}
 
 	if len(existingProtectedBranch.Restrictions.Users) > 0 {
 		for _, user := range existingProtectedBranch.Restrictions.Users {
-			if !slices.Contains(requestPayload.Restrictions.Users, user.Login) {
-				requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, user.Login)
-			}
+			requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, user.Login)
 		}
+	}
+
+	if len(request.AddPushUsers) > 0 {
+		requestPayload.Restrictions.Users = append(requestPayload.Restrictions.Users, request.AddPushUsers...)
 	}
 
 	if len(request.RemovePushUsers) > 0 {

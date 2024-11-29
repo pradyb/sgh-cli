@@ -223,6 +223,7 @@ func CreateNewCommonResponse(repoName, ref, refType, successMessage, errorMessag
 
 type ProtectedBranch struct {
 	RepositoryName                 string
+	Name                           string
 	Type                           string
 	LockBranch                     bool
 	EnforceAdmins                  bool

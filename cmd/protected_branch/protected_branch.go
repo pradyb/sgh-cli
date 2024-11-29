@@ -1,6 +1,8 @@
 package protectedbranch
 
 import (
+	"fmt"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
@@ -80,6 +82,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
+			fmt.Println()
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
