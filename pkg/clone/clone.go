@@ -19,9 +19,20 @@ func CloneRepositories(ctx *context.Context, orgName string, repos []string, bra
 	}
 
 	repoNames := make([]string, 0)
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)
-	logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Cloning for selected repositories in %s", orgName)
-	repoNames = append(repoNames, actualRepoNames...)
+
+	if len(repos) == 0 {
+		logger.Glog.Info().Msgf("%s for all configured repositories in %s", "Cloning", orgName)
+		orgRepoNames, err := repo.GetSelectedRepoNames(ctx, orgName)
+		if err != nil {
+			logger.Glog.Error().Err(err).Msgf("Error in getting the Repos for the organization %s", orgName)
+			return err
+		}
+		repoNames = append(repoNames, orgRepoNames...)
+	} else {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)
+		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Cloning for selected repositories in %s", orgName)
+		repoNames = append(repoNames, actualRepoNames...)
+	}
 
 	if len(repoNames) != 0 {
 		for _, repo := range repositories {

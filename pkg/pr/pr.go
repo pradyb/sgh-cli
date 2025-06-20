@@ -83,7 +83,7 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 
 		queryString := getSearchQuery(ctx, prRequest)
 
-		variables := map[string]interface{}{
+		variables := map[string]any{
 			"queryString": githubv4.String(queryString),
 			"prCursor":    (*githubv4.String)(nil),
 			"lastCount":   githubv4.Int(prRequest.LastCount),
@@ -254,7 +254,7 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 }
 
 func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"orgName":  githubv4.String(orgName),
 		"repoName": githubv4.String(repoName),
 		"prNumber": githubv4.Int(prNumber),
@@ -374,7 +374,8 @@ func populateAssignees(assigness model.AssigneesFragment) []model.User {
 func populateReviewers(reviewers model.ReviewRequestsFragment) []model.Actor {
 	reviewersList := make([]model.Actor, 0)
 	for _, reviewer := range reviewers.Edges {
-		if reviewer.Node.RequestedReviewer.Type == "User" {
+		switch reviewer.Node.RequestedReviewer.Type {
+		case "User":
 			reviewersList = append(reviewersList, model.Actor{
 				Type: "User",
 				User: model.User{
@@ -382,7 +383,7 @@ func populateReviewers(reviewers model.ReviewRequestsFragment) []model.Actor {
 					Name:  reviewer.Node.RequestedReviewer.User.Name,
 				},
 			})
-		} else if reviewer.Node.RequestedReviewer.Type == "Team" {
+		case "Team":
 			reviewersList = append(reviewersList, model.Actor{
 				Type: "Team",
 				Team: model.OrgTeam{

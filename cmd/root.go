@@ -25,7 +25,17 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "sgh <command> <subcommand> [flags]",
 		Short: "Simple GitHub Command Line Interface",
-		Long:  `Simple CLI to process the all or selected repositories in an organization.`,
+		Long: `Simple CLI to process the all or selected repositories in an organization.
+
+Configuration:
+  - Environment Variables:
+    GITHUB_TOKEN    Your GitHub Personal Access Token
+
+  - Config File:
+	Windows: ~/sgh.json
+	Linux:   ~/.config/sgh/sgh.json
+	Mac:     ~/.config/sgh/sgh.json`,
+
 		Example: heredoc.Doc(`
 				$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 
 				$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'

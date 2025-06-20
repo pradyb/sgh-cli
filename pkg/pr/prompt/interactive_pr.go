@@ -238,13 +238,13 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	var actionMessage string
 	actionSuccess := true
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
-	if eventType == "APPROVE" {
+	switch eventType {
+	case "APPROVE":
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		if actionSuccess {
 			pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
 		}
-	} else if eventType == "MERGE" || eventType == "APPROVE_MERGE" {
-
+	case "MERGE", "APPROVE_MERGE":
 		if eventType == "APPROVE_MERGE" {
 			actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		}
@@ -316,11 +316,12 @@ func getSectionsRenders(status eventStatusResponse) []string {
 
 	if len(status.checkRunResponse.CheckRuns) > 0 {
 		var finalStatus string
-		if status.checkRunResponse.OverallConclusion == "SUCCESS" {
+		switch status.checkRunResponse.OverallConclusion {
+		case "SUCCESS":
 			finalStatus = lipgloss.NewStyle().Foreground(ui.Green).Bold(true).Render(status.checkRunResponse.OverallConclusion)
-		} else if status.checkRunResponse.OverallConclusion == "FAILURE" {
+		case "FAILURE":
 			finalStatus = lipgloss.NewStyle().Foreground(ui.Red).Bold(true).Render(status.checkRunResponse.OverallConclusion)
-		} else {
+		default:
 			finalStatus = lipgloss.NewStyle().Foreground(ui.Gray).Bold(true).Render(status.checkRunResponse.OverallConclusion)
 		}
 		sections = append(sections, lipgloss.NewStyle().Foreground(ui.White).Bold(true).Render("Check Runs: ")+finalStatus)
@@ -434,11 +435,12 @@ func getCheckRunsTable(checkRunResponse model.CheckRunResponse) string {
 				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
 			} else if col == 2 && row != -1 {
 				style = CellStyle.Foreground(ui.White)
-				if checkRunRows[row][2] == "SUCCESS" {
+				switch checkRunRows[row][2] {
+				case "SUCCESS":
 					style = style.Foreground(lipgloss.Color(ui.Green))
-				} else if checkRunRows[row][2] == "FAILURE" {
+				case "FAILURE":
 					style = style.Foreground(lipgloss.Color(ui.Red))
-				} else if checkRunRows[row][2] == "SKIPPED" {
+				case "SKIPPED":
 					style = style.Foreground(lipgloss.Color("#FFA500"))
 				}
 			}
@@ -477,11 +479,12 @@ func getReviewTable(prReviews []model.ReviewPullRequestResponse) string {
 			if col == 0 {
 				style = CellStyle.Foreground(ui.Gray).AlignHorizontal(lipgloss.Left)
 			} else if col == 1 && row == 0 {
-				if prReviewsRows[row][1] == "APPROVED" {
+				switch prReviewsRows[row][1] {
+				case "APPROVED":
 					style = style.Foreground(lipgloss.Color(ui.Green)).Blink(true)
-				} else if prReviewsRows[row][1] == "CHANGES_REQUESTED" {
+				case "CHANGES_REQUESTED":
 					style = style.Foreground(lipgloss.Color(ui.Red))
-				} else {
+				default:
 					style = style.Foreground(lipgloss.Color("#FFA500"))
 				}
 			}

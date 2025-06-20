@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/prady-lab/sgh-cli/internal/async"
@@ -118,7 +119,7 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 	filteredRepoNames := make([]string, 0)
 	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
 	for _, repoName := range repoNames {
-		if !contains(actualExcludeRepoNames, repoName) {
+		if !slices.Contains(actualExcludeRepoNames, repoName) {
 			filteredRepoNames = append(filteredRepoNames, repoName)
 		}
 	}
@@ -129,15 +130,6 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 	}
 
 	return process(ctx, orgName, filteredRepoNames, operation, operationHandler, resultHandler, errorHandler)
-}
-
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-	return false
 }
 
 func process[R OperationResultType](ctx *context.Context, orgName string, repoNames []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
@@ -157,7 +149,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	}
 
 	jobQueue.Start(
-		func(job async.ASyncJob[any]) (interface{}, error) {
+		func(job async.ASyncJob[any]) (any, error) {
 			response, err := operationHandler(ctx, orgName, job.JobData.(string))
 			bar.Describe(fmt.Sprintf("Processed %s", job.JobData.(string)))
 			bar.Add(1)

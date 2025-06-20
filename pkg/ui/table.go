@@ -123,7 +123,12 @@ func PrintRepositories(repos []model.Repository) {
 		}
 	})
 
-	rows = append(rows, []string{"Total Repositories", strconv.Itoa(len(repos))})
+	totalPRs := 0
+	for _, repo := range repos {
+		totalPRs += repo.OpenPullRequestsCount
+	}
+
+	rows = append(rows, []string{"Total Repositories", strconv.Itoa(len(repos)), "", "", "", "", "", strconv.Itoa(totalPRs)})
 
 	fmt.Println()
 	t := table.New().
@@ -559,9 +564,10 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 			if row == -1 {
 				return HeaderStyle
 			}
-			if col == 0 {
+			switch col {
+			case 0:
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
-			} else if col == 1 {
+			case 1:
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
 			}
 
@@ -615,9 +621,10 @@ func PrintTeams(teams []model.OrgTeam) {
 			if row == -1 {
 				return HeaderStyle
 			}
-			if col == 0 {
+			switch col {
+			case 0:
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
-			} else if col == 1 || col == 3 {
+			case 1, 3:
 				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
 			}
 			if row == len(rows)-1 {

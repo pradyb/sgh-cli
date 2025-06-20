@@ -44,7 +44,7 @@ func NewASyncJobQueue[T, R any](jobQueueSize int) *ASyncJobQueue[T, R] {
 }
 
 func (q *ASyncJobQueue[T, R]) Start(jobHandler ASyncJobHandler[T, R], resultHandler ASyncJobResultHandler[T, R], errorHandler ASyncJobErrorHandler[T], noOfWorkers int) {
-	for i := 0; i < noOfWorkers; i++ {
+	for range make([]int, noOfWorkers) {
 		q.wg.Add(1)
 		go q.worker(jobHandler)
 	}
