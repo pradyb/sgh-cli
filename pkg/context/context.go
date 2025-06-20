@@ -34,29 +34,25 @@ func Init() (*Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
-
-	// Create HTTP client with timeout
+	// Create HTTP client with timeout and rate limiting
 	httpTimeout := 30 * time.Second
-	transport := client.Interceptor{OriginalTransport: http.DefaultTransport}
-	httpClient := &client.HttpClient{
-		Client: http.Client{
-			Timeout:   httpTimeout,
-			Transport: transport,
-		},
-	}
+	httpClient := client.NewHttpClient(httpTimeout)
 
 	// Create OAuth2 client
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{
 		Timeout:   httpTimeout,
-		Transport: transport,
+		Transport: httpClient.Client.Transport, // Use the same transport with rate limiting
 	})
 	oauthClient := oauth2.NewClient(ctx, src)
-
 	// Create GraphQL client
 	gqlClient := githubv4.NewClient(oauthClient)
-	graphqlClient := &client.GraphqlClient{Client: gqlClient}
-
+	graphqlClient := &client.GraphqlClient{
+		Client:         gqlClient,
+		RateLimiter:    httpClient.RateLimiter,
+		RetryConfig:    httpClient.RetryConfig,
+		CircuitBreaker: httpClient.CircuitBreaker,
+	}
 	return &Context{
 		Config:        config,
 		HttpClient:    httpClient,

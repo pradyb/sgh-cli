@@ -136,17 +136,7 @@ func PrintRepositories(repos []model.Repository) {
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), 0, true)
-
-			if col == 1 {
-				style = style.Width(50)
-			}
-			if row > -1 && row < len(rows)-1 {
-				if (col == 7 || col == 8) && rows[row][col] != "0" {
-					style = style.Foreground(lipgloss.Color(Red))
-				}
-				style = style.Align(lipgloss.Center, lipgloss.Center)
-			}
+			style := repositoryTableStyle(row, col, rows)
 			return style
 		}).
 		// Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
@@ -154,6 +144,23 @@ func PrintRepositories(repos []model.Repository) {
 		Rows(rows...)
 
 	fmt.Println(t)
+}
+
+func repositoryTableStyle(row, col int, rows [][]string) lipgloss.Style {
+	style := defaultTableStyle(row, col, len(rows), 0, true)
+
+	if col == 1 {
+		style = style.Width(50)
+	}
+	if row > -1 && row < len(rows)-1 {
+		if col == 7 || col == 8 {
+			style = style.Align(lipgloss.Center, lipgloss.Center)
+			if rows[row][col] != "0" {
+				style = style.Foreground(lipgloss.Color(Red))
+			}
+		}
+	}
+	return style
 }
 
 func PrintResponses(responses []model.RefUIResponse) {

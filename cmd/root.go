@@ -4,9 +4,6 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
@@ -19,6 +16,8 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewRootCommand(ctx *context.Context) *cobra.Command {

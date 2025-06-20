@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/apperrors"
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
@@ -21,28 +22,39 @@ const (
 	PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
 )
 
-func invokeAPI(ctx *context.Context, method, url string, reqBody io.Reader) ([]byte, error) {
-	req, err := http.NewRequest(method, url, reqBody)
+func invokeAPI(ctx *appcontext.Context, method, url string, reqBody io.Reader) ([]byte, error) {
+	return invokeAPIWithContext(context.Background(), ctx, method, url, reqBody)
+}
+
+func invokeAPIWithContext(reqCtx context.Context, ctx *appcontext.Context, method, url string, reqBody io.Reader) ([]byte, error) {
+	req, err := http.NewRequestWithContext(reqCtx, method, url, reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	res, err := ctx.HttpClient.Send(req)
+	res, err := ctx.HttpClient.SendWithContext(reqCtx, req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
-	if res.StatusCode != 200 && res.StatusCode != 201 && res.StatusCode != 204 {
-		return nil, &apperrors.GitHubError{StatusCode: res.StatusCode, Message: string(body)}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, &apperrors.GitHubError{
+			StatusCode: res.StatusCode,
+			Message:    string(body),
+			URL:        url,
+		}
 	}
+
 	return body, nil
 }
 
-func GetReposWithOrg(ctx *context.Context, orgName string) ([]model.Repository, error) {
+func GetReposWithOrg(ctx *appcontext.Context, orgName string) ([]model.Repository, error) {
 	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/orgs/%s/repos?per_page=100", GITHUB_BASE_URL, orgName), nil)
 	if err != nil {
 		return nil, err
@@ -61,7 +73,7 @@ type refResponse struct {
 	} `json:"object"`
 }
 
-func CreateNewBranch(ctx *context.Context, orgName, repoName, newBranchName, refBranchName string) (model.RefResponse, error) {
+func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, refBranchName string) (model.RefResponse, error) {
 	commitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
 	if err != nil {
 		return model.RefResponse{}, err
@@ -89,7 +101,7 @@ func CreateNewBranch(ctx *context.Context, orgName, repoName, newBranchName, ref
 	return branchResponse, nil
 }
 
-func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranchName, commitSHA string) (model.RefResponse, error) {
+func CreateNewBranchFromCommit(ctx *appcontext.Context, orgName, repoName, newBranchName, commitSHA string) (model.RefResponse, error) {
 	branchRequest := model.BranchRequest{Ref: "refs/heads/" + newBranchName, SHA: commitSHA}
 	jsonBody, err := json.Marshal(branchRequest)
 	if err != nil {
@@ -107,7 +119,7 @@ func CreateNewBranchFromCommit(ctx *context.Context, orgName, repoName, newBranc
 	return branchResponse, nil
 }
 
-func DeleteBranch(ctx *context.Context, orgName, repoName, branchName string) (bool, error) {
+func DeleteBranch(ctx *appcontext.Context, orgName, repoName, branchName string) (bool, error) {
 	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/heads/%s", GITHUB_BASE_URL, orgName, repoName, branchName), nil)
 	if err != nil {
 		return false, err
@@ -119,7 +131,7 @@ type refTagResponse struct {
 	SHA string `json:"sha"`
 }
 
-func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
+func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
 	refCommitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
 	if err != nil {
 		return model.RefResponse{}, err
@@ -163,7 +175,7 @@ func CreateNewTag(ctx *context.Context, orgName, repoName, tagName, refBranchNam
 	return tagResponse, nil
 }
 
-func DeleteTag(ctx *context.Context, orgName, repoName, tagName string) (bool, error) {
+func DeleteTag(ctx *appcontext.Context, orgName, repoName, tagName string) (bool, error) {
 	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/tags/%s", GITHUB_BASE_URL, orgName, repoName, tagName), nil)
 	if err != nil {
 		return false, err
@@ -171,7 +183,7 @@ func DeleteTag(ctx *context.Context, orgName, repoName, tagName string) (bool, e
 	return true, nil
 }
 
-func CreateNewPullRequest(ctx *context.Context, orgName, repoName, title, body, baseRef, headRef string) (model.PullRequestResponse, error) {
+func CreateNewPullRequest(ctx *appcontext.Context, orgName, repoName, title, body, baseRef, headRef string) (model.PullRequestResponse, error) {
 	prRequest := map[string]interface{}{
 		"title": title,
 		"body":  body,
@@ -194,7 +206,7 @@ func CreateNewPullRequest(ctx *context.Context, orgName, repoName, title, body, 
 	return prResponse, nil
 }
 
-func GetPullRequestInfo(ctx *context.Context, orgName, repoName string, prNumber int) (model.PullRequestResponse, error) {
+func GetPullRequestInfo(ctx *appcontext.Context, orgName, repoName string, prNumber int) (model.PullRequestResponse, error) {
 	prResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return model.PullRequestResponse{}, err
@@ -207,7 +219,7 @@ func GetPullRequestInfo(ctx *context.Context, orgName, repoName string, prNumber
 	return prResponse, nil
 }
 
-func AddIssueAssignees(ctx *context.Context, orgName, repoName string, prNumber int, assignees []string) (interface{}, error) {
+func AddIssueAssignees(ctx *appcontext.Context, orgName, repoName string, prNumber int, assignees []string) (interface{}, error) {
 	assigneesRequest := map[string]interface{}{
 		"assignees": assignees,
 	}
@@ -222,7 +234,7 @@ func AddIssueAssignees(ctx *context.Context, orgName, repoName string, prNumber 
 	return fmt.Sprintf("Assignees %s added successfully", assignees), nil
 }
 
-func AddReviewers(ctx *context.Context, orgName, repoName string, prNumber int, reviewers []string) (interface{}, error) {
+func AddReviewers(ctx *appcontext.Context, orgName, repoName string, prNumber int, reviewers []string) (interface{}, error) {
 	reviewersRequest := map[string]interface{}{
 		"reviewers": reviewers,
 	}
@@ -237,7 +249,7 @@ func AddReviewers(ctx *context.Context, orgName, repoName string, prNumber int, 
 	return fmt.Sprintf("Reviewers %s added successfully", reviewers), nil
 }
 
-func ListPullRequests(ctx *context.Context, orgName, repoName string, baseRef, headRef string, all bool) ([]model.PullRequestResponse, error) {
+func ListPullRequests(ctx *appcontext.Context, orgName, repoName string, baseRef, headRef string, all bool) ([]model.PullRequestResponse, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=50", GITHUB_BASE_URL, orgName, repoName)
 	if baseRef != "" {
 		url = fmt.Sprintf("%s&base=%s", url, baseRef)
@@ -260,7 +272,7 @@ func ListPullRequests(ctx *context.Context, orgName, repoName string, baseRef, h
 	return prResponses, nil
 }
 
-func UpdatePullRequest(ctx *context.Context, orgName, repoName string, prNumber int, state string) (model.PullRequestResponse, error) {
+func UpdatePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumber int, state string) (model.PullRequestResponse, error) {
 	prRequest := map[string]interface{}{
 		"state": state,
 	}
@@ -280,7 +292,7 @@ func UpdatePullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 	return prResponse, nil
 }
 
-func ListPullRequestReviews(ctx *context.Context, orgName, repoName string, prNumber int) ([]model.ReviewPullRequestResponse, error) {
+func ListPullRequestReviews(ctx *appcontext.Context, orgName, repoName string, prNumber int) ([]model.ReviewPullRequestResponse, error) {
 	reviewResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return nil, err
@@ -293,7 +305,7 @@ func ListPullRequestReviews(ctx *context.Context, orgName, repoName string, prNu
 	return reviewResponses, nil
 }
 
-func GetPullRequestFiles(ctx *context.Context, orgName, repoName string, prNumber int) ([]model.PullRequestFile, error) {
+func GetPullRequestFiles(ctx *appcontext.Context, orgName, repoName string, prNumber int) ([]model.PullRequestFile, error) {
 	filesResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return nil, err
@@ -306,7 +318,7 @@ func GetPullRequestFiles(ctx *context.Context, orgName, repoName string, prNumbe
 	return files, nil
 }
 
-func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber int, action, body string) (model.ReviewPullRequestResponse, error) {
+func ReviewPullRequest(ctx *appcontext.Context, orgName, repoName string, prNumber int, action, body string) (model.ReviewPullRequestResponse, error) {
 	reviewRequest := map[string]interface{}{
 		"event": strings.ToUpper(action),
 		"body":  body,
@@ -330,7 +342,7 @@ func ReviewPullRequest(ctx *context.Context, orgName, repoName string, prNumber 
 	return reviewResponse, nil
 }
 
-func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber int, title, body string) (model.MergeResponse, error) {
+func MergePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumber int, title, body string) (model.MergeResponse, error) {
 	mergeRequest := map[string]interface{}{
 		"commit_title":   title,
 		"commit_message": body,
@@ -352,7 +364,7 @@ func MergePullRequest(ctx *context.Context, orgName, repoName string, prNumber i
 	return mergeResponse, nil
 }
 
-func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
+func UpdateProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
 	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), bytes.NewReader(payload))
 	if err != nil {
 		return model.ProtectedBranch{RepositoryName: repoName}, err
@@ -367,7 +379,7 @@ func UpdateProtectedBranch(ctx *context.Context, orgName, repoName, branchName s
 	return branch, nil
 }
 
-func DeleteProtectedBranch(ctx *context.Context, orgName, repoName, branchName string) (bool, error) {
+func DeleteProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchName string) (bool, error) {
 	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), nil)
 	if err != nil {
 		return false, err
@@ -375,7 +387,7 @@ func DeleteProtectedBranch(ctx *context.Context, orgName, repoName, branchName s
 	return true, nil
 }
 
-func ListCommits(ctx *context.Context, orgName, repoName, branchName string, noOfDays int) ([]model.CommitResponse, error) {
+func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, noOfDays int) ([]model.CommitResponse, error) {
 	currentTime := time.Now()
 	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.Local)
 	midnight = midnight.AddDate(0, 0, -noOfDays)
@@ -392,7 +404,7 @@ func ListCommits(ctx *context.Context, orgName, repoName, branchName string, noO
 	return commits, nil
 }
 
-func GetCommitInfo(ctx *context.Context, orgName, repoName, commitSha string) (model.CommitResponse, error) {
+func GetCommitInfo(ctx *appcontext.Context, orgName, repoName, commitSha string) (model.CommitResponse, error) {
 	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
 	if err != nil {
 		return model.CommitResponse{}, err
@@ -405,7 +417,7 @@ func GetCommitInfo(ctx *context.Context, orgName, repoName, commitSha string) (m
 	return commit, nil
 }
 
-func GetCommitCheckRuns(ctx *context.Context, orgName, repoName, commitSha string) (model.CheckRunResponse, error) {
+func GetCommitCheckRuns(ctx *appcontext.Context, orgName, repoName, commitSha string) (model.CheckRunResponse, error) {
 	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s/check-runs", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
 	if err != nil {
 		return model.CheckRunResponse{}, err
