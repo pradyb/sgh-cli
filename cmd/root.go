@@ -24,24 +24,68 @@ import (
 func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "sgh <command> <subcommand> [flags]",
-		Short: "Simple GitHub Command Line Interface",
-		Long: `Simple CLI to process the all or selected repositories in an organization.
+		Short: "🚀 Simple GitHub Command Line Interface",
+		Long: heredoc.Doc(`
+			🚀 Simple GitHub CLI (sgh) - A powerful tool for managing GitHub repositories at scale
 
-Configuration:
-  - Environment Variables:
-    GITHUB_TOKEN    Your GitHub Personal Access Token
+			Manage multiple repositories across your GitHub organization with ease. Perform bulk operations 
+			on branches, tags, pull requests, protected branches, and more with a single command.
 
-  - Config File:
-	Windows: ~/sgh.json
-	Linux:   ~/.config/sgh/sgh.json
-	Mac:     ~/.config/sgh/sgh.json`,
+			✨ Key Features:
+			  • Bulk repository operations across entire organizations
+			  • Advanced branch and tag management
+			  • Pull request automation and management  
+			  • Protected branch configuration and updates
+			  • Post-release workflow automation
+			  • Team and member management
+			  • Repository cloning and commit tracking
+			  • Flexible filtering with include/exclude patterns
+
+			🔧 Configuration:
+			  Environment Variables:
+			    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
+
+			  Config Files:
+			    Windows: ~/sgh.json
+			    Linux:   ~/.config/sgh/sgh.json  
+			    Mac:     ~/.config/sgh/sgh.json
+
+			🎯 Quick Start:
+			    1. Set your GitHub token: export GITHUB_TOKEN=your_token_here
+			    2. List repositories: sgh repo list your-org
+			    3. Create branches: sgh branch create --org your-org --new feature-branch --ref main
+			    4. Bulk PR creation: sgh pr create --org your-org --title "Feature update" --head feature-branch --base main
+
+			For detailed command help, use: sgh <command> --help
+		`),
 
 		Example: heredoc.Doc(`
-				$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 
-				$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
-				$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
-				$ sgh pr list --org sample-org --repo sample-repo1 --repo sample-repo2 --base "develop"
-				$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
+			🌟 Common Workflows:
+
+			Branch Management:
+			  $ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0
+			
+			Tag Operations:
+			  $ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
+
+			Protected Branch Management:
+			  $ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+
+			Post-Release Workflows:
+			  $ sgh post-release --org my-org --base main --head Release-1.0 --create-tag --title "Release 1.0"
+
+			Repository Operations:
+			  $ sgh repo list my-org
+			  $ sgh clone --org my-org --branch develop
+			  $ sgh commit list --org my-org --days 7 --details
+
+			Team Management:
+			  $ sgh team list --org my-org
+			  $ sgh team list --org my-org --team developers --all-members
+
+			Configuration:
+			  $ sgh config add org my-org
+			  $ sgh config add pattern api-* --org my-org --include
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cmd.HasParent() && (cmd.Parent().Name() == "config" || cmd.Parent().Name() == "repo") {
