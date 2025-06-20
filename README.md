@@ -435,7 +435,6 @@ go test ./pkg/config
 **Basic coverage percentage:**
 ```bash
 go test ./internal/config -cover
-# Output: coverage: 81.2% of statements
 ```
 
 **Generate detailed coverage profile:**
@@ -474,18 +473,6 @@ go test -coverpkg=./internal/config,./pkg/config ./internal/config
 - Run tests before submitting pull requests
 - Use the HTML coverage report to identify untested code paths
 
-### Current Test Coverage Status
-
-- ✅ `internal/config`: **81.2%** coverage (comprehensive test suite)
-- ⚠️ Other packages: Tests needed
-
-### Benchmark Tests
-
-Run performance benchmarks:
-```bash
-go test ./internal/config -bench=.
-go test ./internal/config -bench=BenchmarkIsOrganizationPresent
-```
 
 ## 📄 License
 
