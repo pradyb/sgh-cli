@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -87,15 +90,48 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh config add pattern api-* --org my-org --include
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Validate org flag for commands that require it
 			if cmd.HasParent() && (cmd.Parent().Name() == "config" || cmd.Parent().Name() == "repo") {
 				cmd.InheritedFlags().SetAnnotation("org", cobra.BashCompOneRequiredFlag, []string{"false"})
+			} else {
+				// For other commands, validate org flag
+				orgFlag, _ := cmd.Flags().GetString("org")
+				if orgFlag != "" {
+					// Validate org name format (GitHub org names must be alphanumeric, hyphens, underscores)
+					if !isValidOrgName(orgFlag) {
+						logger.Glog.Error().
+							Str("org", orgFlag).
+							Msg("Invalid organization name format. Must contain only alphanumeric characters, hyphens, and underscores")
+						fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s'. GitHub organization names must contain only alphanumeric characters, hyphens, and underscores.\n", orgFlag)
+						os.Exit(1)
+					}
+				}
+			} // Validate worker count
+			workers, _ := cmd.Flags().GetInt("workers")
+			if workers < 1 {
+				logger.Glog.Error().
+					Int("workers", workers).
+					Msg("Invalid worker count. Must be at least 1")
+				fmt.Fprintf(os.Stderr, "Error: Worker count must be at least 1, got %d\n", workers)
+				os.Exit(1)
 			}
+			if workers > 50 {
+				logger.Glog.Warn().
+					Int("workers", workers).
+					Msg("High worker count may overwhelm GitHub API. Consider using fewer workers")
+				fmt.Fprintf(os.Stderr, "Warning: Using %d workers may overwhelm GitHub API. Consider using fewer workers.\n", workers)
+			}
+
 			verbose, _ := cmd.Flags().GetBool("verbose")
+
+			// Set logger level based on verbose flag
+			logger.SetVerbose(verbose)
+
 			ctx.SetVerbose(verbose)
 			logResponse, _ := cmd.Flags().GetBool("log-response")
 			ctx.SetLogResponse(logResponse)
-			workers, _ := cmd.Flags().GetInt("workers")
 			ctx.SetWorkerCount(workers)
+
 			userFlags := make([]string, 0)
 			flags := cmd.Flags()
 			flags.VisitAll(func(f *pflag.Flag) {
@@ -129,4 +165,21 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(team.NewTeamCommand(ctx))
 
 	return rootCmd
+}
+
+// isValidOrgName validates GitHub organization name format
+// GitHub org names can contain alphanumeric characters, hyphens, and underscores
+// They cannot start or end with hyphens, and cannot be empty
+func isValidOrgName(org string) bool {
+	if org == "" {
+		return false
+	}
+	// GitHub org name pattern: alphanumeric, hyphens, underscores, but cannot start/end with hyphen
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`
+	matched, err := regexp.MatchString(pattern, org)
+	if err != nil {
+		logger.Glog.Error().Err(err).Msg("Failed to validate organization name")
+		return false
+	}
+	return matched && len(org) <= 39 // GitHub has a 39 character limit for org names
 }

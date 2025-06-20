@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -69,23 +70,60 @@ func (config *Config) OrganizationNames() []string {
 }
 
 func (config *Config) RepositoriesNames(orgName string) []string {
-	return config.orgData[strings.ToLower(orgName)].Repositories
+	if config == nil || config.orgData == nil {
+		logger.Glog.Warn().Str("org", orgName).Msg("Config not initialized")
+		return []string{}
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		logger.Glog.Debug().Str("org", orgName).Msg("Organization not found in config")
+		return []string{}
+	}
+	return org.Repositories
 }
 
 func (config *Config) IncludePatterns(orgName string) []string {
-	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Include
+	if config == nil || config.orgData == nil {
+		return []string{}
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return []string{}
+	}
+	return org.RepoPatterns.Include
 }
 
 func (config *Config) ExcludePatterns(orgName string) []string {
-	return config.orgData[strings.ToLower(orgName)].RepoPatterns.Exclude
+	if config == nil || config.orgData == nil {
+		return []string{}
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return []string{}
+	}
+	return org.RepoPatterns.Exclude
 }
 
 func (config *Config) PullRequestAssignees(orgName string) []string {
-	return config.orgData[strings.ToLower(orgName)].PullRequestAssignees
+	if config == nil || config.orgData == nil {
+		return []string{}
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return []string{}
+	}
+	return org.PullRequestAssignees
 }
 
 func (config *Config) TaggerName(orgName string) string {
-	return config.orgData[strings.ToLower(orgName)].Tagger.Name
+	if config == nil || config.orgData == nil {
+		return ""
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ""
+	}
+	return org.Tagger.Name
 }
 
 func (config *Config) TaggerEmail(orgName string) string {
@@ -267,20 +305,40 @@ func (config *Config) SetTaggerEmail(orgName, taggerEmail string) {
 }
 
 func (config *Config) Load() error {
-	contents, err := os.ReadFile(configFile())
+	configPath := configFile()
+	contents, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Glog.Trace().
-				Msgf("Config file not found: %s, fallback to default values", configFile())
+			logger.Glog.Debug().
+				Str("configPath", configPath).
+				Msg("Config file not found, using default values")
 			return nil
 		}
-		return err
+		return fmt.Errorf("failed to read config file '%s': %w", configPath, err)
+	}
+
+	if len(contents) == 0 {
+		logger.Glog.Debug().
+			Str("configPath", configPath).
+			Msg("Config file is empty, using default values")
+		return nil
 	}
 
 	err = json.Unmarshal(contents, config)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse config file '%s': %w", configPath, err)
 	}
+
+	// Validate loaded configuration
+	if err := config.validate(); err != nil {
+		return fmt.Errorf("invalid configuration in '%s': %w", configPath, err)
+	}
+
+	logger.Glog.Debug().
+		Str("configPath", configPath).
+		Int("organizations", len(config.Organizations)).
+		Msg("Successfully loaded configuration")
+
 	return nil
 }
 
@@ -319,4 +377,71 @@ func matchPatterns(patterns []string, repoName string) bool {
 		}
 	}
 	return false
+}
+
+// validate checks the configuration for common issues
+func (config *Config) validate() error {
+	// Validate worker count
+	if config.NoOfWorkers < 0 {
+		return fmt.Errorf("no_of_workers must be non-negative, got %d", config.NoOfWorkers)
+	}
+	if config.NoOfWorkers > 100 {
+		logger.Glog.Warn().
+			Int("workers", config.NoOfWorkers).
+			Msg("Very high worker count may cause rate limiting issues")
+	}
+
+	// Validate organizations
+	orgNames := make(map[string]bool)
+	for i, org := range config.Organizations {
+		if org.Name == "" {
+			return fmt.Errorf("organization at index %d has empty name", i)
+		}
+
+		// Check for duplicate org names
+		if orgNames[strings.ToLower(org.Name)] {
+			return fmt.Errorf("duplicate organization name: %s", org.Name)
+		}
+		orgNames[strings.ToLower(org.Name)] = true
+
+		// Validate organization name format
+		if !isValidOrgName(org.Name) {
+			return fmt.Errorf("invalid organization name '%s': must contain only alphanumeric characters, hyphens, and underscores", org.Name)
+		}
+
+		// Validate protected branch settings
+		if org.ProtectedBranch.ApprovingReviewCount < 0 {
+			return fmt.Errorf("organization '%s' has negative approving_review_count: %d", org.Name, org.ProtectedBranch.ApprovingReviewCount)
+		}
+		if org.ProtectedBranch.ApprovingReviewCount > 10 {
+			logger.Glog.Warn().
+				Str("org", org.Name).
+				Int("count", org.ProtectedBranch.ApprovingReviewCount).
+				Msg("Very high approving review count may be impractical")
+		}
+
+		// Validate tagger email format if provided
+		if org.Tagger.Email != "" && !isValidEmail(org.Tagger.Email) {
+			return fmt.Errorf("organization '%s' has invalid tagger email: %s", org.Name, org.Tagger.Email)
+		}
+	}
+
+	return nil
+}
+
+// isValidOrgName validates GitHub organization name format
+func isValidOrgName(org string) bool {
+	if org == "" || len(org) > 39 {
+		return false
+	}
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`
+	matched, _ := regexp.MatchString(pattern, org)
+	return matched
+}
+
+// isValidEmail validates email format
+func isValidEmail(email string) bool {
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	matched, _ := regexp.MatchString(pattern, email)
+	return matched
 }

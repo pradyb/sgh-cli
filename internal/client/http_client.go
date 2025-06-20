@@ -84,9 +84,23 @@ func logRateDetails(resp *http.Response) {
 	rateLimit := resp.Header.Get("X-RateLimit-Limit")
 	rateRemaining := resp.Header.Get("X-RateLimit-Remaining")
 	rateUsed := resp.Header.Get("X-RateLimit-Used")
-	rateResetInt, _ := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64)
-	rateReset := time.Unix(rateResetInt, 0).String()
+	rateResetStr := resp.Header.Get("X-RateLimit-Reset")
 	rateResource := resp.Header.Get("X-RateLimit-Resource")
+
+	var rateReset string
+	if rateResetStr != "" {
+		if rateResetInt, err := strconv.ParseInt(rateResetStr, 10, 64); err != nil {
+			logger.Flog.Warn().
+				Str("rateResetStr", rateResetStr).
+				Err(err).
+				Msg("Failed to parse rate limit reset time")
+			rateReset = "invalid"
+		} else {
+			rateReset = time.Unix(rateResetInt, 0).String()
+		}
+	} else {
+		rateReset = "not provided"
+	}
 
 	logger.Flog.Info().
 		Str("rateLimit", rateLimit).

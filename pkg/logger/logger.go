@@ -18,6 +18,9 @@ var (
 )
 
 func init() {
+	// Set default log level to INFO
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
 	configDir, err := utils.ConfigDir()
 	if err != nil {
 		// Fallback to current directory if config dir creation fails
@@ -39,6 +42,22 @@ func init() {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
 	}
 
-	Glog = log.Output(multi).With().Timestamp().Caller().Logger()
-	Flog = zerolog.New(runLogFile).With().Timestamp().Caller().Logger()
+	Glog = log.Output(multi).With().Timestamp().Caller().Logger().Level(zerolog.InfoLevel)
+	Flog = zerolog.New(runLogFile).With().Timestamp().Caller().Logger().Level(zerolog.InfoLevel)
+}
+
+// SetLogLevel dynamically sets the log level for both loggers
+func SetLogLevel(level zerolog.Level) {
+	zerolog.SetGlobalLevel(level)
+	Glog = Glog.Level(level)
+	Flog = Flog.Level(level)
+}
+
+// SetVerbose sets the log level to DEBUG if verbose is true, otherwise INFO
+func SetVerbose(verbose bool) {
+	if verbose {
+		SetLogLevel(zerolog.DebugLevel)
+	} else {
+		SetLogLevel(zerolog.InfoLevel)
+	}
 }

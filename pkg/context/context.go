@@ -27,16 +27,25 @@ func Init() (*Context, error) {
 	// Validate GitHub token
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
+		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required. Please set your GitHub Personal Access Token")
+	}
+
+	// Basic token format validation
+	if len(token) < 20 {
+		return nil, fmt.Errorf("GITHUB_TOKEN appears to be invalid (too short). Please check your GitHub Personal Access Token")
 	}
 
 	config, err := config.Init()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
+
 	// Create HTTP client with timeout and rate limiting
 	httpTimeout := 30 * time.Second
 	httpClient := client.NewHttpClient(httpTimeout)
+	if httpClient == nil {
+		return nil, fmt.Errorf("failed to create HTTP client")
+	}
 
 	// Create OAuth2 client
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
