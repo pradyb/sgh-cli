@@ -145,6 +145,7 @@ func PrintRepositories(repos []model.Repository) {
 				if (col == 7 || col == 8) && rows[row][col] != "0" {
 					style = style.Foreground(lipgloss.Color(Red))
 				}
+				style = style.Align(lipgloss.Center, lipgloss.Center)
 			}
 			return style
 		}).

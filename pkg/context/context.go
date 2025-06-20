@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -23,27 +24,44 @@ type Context struct {
 }
 
 func Init() (*Context, error) {
-	var ctx Context
+	// Validate GitHub token
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
+	}
 
 	config, err := config.Init()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	ctx.Config = config
-	ctx.HttpClient = &client.HttpClient{Client: http.Client{Timeout: time.Duration(30) * time.Second, Transport: client.Interceptor{OriginalTransport: http.DefaultTransport}}}
+	// Create HTTP client with timeout
+	httpTimeout := 30 * time.Second
+	transport := client.Interceptor{OriginalTransport: http.DefaultTransport}
+	httpClient := &client.HttpClient{
+		Client: http.Client{
+			Timeout:   httpTimeout,
+			Transport: transport,
+		},
+	}
 
-	src := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
-	)
+	// Create OAuth2 client
+	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{
+		Timeout:   httpTimeout,
+		Transport: transport,
+	})
+	oauthClient := oauth2.NewClient(ctx, src)
 
-	defaultCtx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: time.Duration(30) * time.Second, Transport: client.Interceptor{OriginalTransport: http.DefaultTransport}})
-	httpClient := oauth2.NewClient(defaultCtx, src)
+	// Create GraphQL client
+	gqlClient := githubv4.NewClient(oauthClient)
+	graphqlClient := &client.GraphqlClient{Client: gqlClient}
 
-	gqlClient := githubv4.NewClient(httpClient)
-	ctx.GraphqlClient = &client.GraphqlClient{Client: gqlClient}
-
-	return &ctx, nil
+	return &Context{
+		Config:        config,
+		HttpClient:    httpClient,
+		GraphqlClient: graphqlClient,
+	}, nil
 }
 
 func (c *Context) SetVerbose(verbose bool) {

@@ -299,7 +299,12 @@ func (config *Config) Save() error {
 }
 
 func configFile() string {
-	return filepath.Join(utils.ConfigDir(), DefaultFilename)
+	configDir, err := utils.ConfigDir()
+	if err != nil {
+		logger.Glog.Error().Err(err).Msg("Failed to get config directory")
+		return DefaultFilename
+	}
+	return filepath.Join(configDir, DefaultFilename)
 }
 
 func matchPatterns(patterns []string, repoName string) bool {

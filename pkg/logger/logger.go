@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,16 +18,21 @@ var (
 )
 
 func init() {
-	/*output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-	output.FormatLevel = func(i interface{}) string {
-		level, _ := zerolog.ParseLevel(i.(string))
-		return fmt.Sprintf("| \x1b[%dm%-6v\x1b[0m|", zerolog.LevelColors[level], strings.ToUpper(level.String()))
+	configDir, err := utils.ConfigDir()
+	if err != nil {
+		// Fallback to current directory if config dir creation fails
+		configDir = "."
+		fmt.Fprintf(os.Stderr, "Warning: Failed to create config directory, using current directory: %v\n", err)
 	}
-	Glog = zerolog.New(output).With().Timestamp().Caller().Logger()*/
 
-	d := utils.ConfigDir()
+	logFilePath := filepath.Join(configDir, utils.LOG_FILE_NAME)
+	runLogFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to open log file %s: %v\n", logFilePath, err)
+		// Use stdout as fallback
+		runLogFile = os.Stdout
+	}
 
-	runLogFile, _ := os.OpenFile(filepath.Join(d, "sgh.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
 	multi := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, runLogFile)
 
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {

@@ -29,7 +29,22 @@ func (i Interceptor) RoundTrip(r *http.Request) (*http.Response, error) {
 	resp, err := i.OriginalTransport.RoundTrip(r)
 	elapsed := time.Since(start).Milliseconds()
 
-	logger.Flog.Info().Str("url", r.URL.String()).Str("method", r.Method).Int("statusCode", resp.StatusCode).Int("timeTakenInMs", int(elapsed)).Msgf("API details")
+	if err != nil {
+		logger.Flog.Error().Err(err).
+			Str("url", r.URL.String()).
+			Str("method", r.Method).
+			Int("timeTakenInMs", int(elapsed)).
+			Msg("HTTP request failed")
+		return resp, err
+	}
+
+	logger.Flog.Info().
+		Str("url", r.URL.String()).
+		Str("method", r.Method).
+		Int("statusCode", resp.StatusCode).
+		Int("timeTakenInMs", int(elapsed)).
+		Msg("API request completed")
+
 	logRateDetails(resp)
 	return resp, err
 }

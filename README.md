@@ -2,6 +2,20 @@
 
 A powerful command-line tool for managing GitHub repositories at scale. Perform bulk operations on branches, tags, pull requests, protected branches, and more across your entire GitHub organization with a single command.
 
+## 📋 Table of Contents
+
+- [✨ Key Features](#-key-features)
+- [🚀 Quick Start](#-quick-start)
+- [📦 Installation](#-installation)
+- [🔐 Authentication](#-authentication)
+- [📚 Available Commands](#-available-commands)
+- [🌟 Usage Examples](#-usage-examples)
+- [🏷️ Global Flags](#️-global-flags)
+- [🔍 Advanced Usage](#-advanced-usage)
+- [⚡ Performance Tips](#-performance-tips)
+- [🐛 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
+
 ## ✨ Key Features
 
 - **Bulk Repository Operations**: Manage multiple repositories across entire organizations
@@ -38,37 +52,124 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 ## 📦 Installation
 
-### From Source
+### Option 1: From Source (Recommended)
 ```bash
 git clone https://github.com/prady-lab/sgh-cli.git
 cd sgh-cli
 go build -o sgh .
+
+# Add to PATH (optional)
+# Linux/Mac:
+sudo mv sgh /usr/local/bin/
+# Windows: Move sgh.exe to a directory in your PATH
 ```
 
+### Option 2: Go Install (if published)
+```bash
+go install github.com/prady-lab/sgh-cli@latest
+```
+
+### Option 3: Download Binary (if releases available)
+Visit the [releases page](https://github.com/prady-lab/sgh-cli/releases) and download the appropriate binary for your platform.
+
 ### Prerequisites
-- Go 1.19 or higher
-- GitHub Personal Access Token with appropriate permissions:
+- **Go 1.19 or higher** (for building from source)
+- **GitHub Personal Access Token** with appropriate permissions:
   - `repo` - Full repository access
   - `admin:org` - Organization administration (for team operations)
   - `delete_repo` - Repository deletion (if needed)
 
+### Verify Installation
+```bash
+sgh --help
+```
+
 ## 🔐 Authentication
 
-Create a GitHub Personal Access Token:
+### Create a GitHub Personal Access Token:
 1. Go to GitHub Settings → Developer settings → Personal access tokens
-2. Click "Generate new token"
+2. Click "Generate new token" (classic)
 3. Select the required scopes (see Prerequisites above)
 4. Copy the token and set it as an environment variable:
-   ```bash
-   export GITHUB_TOKEN=your_token_here
-   ```
+
+**Linux/Mac:**
+```bash
+export GITHUB_TOKEN=your_token_here
+# Add to ~/.bashrc or ~/.zshrc for persistence
+echo 'export GITHUB_TOKEN=your_token_here' >> ~/.bashrc
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:GITHUB_TOKEN="your_token_here"
+# For persistence, add to PowerShell profile
+```
+
+**Windows (Command Prompt):**
+```cmd
+set GITHUB_TOKEN=your_token_here
+```
+
+## ⚙️ Configuration
+
+### Config File Locations
+- **Windows:** `~/sgh.json`
+- **Linux:** `~/.config/sgh/sgh.json`
+- **Mac:** `~/.config/sgh/sgh.json`
+
+### Configuration Management
+```bash
+# View current configuration
+sgh config list
+
+# Add organization
+sgh config add org my-organization
+
+# Add repository to organization
+sgh config add repo my-repo --org my-organization
+
+# Add include patterns (only these repos will be processed)
+sgh config add pattern api-* --org my-organization --include
+sgh config add pattern service-* --org my-organization --include
+
+# Add exclude patterns (these repos will be skipped)
+sgh config add pattern legacy-* --org my-organization --exclude
+sgh config add pattern deprecated-* --org my-organization --exclude
+```
+
+### Sample Configuration File
+```json
+{
+  "organizations": {
+    "my-org": {
+      "repositories": ["repo1", "repo2"],
+      "include_patterns": ["api-*", "service-*"],
+      "exclude_patterns": ["legacy-*", "test-*"]
+    }
+  }
+}
+```
 
 ## ⚡ Performance Tips
 
-- **Adjust worker count** based on your rate limits and network capacity
+- **Adjust worker count** based on your rate limits and network capacity (default: 5)
 - **Use specific repository filters** to avoid processing unnecessary repos
-- **Enable verbose mode** (`-v`) for detailed operation logs
+- **Enable verbose mode** (`-v`) for detailed operation logs and debugging
 - **Use configuration files** to avoid repeating common parameters
+- **Monitor rate limits** - GitHub has API rate limits (5,000 requests/hour for authenticated users)
+- **Use exclude patterns** to skip repositories you don't need to process
+
+### Rate Limit Management
+```bash
+# Check current rate limit status
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+
+# Reduce workers if hitting limits
+sgh pr create --org my-org --workers 2 --title "Update"
+
+# Use smaller batches for large operations
+sgh branch create --org my-org --new feature --ref main --repo specific-repo
+```
 
 ## 🐛 Troubleshooting
 
@@ -76,13 +177,17 @@ Create a GitHub Personal Access Token:
 
 **Rate Limiting:**
 ```bash
+# Check rate limit status
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+
 # Reduce worker count to avoid rate limits
 sgh pr create --org my-org --workers 2 --title "Update"
 ```
 
 **Permission Errors:**
-- Ensure your GitHub token has the required scopes
+- Ensure your GitHub token has the required scopes (`repo`, `admin:org`)
 - Verify you have admin access to the organization/repositories
+- Check if the organization has SSO enabled and authorize your token
 
 **Network Issues:**
 ```bash
@@ -100,38 +205,57 @@ rm ~/.config/sgh/sgh.json  # Linux/Mac
 rm ~/sgh.json              # Windows
 ```
 
-### Development Setup
+**Command Not Found:**
 ```bash
-git clone https://github.com/prady-lab/sgh-cli.git
-cd sgh-cli
-go mod download
-go build -o sgh .
-```
+# Verify installation
+which sgh  # Linux/Mac
+where sgh  # Windows
 
-### Running Tests
-```bash
-go test ./...
+# Add to PATH if needed
+export PATH=$PATH:/path/to/sgh  # Linux/Mac
 ```
 
 ## 📚 Available Commands
 
-### Repository Management
-- `repo` - List and manage repositories
-- `clone` - Clone multiple repositories at once
-- `commit` - Track and list commits across repositories
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `repo` | `list` | List and manage repositories |
+| `clone` | - | Clone multiple repositories at once |
+| `commit` | `list` | Track and list commits across repositories |
+| `branch` | `create`, `delete` | Create and delete branches across repositories |
+| `tag` | `create`, `delete` | Create and delete tags across repositories |
+| `pb` | `list`, `update`, `delete` | Manage protected branch settings |
+| `pr` | `create`, `list`, `update`, `merge` | Create, list, update, and merge pull requests |
+| `post-release` | - | Automate post-release workflows |
+| `team` | `list` | List teams and members |
+| `config` | `add`, `list` | Manage CLI configuration |
 
-### Branch & Tag Operations
-- `branch` - Create and delete branches across repositories
-- `tag` - Create and delete tags across repositories
-- `pb` - Manage protected branch settings
+### Repository Management
+- `repo list <owner>` - List repositories for an organization
+- `clone --org <org> [--branch <branch>]` - Clone multiple repositories
+- `commit list --org <org> [--days <n>]` - Track commits across repositories
+
+### Branch & Tag Operations  
+- `branch create --org <org> --new <name> --ref <ref>` - Create branches across repos
+- `branch delete --org <org> --branch <name>` - Delete branches across repos
+- `tag create --org <org> --tag <name> --head <ref> --message <msg>` - Create tags
+- `tag delete --org <org> --tag <name>` - Delete tags
 
 ### Pull Request Workflows
-- `pr` - Create, list, update, and merge pull requests
-- `post-release` - Automate post-release workflows
+- `pr create --org <org> --title <title> --head <branch> --base <branch>` - Create PRs
+- `pr list --org <org> [--all-status]` - List pull requests
+- `pr update --org <org> --repo <repo> --pr <number> --action <close|open>` - Update PRs
+- `pr list --interactive` - Interactive PR management
+
+### Protected Branch Management
+- `pb list --org <org> --branch <branch>` - List protection settings
+- `pb update --org <org> --branch <branch> [options]` - Update protection rules
+- `pb delete --org <org> --branch <branch>` - Remove protection
 
 ### Organization Management
-- `team` - List teams and members
-- `config` - Manage CLI configuration
+- `team list --org <org>` - List teams and members
+- `config add <key> <value>` - Add configuration
+- `config list` - Show current configuration
 
 ## 🌟 Usage Examples
 
@@ -164,11 +288,17 @@ sgh tag delete --org my-org --tag old-version --repo legacy-app
 # Create PRs across multiple repositories
 sgh pr create --org my-org --title "Security Update" --body "Update dependencies" --head security-patch --base main
 
-# List PRs for specific repositories
-sgh pr list --org my-org --repo app1 --repo app2 --base main --state open
+# List PRs for specific repositories (using correct flag)
+sgh pr list --org my-org --repo app1 --repo app2 --base main --all-status
 
-# Merge PRs in bulk
-sgh pr merge --org my-org --pr-number 123 --repo my-app --merge-method squash
+# List PRs with filters
+sgh pr list --org my-org --author john-doe --assignee jane-doe --last 10
+
+# Update PR status
+sgh pr update --org my-org --repo my-app --pr 123 --action close
+
+# Interactive PR management
+sgh pr list --org my-org --interactive
 ```
 
 ### Protected Branch Management
@@ -203,7 +333,7 @@ sgh repo list my-org
 # Clone repositories with specific branch
 sgh clone --org my-org --branch develop
 
-# Track recent commits
+# Track recent commits (correct flags)
 sgh commit list --org my-org --days 7 --details --include-merge-commits
 ```
 
