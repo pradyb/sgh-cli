@@ -7,6 +7,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - [✨ Key Features](#-key-features)
 - [🚀 Quick Start](#-quick-start)
 - [📦 Installation](#-installation)
+- [🧪 Testing & Development](#-testing--development)
 - [🔐 Authentication](#-authentication)
 - [📚 Available Commands](#-available-commands)
 - [🌟 Usage Examples](#-usage-examples)
@@ -409,19 +410,81 @@ sgh config add pattern api-* --org my-primary-org --include
 sgh config add pattern archived-* --org my-primary-org --exclude
 ```
 
-## 🆘 Getting Help
+## 🧪 Testing & Development
 
-For detailed help on any command:
+### Running Tests
+
+**Run all tests in the project:**
 ```bash
-sgh <command> --help
-sgh <command> <subcommand> --help
+go test ./...
 ```
 
-Examples:
+**Run tests with verbose output:**
 ```bash
-sgh branch --help
-sgh pr create --help
-sgh config add --help
+go test ./... -v
+```
+
+**Run tests for a specific package:**
+```bash
+go test ./internal/config
+go test ./pkg/config
+```
+
+### Test Coverage
+
+**Basic coverage percentage:**
+```bash
+go test ./internal/config -cover
+# Output: coverage: 81.2% of statements
+```
+
+**Generate detailed coverage profile:**
+```bash
+go test ./internal/config -coverprofile=coverage.out
+```
+
+**View function-level coverage details:**
+```bash
+go tool cover -func=coverage.out
+```
+
+**Generate interactive HTML coverage report:**
+```bash
+go tool cover -html=coverage.out -o coverage.html
+# Open coverage.html in your browser for visual coverage report
+```
+
+**Coverage for all packages with tests:**
+```bash
+go test ./... -coverprofile=fullcoverage.out
+go tool cover -func=fullcoverage.out
+go tool cover -html=fullcoverage.out -o full-coverage.html
+```
+
+**Coverage with specific package patterns:**
+```bash
+# Cover specific packages
+go test -coverpkg=./internal/config,./pkg/config ./internal/config
+```
+
+### Development Guidelines
+
+- Maintain **>80% test coverage** for core packages
+- Add tests for new features and bug fixes
+- Run tests before submitting pull requests
+- Use the HTML coverage report to identify untested code paths
+
+### Current Test Coverage Status
+
+- ✅ `internal/config`: **81.2%** coverage (comprehensive test suite)
+- ⚠️ Other packages: Tests needed
+
+### Benchmark Tests
+
+Run performance benchmarks:
+```bash
+go test ./internal/config -bench=.
+go test ./internal/config -bench=BenchmarkIsOrganizationPresent
 ```
 
 ## 📄 License
