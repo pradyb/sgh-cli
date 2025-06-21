@@ -3,10 +3,12 @@ package client
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/circuitbreaker"
@@ -34,15 +36,26 @@ type Interceptor struct {
 func NewHttpClient(timeout time.Duration) *HttpClient {
 	rateLimiter := ratelimit.NewRateLimiter()
 	circuitBreaker := circuitbreaker.New(circuitbreaker.DefaultConfig())
-	transport := &Interceptor{
-		OriginalTransport: http.DefaultTransport,
+
+	// Create a custom transport with connection pooling and timeouts
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DisableCompression:  false,
+		ForceAttemptHTTP2:   true,
+	}
+
+	interceptor := &Interceptor{
+		OriginalTransport: transport,
 		RateLimiter:       rateLimiter,
 	}
 
 	return &HttpClient{
 		Client: http.Client{
 			Timeout:   timeout,
-			Transport: transport,
+			Transport: interceptor,
 		},
 		RateLimiter:    rateLimiter,
 		RetryConfig:    retry.DefaultRetryConfig(),
@@ -202,9 +215,30 @@ func (c *HttpClient) doSingleRequest(ctx context.Context, req *http.Request) (*h
 }
 
 func (c *HttpClient) handleError(response *http.Response, err error) (*http.Response, error) {
-	if _, ok := err.(*apperrors.GitHubError); ok {
-		return response, err
+	if githubErr, ok := err.(*apperrors.GitHubError); ok {
+		// Enhance GitHub error with additional context
+		if githubErr.StatusCode == 401 {
+			return response, fmt.Errorf("authentication failed: %w (check your GITHUB_TOKEN)", githubErr)
+		} else if githubErr.StatusCode == 403 {
+			return response, fmt.Errorf("permission denied: %w (check your token permissions)", githubErr)
+		} else if githubErr.StatusCode == 404 {
+			return response, fmt.Errorf("resource not found: %w", githubErr)
+		} else if githubErr.StatusCode >= 500 {
+			return response, fmt.Errorf("GitHub API server error: %w", githubErr)
+		}
+		return response, githubErr
 	}
+
+	// Handle network errors
+	if netErr, ok := err.(*net.OpError); ok {
+		return response, fmt.Errorf("network error: %w (check your internet connection)", netErr)
+	}
+
+	// Handle timeout errors
+	if timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
+		return response, fmt.Errorf("request timeout: %w (try increasing timeout with --timeout flag)", err)
+	}
+
 	return response, fmt.Errorf("HTTP request failed: %w", err)
 }
 
@@ -249,12 +283,22 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 		logger.Flog.Info().Msgf("Executing GraphQL query with variables %v", variables)
 	}
 
-	// Wait for rate limit if needed (GraphQL uses the "graphql" resource)
+	// Check current rate limit status before proceeding
 	if c.RateLimiter != nil {
+		if info, exists := c.RateLimiter.GetRateLimitInfo("graphql"); exists {
+			logger.Flog.Debug().
+				Int("remaining", info.Remaining).
+				Int("limit", info.Limit).
+				Time("reset", info.ResetTime).
+				Msg("Current GraphQL rate limit status")
+		}
+
+		// Wait for rate limit if needed (GraphQL uses the "graphql" resource)
 		if err := c.RateLimiter.WaitIfNeeded(ctx, "graphql"); err != nil {
 			return fmt.Errorf("GraphQL rate limit wait failed: %w", err)
 		}
 	}
+
 	// Execute GraphQL query with circuit breaker and retry logic
 	var queryErr error
 	err := c.CircuitBreaker.Execute(func() error {
@@ -267,6 +311,14 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 				logger.Flog.Error().Err(err).
 					Int("timeTakenInMs", int(elapsed)).
 					Msg("GraphQL query failed")
+
+				// Check if it's a rate limit error and refresh rate limit info
+				if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "403") {
+					logger.Flog.Warn().Msg("Rate limit error detected, refreshing rate limit information")
+					if c.RateLimiter != nil {
+						c.RateLimiter.RefreshRateLimit("graphql")
+					}
+				}
 
 				// Return error as-is - the retry package will determine if it's retryable
 				return err

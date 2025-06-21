@@ -3,6 +3,7 @@ package apperrors
 import (
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // GitHubError represents errors from GitHub API
@@ -10,6 +11,7 @@ type GitHubError struct {
 	StatusCode int
 	Message    string
 	URL        string
+	RetryAfter time.Duration
 }
 
 func (e *GitHubError) Error() string {
@@ -27,6 +29,18 @@ func (e *GitHubError) IsNotFound() bool {
 
 func (e *GitHubError) IsUnauthorized() bool {
 	return e.StatusCode == http.StatusUnauthorized
+}
+
+func (e *GitHubError) IsServerError() bool {
+	return e.StatusCode >= 500 && e.StatusCode < 600
+}
+
+func (e *GitHubError) IsClientError() bool {
+	return e.StatusCode >= 400 && e.StatusCode < 500
+}
+
+func (e *GitHubError) ShouldRetry() bool {
+	return e.IsRateLimit() || e.IsServerError() || e.StatusCode == http.StatusRequestTimeout
 }
 
 // ConfigError represents configuration-related errors
@@ -48,4 +62,97 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string {
 	return fmt.Sprintf("validation error for %s='%s': %s", e.Field, e.Value, e.Message)
+}
+
+// NetworkError represents network-related errors
+type NetworkError struct {
+	Operation string
+	URL       string
+	Message   string
+	Retryable bool
+}
+
+func (e *NetworkError) Error() string {
+	return fmt.Sprintf("network error during %s to %s: %s", e.Operation, e.URL, e.Message)
+}
+
+// TimeoutError represents timeout errors
+type TimeoutError struct {
+	Operation string
+	Duration  time.Duration
+}
+
+func (e *TimeoutError) Error() string {
+	return fmt.Sprintf("timeout after %v during %s", e.Duration, e.Operation)
+}
+
+// RateLimitError represents rate limiting errors
+type RateLimitError struct {
+	Resource   string
+	Limit      int
+	Remaining  int
+	ResetTime  time.Time
+	RetryAfter time.Duration
+}
+
+func (e *RateLimitError) Error() string {
+	return fmt.Sprintf("rate limit exceeded for %s (limit: %d, remaining: %d, reset: %s)",
+		e.Resource, e.Limit, e.Remaining, e.ResetTime.Format(time.RFC3339))
+}
+
+// CircuitBreakerError represents circuit breaker errors
+type CircuitBreakerError struct {
+	State   string
+	Message string
+}
+
+func (e *CircuitBreakerError) Error() string {
+	return fmt.Sprintf("circuit breaker is %s: %s", e.State, e.Message)
+}
+
+// BatchOperationError represents errors that occur during batch operations
+type BatchOperationError struct {
+	TotalOperations  int
+	FailedOperations int
+	Errors           []error
+}
+
+func (e *BatchOperationError) Error() string {
+	return fmt.Sprintf("batch operation failed: %d/%d operations failed",
+		e.FailedOperations, e.TotalOperations)
+}
+
+func (e *BatchOperationError) AddError(err error) {
+	e.Errors = append(e.Errors, err)
+	e.FailedOperations++
+}
+
+// IsRetryableError checks if an error should be retried
+func IsRetryableError(err error) bool {
+	switch e := err.(type) {
+	case *GitHubError:
+		return e.ShouldRetry()
+	case *NetworkError:
+		return e.Retryable
+	case *TimeoutError:
+		return true
+	case *RateLimitError:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsPermanentError checks if an error is permanent and should not be retried
+func IsPermanentError(err error) bool {
+	switch e := err.(type) {
+	case *GitHubError:
+		return e.IsNotFound() || e.IsUnauthorized() || (e.StatusCode >= 400 && e.StatusCode < 500 && !e.IsRateLimit())
+	case *ValidationError:
+		return true
+	case *ConfigError:
+		return true
+	default:
+		return false
+	}
 }

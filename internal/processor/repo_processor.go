@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/async"
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -97,6 +99,42 @@ type BranchOperationData struct {
 	RefBranchName string
 }
 
+// String returns a string representation of the operation enum
+func (o OperationEnum) String() string {
+	switch o {
+	case OperationCreateBranch:
+		return "CreateBranch"
+	case OperationDeleteBranch:
+		return "DeleteBranch"
+	case OperationCreateTag:
+		return "CreateTag"
+	case OperationDeleteTag:
+		return "DeleteTag"
+	case OperationCreatePullRequest:
+		return "CreatePullRequest"
+	case OperationListPullRequest:
+		return "ListPullRequest"
+	case OperationUpdatePullRequest:
+		return "UpdatePullRequest"
+	case OperationReviewPullRequest:
+		return "ReviewPullRequest"
+	case OperationMergePullRequest:
+		return "MergePullRequest"
+	case OperationListProtectedBranch:
+		return "ListProtectedBranch"
+	case OperationUpdateProtectedBranch:
+		return "UpdateProtectedBranch"
+	case OperationDeleteProtectedBranch:
+		return "DeleteProtectedBranch"
+	case OperationPostRelease:
+		return "PostRelease"
+	case OperationListCommits:
+		return "ListCommits"
+	default:
+		return fmt.Sprintf("UnknownOperation(%d)", o)
+	}
+}
+
 func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, orgName string, repos, excludeRepos []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
 	repoNames := make([]string, 0)
 	message := RepoOperationConfig[operation]["message"]
@@ -133,10 +171,16 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 }
 
 func process[R OperationResultType](ctx *context.Context, orgName string, repoNames []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
+	startTime := time.Now()
 	jobQueue := async.NewASyncJobQueue[any, any](len(repoNames))
 	message := RepoOperationConfig[operation]["message"]
 
 	bar := ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
+
+	// Pre-allocate slices for better performance
+	successCount := 0
+	errorCount := 0
+	var mu sync.Mutex
 
 	for i, repoName := range repoNames {
 		jobQueue.AddJob(async.ASyncJob[any]{Id: i, JobData: repoName})
@@ -148,9 +192,36 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		noOfWorkers = 1
 	}
 
+	// Log performance metrics
+	logger.Glog.Info().
+		Str("org", orgName).
+		Int("totalRepos", len(repoNames)).
+		Int("workers", noOfWorkers).
+		Str("operation", operation.String()).
+		Msg("Starting repository operation")
+
 	jobQueue.Start(
 		func(job async.ASyncJob[any]) (any, error) {
+			jobStartTime := time.Now()
 			response, err := operationHandler(ctx, orgName, job.JobData.(string))
+			jobDuration := time.Since(jobStartTime)
+
+			// Update counters
+			mu.Lock()
+			if err != nil {
+				errorCount++
+			} else {
+				successCount++
+			}
+			mu.Unlock()
+
+			// Log performance for individual jobs
+			logger.Flog.Debug().
+				Str("repo", job.JobData.(string)).
+				Dur("duration", jobDuration).
+				Bool("success", err == nil).
+				Msg("Repository operation completed")
+
 			bar.Describe(fmt.Sprintf("Processed %s", job.JobData.(string)))
 			bar.Add(1)
 			return response, err
@@ -159,6 +230,20 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		}, func(err async.ASyncJobError[any]) {
 			errorHandler(err.JobData.(string), err.Error)
 		}, noOfWorkers)
+
+	totalDuration := time.Since(startTime)
+
+	// Log final performance metrics
+	logger.Glog.Info().
+		Str("org", orgName).
+		Int("totalRepos", len(repoNames)).
+		Int("successCount", successCount).
+		Int("errorCount", errorCount).
+		Dur("totalDuration", totalDuration).
+		Float64("avgDurationPerRepo", float64(totalDuration.Milliseconds())/float64(len(repoNames))).
+		Str("operation", operation.String()).
+		Msg("Repository operation completed")
+
 	fmt.Println()
 	return nil
 }

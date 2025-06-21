@@ -16,8 +16,9 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
+var GITHUB_BASE_URL = "https://api.github.com"
+
 const (
-	GITHUB_BASE_URL      = "https://api.github.com"
 	UPDATE_REF_URI       = "%s/repos/%s/%s/git/refs"
 	PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
 )
