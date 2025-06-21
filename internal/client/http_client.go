@@ -297,7 +297,7 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 			elapsed := time.Since(start).Milliseconds()
 
 			if err != nil {
-				logger.Flog.Error().Err(err).
+				logger.Glog.Error().Err(err).
 					Int("timeTakenInMs", int(elapsed)).
 					Msg("GraphQL query failed")
 
@@ -305,7 +305,7 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 				return err
 			}
 
-			logger.Flog.Info().
+			logger.Glog.Debug().
 				Int("timeTakenInMs", int(elapsed)).
 				Msg("GraphQL query completed successfully")
 			return nil

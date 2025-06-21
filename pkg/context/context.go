@@ -112,7 +112,7 @@ func validateGitHubToken(token string) error {
 		return fmt.Errorf("token appears to be a test token")
 	}
 
-	// Validate GitHub token format (starts with ghp_, gho_, ghu_, ghs_, or ghr_)
+	// Validate GitHub token format (starts with ghp_, gho_, ghu_, ghs_, ghr_, or github_pat_)
 	validPrefixes := []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"}
 	hasValidPrefix := false
 	for _, prefix := range validPrefixes {
@@ -123,7 +123,7 @@ func validateGitHubToken(token string) error {
 	}
 
 	if !hasValidPrefix {
-		return fmt.Errorf("token format appears invalid (should start with ghp_, gho_, ghu_, ghs_, or ghr_)")
+		return fmt.Errorf("token format appears invalid (should start with ghp_, gho_, ghu_, ghs_, ghr_, or github_pat_)")
 	}
 
 	return nil

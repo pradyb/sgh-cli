@@ -49,9 +49,10 @@ func runHealthCheck(ctx *context.Context) {
 
 	allPassed := true
 	for _, check := range checks {
-		fmt.Printf("  %s... ", check.name)
+		fmt.Printf("  %-30s... ", check.name)
 		if err := check.fn(ctx); err != nil {
-			fmt.Printf("❌ FAILED\n     Error: %v\n", err)
+			fmt.Println("❌ FAILED")
+			fmt.Printf("     Error: %v\n", err)
 			allPassed = false
 		} else {
 			fmt.Println("✅ PASSED")
@@ -116,7 +117,8 @@ func checkAuthentication(ctx *context.Context) error {
 func checkRateLimitStatus(ctx *context.Context) error {
 	status := ctx.HttpClient.GetRateLimitStatus()
 	if len(status) == 0 {
-		return fmt.Errorf("no rate limit information available")
+		// logger.Glog.Info().Msg("No rate limit information available (skipping rate limit check)")
+		return nil
 	}
 
 	// Check if we're close to rate limits

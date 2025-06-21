@@ -1,21 +1,27 @@
-# 🚀 Simple GitHub CLI (sgh)
+# 🚀 Simple GitHub CLI (sgh-cli)
 
 A powerful command-line tool for managing GitHub repositories at scale. Perform bulk operations on branches, tags, pull requests, protected branches, and more across your entire GitHub organization with a single command.
+
+[![Go Version](https://img.shields.io/badge/Go-1.23.0+-blue.svg)](https://golang.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/prady-lab/sgh-cli)](https://goreportcard.com/report/github.com/prady-lab/sgh-cli)
 
 ## 📋 Table of Contents
 
 - [✨ Key Features](#-key-features)
 - [🚀 Quick Start](#-quick-start)
 - [📦 Installation](#-installation)
-- [🧪 Testing & Development](#-testing--development)
 - [🔐 Authentication](#-authentication)
+- [⚙️ Configuration](#️-configuration)
 - [📚 Available Commands](#-available-commands)
 - [🌟 Usage Examples](#-usage-examples)
 - [🏷️ Global Flags](#️-global-flags)
 - [🔍 Advanced Usage](#-advanced-usage)
 - [⚡ Performance Tips](#-performance-tips)
 - [🐛 Troubleshooting](#-troubleshooting)
+- [🧪 Testing & Development](#-testing--development)
 - [📄 License](#-license)
+- [🤝 Contributing](#-contributing)
 
 ## ✨ Key Features
 
@@ -28,6 +34,9 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - **Repository Operations**: Clone repositories and track commits
 - **Flexible Filtering**: Use include/exclude patterns to target specific repositories
 - **Concurrent Processing**: Configurable worker threads for fast bulk operations
+- **Interactive PR Management**: Interactive terminal UI for pull request operations
+- **Graceful Error Handling**: Comprehensive error handling with helpful guidance
+- **Rate Limit Management**: Built-in rate limiting and retry mechanisms
 
 ## 🚀 Quick Start
 
@@ -53,6 +62,13 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 ## 📦 Installation
 
+### Prerequisites
+- **Go 1.23.0 or higher** (for building from source)
+- **GitHub Personal Access Token** with appropriate permissions:
+  - `repo` - Full repository access
+  - `admin:org` - Organization administration (for team operations)
+  - `delete_repo` - Repository deletion (if needed)
+
 ### Option 1: From Source (Recommended)
 ```bash
 git clone https://github.com/prady-lab/sgh-cli.git
@@ -65,30 +81,24 @@ sudo mv sgh /usr/local/bin/
 # Windows: Move sgh.exe to a directory in your PATH
 ```
 
-### Option 2: Go Install (if published)
+### Option 2: Go Install
 ```bash
 go install github.com/prady-lab/sgh-cli@latest
 ```
 
-### Option 3: Download Binary (if releases available)
+### Option 3: Download Binary
 Visit the [releases page](https://github.com/prady-lab/sgh-cli/releases) and download the appropriate binary for your platform.
-
-### Prerequisites
-- **Go 1.19 or higher** (for building from source)
-- **GitHub Personal Access Token** with appropriate permissions:
-  - `repo` - Full repository access
-  - `admin:org` - Organization administration (for team operations)
-  - `delete_repo` - Repository deletion (if needed)
 
 ### Verify Installation
 ```bash
 sgh --help
+sgh version
 ```
 
 ## 🔐 Authentication
 
 ### Create a GitHub Personal Access Token:
-1. Go to GitHub Settings → Developer settings → Personal access tokens
+1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 2. Click "Generate new token" (classic)
 3. Select the required scopes (see Prerequisites above)
 4. Copy the token and set it as an environment variable:
@@ -110,6 +120,12 @@ $env:GITHUB_TOKEN="your_token_here"
 ```cmd
 set GITHUB_TOKEN=your_token_here
 ```
+
+### Token Requirements
+- Must be at least 20 characters long
+- Must start with: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, or `github_pat_`
+- Cannot contain spaces
+- Test tokens (starting with 'ghp_test_') are not allowed
 
 ## ⚙️ Configuration
 
@@ -151,71 +167,6 @@ sgh config add pattern deprecated-* --org my-organization --exclude
 }
 ```
 
-## ⚡ Performance Tips
-
-- **Adjust worker count** based on your rate limits and network capacity (default: 5)
-- **Use specific repository filters** to avoid processing unnecessary repos
-- **Enable verbose mode** (`-v`) for detailed operation logs and debugging
-- **Use configuration files** to avoid repeating common parameters
-- **Monitor rate limits** - GitHub has API rate limits (5,000 requests/hour for authenticated users)
-- **Use exclude patterns** to skip repositories you don't need to process
-
-### Rate Limit Management
-```bash
-# Check current rate limit status
-curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
-
-# Reduce workers if hitting limits
-sgh pr create --org my-org --workers 2 --title "Update"
-
-# Use smaller batches for large operations
-sgh branch create --org my-org --new feature --ref main --repo specific-repo
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Rate Limiting:**
-```bash
-# Check rate limit status
-curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
-
-# Reduce worker count to avoid rate limits
-sgh pr create --org my-org --workers 2 --title "Update"
-```
-
-**Permission Errors:**
-- Ensure your GitHub token has the required scopes (`repo`, `admin:org`)
-- Verify you have admin access to the organization/repositories
-- Check if the organization has SSO enabled and authorize your token
-
-**Network Issues:**
-```bash
-# Enable response logging for debugging
-sgh repo list my-org --log-response --verbose
-```
-
-**Configuration Issues:**
-```bash
-# Check current configuration
-sgh config list
-
-# Reset configuration
-rm ~/.config/sgh/sgh.json  # Linux/Mac
-rm ~/sgh.json              # Windows
-```
-
-**Command Not Found:**
-```bash
-# Verify installation
-which sgh  # Linux/Mac
-where sgh  # Windows
-
-# Add to PATH if needed
-export PATH=$PATH:/path/to/sgh  # Linux/Mac
-```
-
 ## 📚 Available Commands
 
 | Command | Subcommands | Description |
@@ -230,6 +181,8 @@ export PATH=$PATH:/path/to/sgh  # Linux/Mac
 | `post-release` | - | Automate post-release workflows |
 | `team` | `list` | List teams and members |
 | `config` | `add`, `list` | Manage CLI configuration |
+| `version` | - | Display version information |
+| `health` | - | Check system health and connectivity |
 
 ### Repository Management
 - `repo list <owner>` - List repositories for an organization
@@ -289,7 +242,7 @@ sgh tag delete --org my-org --tag old-version --repo legacy-app
 # Create PRs across multiple repositories
 sgh pr create --org my-org --title "Security Update" --body "Update dependencies" --head security-patch --base main
 
-# List PRs for specific repositories (using correct flag)
+# List PRs for specific repositories
 sgh pr list --org my-org --repo app1 --repo app2 --base main --all-status
 
 # List PRs with filters
@@ -334,7 +287,7 @@ sgh repo list my-org
 # Clone repositories with specific branch
 sgh clone --org my-org --branch develop
 
-# Track recent commits (correct flags)
+# Track recent commits
 sgh commit list --org my-org --days 7 --details --include-merge-commits
 ```
 
@@ -410,6 +363,77 @@ sgh config add pattern api-* --org my-primary-org --include
 sgh config add pattern archived-* --org my-primary-org --exclude
 ```
 
+## ⚡ Performance Tips
+
+- **Adjust worker count** based on your rate limits and network capacity (default: 5)
+- **Use specific repository filters** to avoid processing unnecessary repos
+- **Enable verbose mode** (`-v`) for detailed operation logs and debugging
+- **Use configuration files** to avoid repeating common parameters
+- **Monitor rate limits** - GitHub has API rate limits (5,000 requests/hour for authenticated users)
+- **Use exclude patterns** to skip repositories you don't need to process
+
+### Rate Limit Management
+```bash
+# Check current rate limit status
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+
+# Reduce workers if hitting limits
+sgh pr create --org my-org --workers 2 --title "Update"
+
+# Use smaller batches for large operations
+sgh branch create --org my-org --new feature --ref main --repo specific-repo
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Rate Limiting:**
+```bash
+# Check rate limit status
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+
+# Reduce worker count to avoid rate limits
+sgh pr create --org my-org --workers 2 --title "Update"
+```
+
+**Permission Errors:**
+- Ensure your GitHub token has the required scopes (`repo`, `admin:org`)
+- Verify you have admin access to the organization/repositories
+- Check if the organization has SSO enabled and authorize your token
+
+**Network Issues:**
+```bash
+# Enable response logging for debugging
+sgh repo list my-org --log-response --verbose
+```
+
+**Configuration Issues:**
+```bash
+# Check current configuration
+sgh config list
+
+# Reset configuration
+rm ~/.config/sgh/sgh.json  # Linux/Mac
+rm ~/sgh.json              # Windows
+```
+
+**Command Not Found:**
+```bash
+# Verify installation
+which sgh  # Linux/Mac
+where sgh  # Windows
+
+# Add to PATH if needed
+export PATH=$PATH:/path/to/sgh  # Linux/Mac
+```
+
+**Token Validation Issues:**
+- Token must be at least 20 characters long
+- Token must start with: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, or `github_pat_`
+- Token cannot contain spaces
+- Test tokens (starting with 'ghp_test_') are not allowed
+
 ## 🧪 Testing & Development
 
 ### Running Tests
@@ -460,28 +484,78 @@ go tool cover -func=fullcoverage.out
 go tool cover -html=fullcoverage.out -o full-coverage.html
 ```
 
-**Coverage with specific package patterns:**
-```bash
-# Cover specific packages
-go test -coverpkg=./internal/config,./pkg/config ./internal/config
-```
-
 ### Development Guidelines
 
 - Maintain **>80% test coverage** for core packages
 - Add tests for new features and bug fixes
 - Run tests before submitting pull requests
 - Use the HTML coverage report to identify untested code paths
+- Follow Go best practices and conventions
 
+### Project Structure
+```
+sgh-cli/
+├── cmd/                    # Command implementations
+│   ├── branch/            # Branch management commands
+│   ├── clone/             # Repository cloning
+│   ├── commit/            # Commit tracking
+│   ├── config/            # Configuration management
+│   ├── pr/                # Pull request operations
+│   ├── protected_branch/  # Protected branch management
+│   ├── repo/              # Repository operations
+│   ├── tag/               # Tag management
+│   ├── team/              # Team management
+│   └── version/           # Version information
+├── internal/              # Internal packages
+│   ├── async/             # Asynchronous operations
+│   ├── circuitbreaker/    # Circuit breaker pattern
+│   ├── client/            # HTTP client
+│   ├── config/            # Configuration handling
+│   ├── model/             # Data models
+│   ├── processor/         # Data processing
+│   ├── ratelimit/         # Rate limiting
+│   ├── retry/             # Retry mechanisms
+│   └── service/           # GitHub API services
+├── pkg/                   # Public packages
+│   ├── apperrors/         # Application errors
+│   ├── context/           # Application context
+│   ├── logger/            # Logging utilities
+│   └── ui/                # User interface components
+└── utils/                 # Utility functions
+```
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+Copyright (c) 2024 Pradeep Kumar Balakrishnan
+
+## 🤝 Contributing
+
+We welcome contributions! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+### Contributing Guidelines
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Setup
+
+1. Clone the repository
+2. Install dependencies: `go mod download`
+3. Run tests: `go test ./...`
+4. Build the binary: `go build -o sgh .`
+
 ## 🙏 Acknowledgments
 
 - Built with [Cobra](https://github.com/spf13/cobra) for CLI functionality
 - Uses [GitHub REST API](https://docs.github.com/en/rest) and [GraphQL API](https://docs.github.com/en/graphql)
+- Interactive UI powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- Progress bars with [Progressbar](https://github.com/schollz/progressbar)
+- Logging with [Zerolog](https://github.com/rs/zerolog)
 - Inspired by the need for bulk GitHub operations in large organizations
 
 ---

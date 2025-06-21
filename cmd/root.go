@@ -93,22 +93,34 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh config add pattern api-* --org my-org --include
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Check if this is a command that doesn't require org parameter
+			cmdName := cmd.Name()
+			parentName := ""
+			if cmd.HasParent() {
+				parentName = cmd.Parent().Name()
+			}
+
+			// Commands that don't require org parameter
+			noOrgRequired := cmdName == "health" || cmdName == "version" ||
+				parentName == "config" || parentName == "repo"
+
 			// Validate org flag for commands that require it
-			if cmd.HasParent() && (cmd.Parent().Name() == "config" || cmd.Parent().Name() == "repo") {
-				cmd.InheritedFlags().SetAnnotation("org", cobra.BashCompOneRequiredFlag, []string{"false"})
-			} else {
-				// For other commands, validate org flag
+			if !noOrgRequired {
 				orgFlag, _ := cmd.Flags().GetString("org")
-				if orgFlag != "" {
-					// Enhanced org name validation
-					if err := validateOrganizationName(orgFlag); err != nil {
-						logger.Glog.Error().
-							Str("org", orgFlag).
-							Err(err).
-							Msg("Invalid organization name")
-						fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
-						os.Exit(1)
-					}
+				if orgFlag == "" {
+					logger.Glog.Error().Msg("Organization parameter is required for this command")
+					fmt.Fprintf(os.Stderr, "Error: Organization parameter is required for '%s' command. Use --org or -o flag.\n", cmdName)
+					os.Exit(1)
+				}
+
+				// Enhanced org name validation
+				if err := validateOrganizationName(orgFlag); err != nil {
+					logger.Glog.Error().
+						Str("org", orgFlag).
+						Err(err).
+						Msg("Invalid organization name")
+					fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
+					os.Exit(1)
 				}
 			}
 
@@ -155,7 +167,6 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().DurationP("timeout", "t", 30*time.Second, "request timeout")
 	rootCmd.PersistentFlags().BoolP("dry-run", "d", false, "show what would be done without making changes")
 	rootCmd.PersistentFlags().StringP("output", "O", "text", "output format (text, json, yaml)")
-	rootCmd.MarkPersistentFlagRequired("org")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))
 	rootCmd.AddCommand(repo.NewRepoCommand(ctx))

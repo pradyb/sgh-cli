@@ -84,7 +84,7 @@ func printGitHubTokenHelp() {
 func printTokenValidationHelp() {
 	fmt.Fprintln(os.Stderr, "\n🔍 Token Validation Issues:")
 	fmt.Fprintln(os.Stderr, "   • Token must be at least 20 characters long")
-	fmt.Fprintln(os.Stderr, "   • Token must start with: ghp_, gho_, ghu_, ghs_, or ghr_")
+	fmt.Fprintln(os.Stderr, "   • Token must start with: ghp_, gho_, ghu_, ghs_, ghr_, or github_pat_")
 	fmt.Fprintln(os.Stderr, "   • Token cannot contain spaces")
 	fmt.Fprintln(os.Stderr, "   • Test tokens (starting with 'ghp_test_') are not allowed")
 	fmt.Fprintln(os.Stderr, "   • Verify your token is valid at https://github.com/settings/tokens")
