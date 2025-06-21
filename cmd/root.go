@@ -92,66 +92,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh config add pattern api-* --org my-org --include
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Check if this is a command that doesn't require org parameter
-			cmdName := cmd.Name()
-			parentName := ""
-			if cmd.HasParent() {
-				parentName = cmd.Parent().Name()
-			}
-
-			// Commands that don't require org parameter
-			noOrgRequired := cmdName == "health" || cmdName == "version" ||
-				parentName == "config" || parentName == "repo"
-
-			// Validate org flag for commands that require it
-			if !noOrgRequired {
-				orgFlag, _ := cmd.Flags().GetString("org")
-				if orgFlag == "" {
-					logger.Glog.Error().Msg("Organization parameter is required for this command")
-					fmt.Fprintf(os.Stderr, "Error: Organization parameter is required for '%s' command. Use --org or -o flag.\n", cmdName)
-					os.Exit(1)
-				}
-
-				// Enhanced org name validation
-				if err := validateOrganizationName(orgFlag); err != nil {
-					logger.Glog.Error().
-						Str("org", orgFlag).
-						Err(err).
-						Msg("Invalid organization name")
-					fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
-					os.Exit(1)
-				}
-			}
-
-			// Enhanced worker count validation
-			workers, _ := cmd.Flags().GetInt("workers")
-			if err := validateWorkerCount(workers); err != nil {
-				logger.Glog.Error().
-					Int("workers", workers).
-					Err(err).
-					Msg("Invalid worker count")
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
-			}
-
-			verbose, _ := cmd.Flags().GetBool("verbose")
-
-			// Set logger level based on verbose flag
-			logger.SetVerbose(verbose)
-
-			ctx.SetVerbose(verbose)
-			logResponse, _ := cmd.Flags().GetBool("log-response")
-			ctx.SetLogResponse(logResponse)
-			ctx.SetWorkerCount(workers)
-
-			userFlags := make([]string, 0)
-			flags := cmd.Flags()
-			flags.VisitAll(func(f *pflag.Flag) {
-				if f.Changed {
-					userFlags = append(userFlags, "--"+f.Name+" "+f.Value.String())
-				}
-			})
-			logger.Flog.Info().Msgf("Processing command: %s %s", cmd.CommandPath(), strings.Join(userFlags, " "))
+			validateCommandRequirements(cmd)
+			setupContext(cmd, ctx)
+			logCommandExecution(cmd)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
@@ -215,4 +158,70 @@ func validateWorkerCount(workers int) error {
 		return fmt.Errorf("worker count must be at most 50")
 	}
 	return nil
+}
+
+func validateCommandRequirements(cmd *cobra.Command) {
+	cmdName := cmd.Name()
+	parentName := ""
+	if cmd.HasParent() {
+		parentName = cmd.Parent().Name()
+	}
+
+	// Commands that don't require org parameter
+	noOrgRequired := cmdName == "health" || cmdName == "version" ||
+		parentName == "config" || parentName == "repo"
+
+	// Validate org flag for commands that require it
+	if !noOrgRequired {
+		orgFlag, _ := cmd.Flags().GetString("org")
+		if orgFlag == "" {
+			logger.Glog.Error().Msg("Organization parameter is required for this command")
+			fmt.Fprintf(os.Stderr, "Error: Organization parameter is required for '%s' command. Use --org or -o flag.\n", cmdName)
+			os.Exit(1)
+		}
+
+		// Enhanced org name validation
+		if err := validateOrganizationName(orgFlag); err != nil {
+			logger.Glog.Error().
+				Str("org", orgFlag).
+				Err(err).
+				Msg("Invalid organization name")
+			fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
+			os.Exit(1)
+		}
+	}
+
+	// Enhanced worker count validation
+	workers, _ := cmd.Flags().GetInt("workers")
+	if err := validateWorkerCount(workers); err != nil {
+		logger.Glog.Error().
+			Int("workers", workers).
+			Err(err).
+			Msg("Invalid worker count")
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func setupContext(cmd *cobra.Command, ctx *context.Context) {
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	logger.SetVerbose(verbose)
+	ctx.SetVerbose(verbose)
+
+	logResponse, _ := cmd.Flags().GetBool("log-response")
+	ctx.SetLogResponse(logResponse)
+
+	workers, _ := cmd.Flags().GetInt("workers")
+	ctx.SetWorkerCount(workers)
+}
+
+func logCommandExecution(cmd *cobra.Command) {
+	userFlags := make([]string, 0)
+	flags := cmd.Flags()
+	flags.VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			userFlags = append(userFlags, "--"+f.Name+" "+f.Value.String())
+		}
+	})
+	logger.Flog.Info().Msgf("Processing command: %s %s", cmd.CommandPath(), strings.Join(userFlags, " "))
 }
