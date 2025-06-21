@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
@@ -164,9 +163,6 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
 	rootCmd.PersistentFlags().IntP("workers", "w", 5, "number of workers")
-	rootCmd.PersistentFlags().DurationP("timeout", "t", 30*time.Second, "request timeout")
-	rootCmd.PersistentFlags().BoolP("dry-run", "d", false, "show what would be done without making changes")
-	rootCmd.PersistentFlags().StringP("output", "O", "text", "output format (text, json, yaml)")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))
 	rootCmd.AddCommand(repo.NewRepoCommand(ctx))

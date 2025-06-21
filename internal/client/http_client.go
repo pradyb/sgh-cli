@@ -235,7 +235,7 @@ func (c *HttpClient) handleError(response *http.Response, err error) (*http.Resp
 
 	// Handle timeout errors
 	if timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
-		return response, fmt.Errorf("request timeout: %w (try increasing timeout with --timeout flag)", err)
+		return response, fmt.Errorf("request timeout: %w (try increasing SGH_TIMEOUT environment variable)", err)
 	}
 
 	return response, fmt.Errorf("HTTP request failed: %w", err)
