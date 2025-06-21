@@ -65,49 +65,6 @@ func runHealthCheck(ctx *context.Context) {
 		fmt.Println("⚠️  Some health checks failed. Please review the errors above.")
 		fmt.Println("💡 Run with --verbose for more detailed information.")
 	}
-
-	// Show detailed rate limit information
-	showDetailedRateLimitInfo(ctx)
-}
-
-func showDetailedRateLimitInfo(ctx *context.Context) {
-	fmt.Println("\n📊 Rate Limit Details:")
-
-	status := ctx.HttpClient.GetRateLimitStatus()
-	if len(status) == 0 {
-		fmt.Println("  No rate limit information available")
-		return
-	}
-
-	for resource, info := range status {
-		remaining := info.Remaining
-		limit := info.Limit
-		percentage := float64(remaining) / float64(limit) * 100
-
-		var status string
-		var emoji string
-
-		if percentage > 80 {
-			status = "Excellent"
-			emoji = "🟢"
-		} else if percentage > 50 {
-			status = "Good"
-			emoji = "🟡"
-		} else if percentage > 20 {
-			status = "Low"
-			emoji = "🟠"
-		} else {
-			status = "Critical"
-			emoji = "🔴"
-		}
-
-		fmt.Printf("  %s %s: %d/%d remaining (%.1f%%) - %s\n",
-			emoji, resource, remaining, limit, percentage, status)
-
-		if info.Remaining < 100 {
-			fmt.Printf("     ⏰ Resets at: %s\n", info.ResetTime.Format("15:04:05"))
-		}
-	}
 }
 
 func checkGitHubAPIConnectivity(ctx *context.Context) error {

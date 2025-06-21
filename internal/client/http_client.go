@@ -8,7 +8,6 @@ import (
 	"net/http/httputil"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/circuitbreaker"
@@ -283,22 +282,12 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 		logger.Flog.Info().Msgf("Executing GraphQL query with variables %v", variables)
 	}
 
-	// Check current rate limit status before proceeding
+	// Wait for rate limit if needed (GraphQL uses the "graphql" resource)
 	if c.RateLimiter != nil {
-		if info, exists := c.RateLimiter.GetRateLimitInfo("graphql"); exists {
-			logger.Flog.Debug().
-				Int("remaining", info.Remaining).
-				Int("limit", info.Limit).
-				Time("reset", info.ResetTime).
-				Msg("Current GraphQL rate limit status")
-		}
-
-		// Wait for rate limit if needed (GraphQL uses the "graphql" resource)
 		if err := c.RateLimiter.WaitIfNeeded(ctx, "graphql"); err != nil {
 			return fmt.Errorf("GraphQL rate limit wait failed: %w", err)
 		}
 	}
-
 	// Execute GraphQL query with circuit breaker and retry logic
 	var queryErr error
 	err := c.CircuitBreaker.Execute(func() error {
@@ -311,14 +300,6 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 				logger.Flog.Error().Err(err).
 					Int("timeTakenInMs", int(elapsed)).
 					Msg("GraphQL query failed")
-
-				// Check if it's a rate limit error and refresh rate limit info
-				if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "403") {
-					logger.Flog.Warn().Msg("Rate limit error detected, refreshing rate limit information")
-					if c.RateLimiter != nil {
-						c.RateLimiter.RefreshRateLimit("graphql")
-					}
-				}
 
 				// Return error as-is - the retry package will determine if it's retryable
 				return err

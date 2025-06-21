@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/client"
-	"github.com/prady-lab/sgh-cli/internal/ratelimit"
 	"github.com/prady-lab/sgh-cli/internal/testutils"
 	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/shurcooL/githubv4"
@@ -144,10 +143,10 @@ func TestGitHubAPIIntegration(t *testing.T) {
 		// Clear previous requests
 		mockServer.ClearRequests()
 
-		// Set rate limit with enough remaining requests to not trigger wait
-		mockServer.SetRateLimit(5000, 10, time.Now().Add(time.Hour))
+		// Set low rate limit
+		mockServer.SetRateLimit(5000, 1, time.Now().Add(time.Minute))
 
-		// This should work without triggering rate limit wait
+		// This should still work as the mock server doesn't actually enforce rate limits
 		repos, err := GetReposWithOrg(ctx, "testorg")
 
 		require.NoError(t, err)
@@ -273,16 +272,10 @@ func createTestContext(t *testing.T, mockServerURL string) *appcontext.Context {
 	// Override the GitHub API base URL for testing
 	originalBaseURL := GITHUB_BASE_URL
 	GITHUB_BASE_URL = mockServerURL
-	if t != nil {
-		t.Cleanup(func() { GITHUB_BASE_URL = originalBaseURL })
-	}
+	t.Cleanup(func() { GITHUB_BASE_URL = originalBaseURL })
 
 	ctx, err := appcontext.Init()
 	require.NoError(t, err)
-
-	// Inject a RateLimiter with zero buffer for 'core' resource for testability
-	ctx.HttpClient.RateLimiter = ratelimit.NewRateLimiterWithBuffer(map[string]int{"core": 0, "graphql": 0, "search": 0})
-
 	return ctx
 }
 
