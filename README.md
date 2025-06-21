@@ -4,7 +4,6 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 [![Go Version](https://img.shields.io/badge/Go-1.23.0+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/prady-lab/sgh-cli)](https://goreportcard.com/report/github.com/prady-lab/sgh-cli)
 
 ## 📋 Table of Contents
 
