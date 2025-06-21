@@ -3,6 +3,7 @@ package context
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -68,8 +69,11 @@ func Init() (*Context, error) {
 
 	// Create OAuth2 client with custom transport
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	oauthClient := oauth2.NewClient(context.Background(), src)
-	oauthClient.Transport = httpClient.Client.Transport // Use the same transport with rate limiting
+	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{
+		Timeout:   httpTimeout,
+		Transport: httpClient.Client.Transport, // Use the same transport with rate limiting
+	})
+	oauthClient := oauth2.NewClient(ctx, src)
 
 	// Create GraphQL client
 	gqlClient := githubv4.NewClient(oauthClient)
