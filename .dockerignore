@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+LICENSE
+*.md
+
+# Build artifacts
+bin/
+release/
+coverage.out
+coverage.html
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test files
+*_test.go
+
+# Temporary files
+tmp/
+temp/
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Makefile
+Makefile
+
+# Air configuration
+.air.toml 

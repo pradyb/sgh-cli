@@ -398,13 +398,14 @@ func (config *Config) validate() error {
 			return fmt.Errorf("organization at index %d has empty name", i)
 		}
 
-		// Check for duplicate org names
-		if orgNames[strings.ToLower(org.Name)] {
+		// Check for duplicate org names (case-insensitive)
+		lowerName := strings.ToLower(org.Name)
+		if orgNames[lowerName] {
 			return fmt.Errorf("duplicate organization name: %s", org.Name)
 		}
-		orgNames[strings.ToLower(org.Name)] = true
+		orgNames[lowerName] = true
 
-		// Validate organization name format
+		// Enhanced organization name validation
 		if !isValidOrgName(org.Name) {
 			return fmt.Errorf("invalid organization name '%s': must contain only alphanumeric characters, hyphens, and underscores", org.Name)
 		}
@@ -420,13 +421,94 @@ func (config *Config) validate() error {
 				Msg("Very high approving review count may be impractical")
 		}
 
-		// Validate tagger email format if provided
-		if org.Tagger.Email != "" && !isValidEmail(org.Tagger.Email) {
-			return fmt.Errorf("organization '%s' has invalid tagger email: %s", org.Name, org.Tagger.Email)
+		// Enhanced email validation
+		if org.Tagger.Email != "" {
+			if !isValidEmail(org.Tagger.Email) {
+				return fmt.Errorf("organization '%s' has invalid tagger email: %s", org.Name, org.Tagger.Email)
+			}
+		}
+
+		// Validate repository patterns for security
+		if err := validateRepoPatterns(org.RepoPatterns); err != nil {
+			return fmt.Errorf("organization '%s' has invalid repository patterns: %w", org.Name, err)
+		}
+
+		// Validate user lists for security
+		if err := validateUserList(org.PullRequestAssignees, "pull_request_assignees"); err != nil {
+			return fmt.Errorf("organization '%s' has invalid pull request assignees: %w", org.Name, err)
+		}
+		if err := validateUserList(org.ProtectedBranch.BypassPullRequestUsers, "bypass_pull_request_users"); err != nil {
+			return fmt.Errorf("organization '%s' has invalid bypass users: %w", org.Name, err)
+		}
+		if err := validateUserList(org.ProtectedBranch.AllowedRestrictionsUsers, "allowed_restrictions_users"); err != nil {
+			return fmt.Errorf("organization '%s' has invalid allowed restrictions users: %w", org.Name, err)
 		}
 	}
 
 	return nil
+}
+
+// validateRepoPatterns validates repository patterns for security
+func validateRepoPatterns(patterns IncludeExcludePattern) error {
+	allPatterns := append(patterns.Include, patterns.Exclude...)
+
+	for _, pattern := range allPatterns {
+		// Check for potentially dangerous patterns
+		if strings.Contains(pattern, "..") {
+			return fmt.Errorf("pattern '%s' contains '..' which could be dangerous", pattern)
+		}
+
+		// Check for overly broad patterns that might match too many repos
+		if pattern == "*" || pattern == ".*" {
+			return fmt.Errorf("pattern '%s' is too broad and could match all repositories", pattern)
+		}
+
+		// Validate regex pattern
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
+		}
+	}
+
+	return nil
+}
+
+// validateUserList validates user lists for security
+func validateUserList(users []string, fieldName string) error {
+	for i, user := range users {
+		if user == "" {
+			return fmt.Errorf("empty user name at index %d in %s", i, fieldName)
+		}
+
+		// Check for valid GitHub username format
+		if !isValidGitHubUsername(user) {
+			return fmt.Errorf("invalid GitHub username '%s' at index %d in %s", user, i, fieldName)
+		}
+	}
+
+	return nil
+}
+
+// isValidGitHubUsername validates GitHub username format
+func isValidGitHubUsername(username string) bool {
+	if username == "" || len(username) > 39 {
+		return false
+	}
+
+	// GitHub usernames can contain alphanumeric characters and single hyphens
+	// Cannot start or end with hyphen, and cannot have consecutive hyphens
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`
+	matched, _ := regexp.MatchString(pattern, username)
+
+	if !matched {
+		return false
+	}
+
+	// Check for consecutive hyphens
+	if strings.Contains(username, "--") {
+		return false
+	}
+
+	return true
 }
 
 // isValidOrgName validates GitHub organization name format

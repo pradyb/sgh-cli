@@ -1,0 +1,347 @@
+package service
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/prady-lab/sgh-cli/internal/client"
+	"github.com/prady-lab/sgh-cli/internal/testutils"
+	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/shurcooL/githubv4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
+)
+
+func TestGitHubAPIIntegration(t *testing.T) {
+	// Create mock server
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+
+	// Set up test environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer os.Setenv("GITHUB_TOKEN", originalToken)
+	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+
+	// Create test context with mock server URL
+	ctx := createTestContext(t, mockServer.URL())
+
+	t.Run("GetReposWithOrg", func(t *testing.T) {
+		repos, err := GetReposWithOrg(ctx, "testorg")
+
+		require.NoError(t, err)
+		assert.Len(t, repos, 2)
+
+		// Check first repository
+		assert.Equal(t, "test-repo-1", repos[0].Name)
+		assert.False(t, repos[0].Private)
+		assert.Equal(t, "Go", repos[0].Language)
+		assert.Equal(t, "main", repos[0].DefaultBranch)
+
+		// Check second repository
+		assert.Equal(t, "test-repo-2", repos[1].Name)
+		assert.True(t, repos[1].Private)
+		assert.Equal(t, "JavaScript", repos[1].Language)
+		assert.Equal(t, "main", repos[1].DefaultBranch)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "GET", requests[0].Method)
+		assert.Equal(t, "/orgs/testorg/repos", requests[0].Path)
+	})
+
+	t.Run("CreateNewBranch", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		response, err := CreateNewBranch(ctx, "testorg", "test-repo", "test-branch", "main")
+
+		require.NoError(t, err)
+		assert.Equal(t, "refs/heads/test-branch", response.Ref)
+		assert.Equal(t, "1234567890abcdef1234567890abcdef12345678", response.Object.SHA)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 2) // One for getting SHA, one for creating branch
+		assert.Equal(t, "GET", requests[0].Method)
+		assert.Contains(t, requests[0].Path, "/git/ref/heads/main")
+		assert.Equal(t, "POST", requests[1].Method)
+		assert.Contains(t, requests[1].Path, "/git/refs")
+	})
+
+	t.Run("UpdateProtectedBranch", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		payload := []byte(`{"required_pull_request_reviews":{"required_approving_review_count":1}}`)
+		response, err := UpdateProtectedBranch(ctx, "testorg", "test-repo", "main", payload)
+
+		require.NoError(t, err)
+		assert.Equal(t, "test-repo", response.RepositoryName)
+		assert.Equal(t, "Branch Protection", response.Type)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "PUT", requests[0].Method)
+		assert.Contains(t, requests[0].Path, "/protection")
+	})
+
+	t.Run("DeleteProtectedBranch", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		// Set custom response for DELETE
+		mockServer.SetResponse("/repos/testorg/test-repo/branches/main/protection", testutils.MockResponse{
+			StatusCode: http.StatusNoContent,
+			Body:       nil,
+		})
+
+		success, err := DeleteProtectedBranch(ctx, "testorg", "test-repo", "main")
+
+		require.NoError(t, err)
+		assert.True(t, success)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "DELETE", requests[0].Method)
+		assert.Contains(t, requests[0].Path, "/protection")
+	})
+
+	t.Run("ErrorHandling", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		// Set custom error response
+		mockServer.SetResponse("/orgs/nonexistent/repos", testutils.MockResponse{
+			StatusCode: http.StatusNotFound,
+			Body: map[string]interface{}{
+				"message":           "Not Found",
+				"documentation_url": "https://docs.github.com/rest",
+			},
+		})
+
+		repos, err := GetReposWithOrg(ctx, "nonexistent")
+
+		assert.Error(t, err)
+		assert.Nil(t, repos)
+		assert.Contains(t, err.Error(), "404")
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "/orgs/nonexistent/repos", requests[0].Path)
+	})
+
+	t.Run("RateLimitHandling", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		// Set low rate limit
+		mockServer.SetRateLimit(5000, 1, time.Now().Add(time.Minute))
+
+		// This should still work as the mock server doesn't actually enforce rate limits
+		repos, err := GetReposWithOrg(ctx, "testorg")
+
+		require.NoError(t, err)
+		assert.Len(t, repos, 2)
+
+		// Verify rate limit headers were received
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+	})
+}
+
+func TestGraphQLIntegration(t *testing.T) {
+	// Create mock server
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+
+	// Set up test environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer os.Setenv("GITHUB_TOKEN", originalToken)
+	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+
+	// Set a very short rate limit reset time for testing (1 second)
+	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))
+
+	// Create test context with mock server URL
+	ctx := createTestContext(t, mockServer.URL())
+
+	// Create a custom GraphQL client that uses the mock server
+	customTransport := &mockServerTransport{mockServer: mockServer}
+
+	// Create OAuth2 client with custom HTTP client
+	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "ghp_1234567890abcdef1234567890abcdef123456"})
+	oauthClient := oauth2.NewClient(context.Background(), src)
+	oauthClient.Transport = customTransport
+
+	// Create GraphQL client with custom OAuth2 client
+	gqlClient := githubv4.NewClient(oauthClient)
+	customGraphQLClient := &client.GraphqlClient{
+		Client:         gqlClient,
+		RateLimiter:    ctx.HttpClient.RateLimiter,
+		RetryConfig:    ctx.HttpClient.RetryConfig,
+		CircuitBreaker: ctx.HttpClient.CircuitBreaker,
+	}
+
+	t.Run("GraphQLQuery", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		// Create a simple GraphQL query using a struct
+		type OrganizationQuery struct {
+			Organization struct {
+				Repositories struct {
+					Nodes []struct {
+						Name             string `json:"name"`
+						DefaultBranchRef struct {
+							Name string `json:"name"`
+						} `json:"defaultBranchRef"`
+					} `json:"nodes"`
+					TotalCount int `json:"totalCount"`
+				} `json:"repositories"`
+			} `json:"organization"`
+		}
+
+		var query OrganizationQuery
+		variables := map[string]interface{}{
+			"org": "testorg",
+		}
+
+		// Add timeout to prevent hanging
+		reqCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err := customGraphQLClient.QueryWithContext(reqCtx, &query, variables)
+
+		require.NoError(t, err)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "POST", requests[0].Method)
+		assert.Equal(t, "/graphql", requests[0].Path)
+		assert.Contains(t, requests[0].Headers, "Content-Type")
+	})
+
+	t.Run("GraphQLError", func(t *testing.T) {
+		// Clear previous requests
+		mockServer.ClearRequests()
+
+		// Set custom error response for GraphQL
+		mockServer.SetResponse("/graphql", testutils.MockResponse{
+			StatusCode: http.StatusBadRequest,
+			Body: map[string]interface{}{
+				"errors": []map[string]interface{}{
+					{"message": "Invalid query"},
+				},
+			},
+		})
+
+		// Create a simple query struct for error testing
+		type ErrorQuery struct {
+			Test string `json:"test"`
+		}
+
+		var query ErrorQuery
+
+		// Add timeout to prevent hanging
+		reqCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err := customGraphQLClient.QueryWithContext(reqCtx, &query, nil)
+
+		assert.Error(t, err)
+
+		// Verify request was made
+		requests := mockServer.GetRequests()
+		assert.Len(t, requests, 1)
+		assert.Equal(t, "/graphql", requests[0].Path)
+	})
+}
+
+// createTestContext creates a test context with the mock server URL
+func createTestContext(t *testing.T, mockServerURL string) *appcontext.Context {
+	// Override the GitHub API base URL for testing
+	originalBaseURL := GITHUB_BASE_URL
+	GITHUB_BASE_URL = mockServerURL
+	t.Cleanup(func() { GITHUB_BASE_URL = originalBaseURL })
+
+	ctx, err := appcontext.Init()
+	require.NoError(t, err)
+	return ctx
+}
+
+// Benchmark tests
+func BenchmarkGetReposWithOrg(b *testing.B) {
+	// Create mock server
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+
+	// Set up test environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer os.Setenv("GITHUB_TOKEN", originalToken)
+	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+
+	// Set a very short rate limit reset time for testing
+	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))
+
+	// Create test context
+	ctx := createTestContext(nil, mockServer.URL())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := GetReposWithOrg(ctx, "testorg")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCreateNewBranch(b *testing.B) {
+	// Create mock server
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+
+	// Set up test environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer os.Setenv("GITHUB_TOKEN", originalToken)
+	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+
+	// Set a very short rate limit reset time for testing
+	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))
+
+	// Create test context
+	ctx := createTestContext(nil, mockServer.URL())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := CreateNewBranch(ctx, "testorg", "test-repo", "test-branch", "main")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// mockServerTransport routes all requests to the mock server
+type mockServerTransport struct {
+	mockServer *testutils.MockGitHubServer
+}
+
+func (t *mockServerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Create a new request to the mock server
+	mockURL, _ := url.Parse(t.mockServer.URL())
+	req.URL.Scheme = mockURL.Scheme
+	req.URL.Host = mockURL.Host
+
+	// Use the default transport to make the request
+	transport := &http.Transport{}
+	return transport.RoundTrip(req)
+}

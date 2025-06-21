@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -34,15 +35,26 @@ type Interceptor struct {
 func NewHttpClient(timeout time.Duration) *HttpClient {
 	rateLimiter := ratelimit.NewRateLimiter()
 	circuitBreaker := circuitbreaker.New(circuitbreaker.DefaultConfig())
-	transport := &Interceptor{
-		OriginalTransport: http.DefaultTransport,
+
+	// Create a custom transport with connection pooling and timeouts
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DisableCompression:  false,
+		ForceAttemptHTTP2:   true,
+	}
+
+	interceptor := &Interceptor{
+		OriginalTransport: transport,
 		RateLimiter:       rateLimiter,
 	}
 
 	return &HttpClient{
 		Client: http.Client{
 			Timeout:   timeout,
-			Transport: transport,
+			Transport: interceptor,
 		},
 		RateLimiter:    rateLimiter,
 		RetryConfig:    retry.DefaultRetryConfig(),
@@ -202,9 +214,30 @@ func (c *HttpClient) doSingleRequest(ctx context.Context, req *http.Request) (*h
 }
 
 func (c *HttpClient) handleError(response *http.Response, err error) (*http.Response, error) {
-	if _, ok := err.(*apperrors.GitHubError); ok {
-		return response, err
+	if githubErr, ok := err.(*apperrors.GitHubError); ok {
+		// Enhance GitHub error with additional context
+		if githubErr.StatusCode == 401 {
+			return response, fmt.Errorf("authentication failed: %w (check your GITHUB_TOKEN)", githubErr)
+		} else if githubErr.StatusCode == 403 {
+			return response, fmt.Errorf("permission denied: %w (check your token permissions)", githubErr)
+		} else if githubErr.StatusCode == 404 {
+			return response, fmt.Errorf("resource not found: %w", githubErr)
+		} else if githubErr.StatusCode >= 500 {
+			return response, fmt.Errorf("GitHub API server error: %w", githubErr)
+		}
+		return response, githubErr
 	}
+
+	// Handle network errors
+	if netErr, ok := err.(*net.OpError); ok {
+		return response, fmt.Errorf("network error: %w (check your internet connection)", netErr)
+	}
+
+	// Handle timeout errors
+	if timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
+		return response, fmt.Errorf("request timeout: %w (try increasing timeout with --timeout flag)", err)
+	}
+
 	return response, fmt.Errorf("HTTP request failed: %w", err)
 }
 

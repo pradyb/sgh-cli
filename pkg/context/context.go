@@ -3,8 +3,8 @@ package context
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/shurcooL/githubv4"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/prady-lab/sgh-cli/internal/client"
 	"github.com/prady-lab/sgh-cli/internal/config"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 type Context struct {
@@ -30,9 +31,9 @@ func Init() (*Context, error) {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required. Please set your GitHub Personal Access Token")
 	}
 
-	// Basic token format validation
-	if len(token) < 20 {
-		return nil, fmt.Errorf("GITHUB_TOKEN appears to be invalid (too short). Please check your GitHub Personal Access Token")
+	// Enhanced token validation
+	if err := validateGitHubToken(token); err != nil {
+		return nil, fmt.Errorf("invalid GITHUB_TOKEN: %w", err)
 	}
 
 	config, err := config.Init()
@@ -40,20 +41,36 @@ func Init() (*Context, error) {
 		return nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
 
-	// Create HTTP client with timeout and rate limiting
+	// Get timeout from environment or use default
+	timeoutStr := os.Getenv("SGH_TIMEOUT")
 	httpTimeout := 30 * time.Second
+	if timeoutStr != "" {
+		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+			httpTimeout = timeout
+		} else {
+			logger.Glog.Warn().Str("timeout", timeoutStr).Msg("Invalid SGH_TIMEOUT, using default")
+		}
+	}
+
+	// Create HTTP client with timeout and rate limiting
 	httpClient := client.NewHttpClient(httpTimeout)
 	if httpClient == nil {
 		return nil, fmt.Errorf("failed to create HTTP client")
 	}
 
-	// Create OAuth2 client
+	// Configure client based on environment variables
+	if os.Getenv("SGH_VERBOSE") == "true" {
+		httpClient.Verbose = true
+	}
+	if os.Getenv("SGH_LOG_RESPONSE") == "true" {
+		httpClient.LogResponse = true
+	}
+
+	// Create OAuth2 client with custom transport
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	ctx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{
-		Timeout:   httpTimeout,
-		Transport: httpClient.Client.Transport, // Use the same transport with rate limiting
-	})
-	oauthClient := oauth2.NewClient(ctx, src)
+	oauthClient := oauth2.NewClient(context.Background(), src)
+	oauthClient.Transport = httpClient.Client.Transport // Use the same transport with rate limiting
+
 	// Create GraphQL client
 	gqlClient := githubv4.NewClient(oauthClient)
 	graphqlClient := &client.GraphqlClient{
@@ -62,11 +79,50 @@ func Init() (*Context, error) {
 		RetryConfig:    httpClient.RetryConfig,
 		CircuitBreaker: httpClient.CircuitBreaker,
 	}
+
 	return &Context{
 		Config:        config,
 		HttpClient:    httpClient,
 		GraphqlClient: graphqlClient,
 	}, nil
+}
+
+// validateGitHubToken performs comprehensive token validation
+func validateGitHubToken(token string) error {
+	if token == "" {
+		return fmt.Errorf("token cannot be empty")
+	}
+
+	// Check minimum length (GitHub tokens are typically 40+ characters)
+	if len(token) < 20 {
+		return fmt.Errorf("token appears to be invalid (too short, expected at least 20 characters)")
+	}
+
+	// Check for common invalid patterns
+	if strings.Contains(token, " ") {
+		return fmt.Errorf("token contains spaces, which is invalid")
+	}
+
+	// Check for common test tokens
+	if strings.HasPrefix(token, "ghp_test_") || strings.HasPrefix(token, "test_") {
+		return fmt.Errorf("token appears to be a test token")
+	}
+
+	// Validate GitHub token format (starts with ghp_, gho_, ghu_, ghs_, or ghr_)
+	validPrefixes := []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"}
+	hasValidPrefix := false
+	for _, prefix := range validPrefixes {
+		if strings.HasPrefix(token, prefix) {
+			hasValidPrefix = true
+			break
+		}
+	}
+
+	if !hasValidPrefix {
+		return fmt.Errorf("token format appears invalid (should start with ghp_, gho_, ghu_, ghs_, or ghr_)")
+	}
+
+	return nil
 }
 
 func (c *Context) SetVerbose(verbose bool) {

@@ -5,18 +5,21 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
 	"github.com/prady-lab/sgh-cli/cmd/config"
+	"github.com/prady-lab/sgh-cli/cmd/health"
 	postrelease "github.com/prady-lab/sgh-cli/cmd/post_release"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
 	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protected_branch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
+	"github.com/prady-lab/sgh-cli/cmd/version"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/spf13/cobra"
@@ -97,29 +100,27 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 				// For other commands, validate org flag
 				orgFlag, _ := cmd.Flags().GetString("org")
 				if orgFlag != "" {
-					// Validate org name format (GitHub org names must be alphanumeric, hyphens, underscores)
-					if !isValidOrgName(orgFlag) {
+					// Enhanced org name validation
+					if err := validateOrganizationName(orgFlag); err != nil {
 						logger.Glog.Error().
 							Str("org", orgFlag).
-							Msg("Invalid organization name format. Must contain only alphanumeric characters, hyphens, and underscores")
-						fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s'. GitHub organization names must contain only alphanumeric characters, hyphens, and underscores.\n", orgFlag)
+							Err(err).
+							Msg("Invalid organization name")
+						fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
 						os.Exit(1)
 					}
 				}
-			} // Validate worker count
+			}
+
+			// Enhanced worker count validation
 			workers, _ := cmd.Flags().GetInt("workers")
-			if workers < 1 {
+			if err := validateWorkerCount(workers); err != nil {
 				logger.Glog.Error().
 					Int("workers", workers).
-					Msg("Invalid worker count. Must be at least 1")
-				fmt.Fprintf(os.Stderr, "Error: Worker count must be at least 1, got %d\n", workers)
+					Err(err).
+					Msg("Invalid worker count")
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
-			}
-			if workers > 50 {
-				logger.Glog.Warn().
-					Int("workers", workers).
-					Msg("High worker count may overwhelm GitHub API. Consider using fewer workers")
-				fmt.Fprintf(os.Stderr, "Warning: Using %d workers may overwhelm GitHub API. Consider using fewer workers.\n", workers)
 			}
 
 			verbose, _ := cmd.Flags().GetBool("verbose")
@@ -151,6 +152,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
 	rootCmd.PersistentFlags().IntP("workers", "w", 5, "number of workers")
+	rootCmd.PersistentFlags().DurationP("timeout", "t", 30*time.Second, "request timeout")
+	rootCmd.PersistentFlags().BoolP("dry-run", "d", false, "show what would be done without making changes")
+	rootCmd.PersistentFlags().StringP("output", "O", "text", "output format (text, json, yaml)")
 	rootCmd.MarkPersistentFlagRequired("org")
 
 	rootCmd.AddCommand(config.NewConfigCommand(ctx))
@@ -163,6 +167,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(commit.NewCommitCommand(ctx))
 	rootCmd.AddCommand(clone.NewCloneCommand(ctx))
 	rootCmd.AddCommand(team.NewTeamCommand(ctx))
+	rootCmd.AddCommand(health.NewHealthCommand(ctx))
+	rootCmd.AddCommand(version.NewVersionCommand())
 
 	return rootCmd
 }
@@ -182,4 +188,24 @@ func isValidOrgName(org string) bool {
 		return false
 	}
 	return matched && len(org) <= 39 // GitHub has a 39 character limit for org names
+}
+
+func validateOrganizationName(org string) error {
+	if org == "" {
+		return fmt.Errorf("organization name cannot be empty")
+	}
+	if !isValidOrgName(org) {
+		return fmt.Errorf("organization name must contain only alphanumeric characters, hyphens, and underscores")
+	}
+	return nil
+}
+
+func validateWorkerCount(workers int) error {
+	if workers < 1 {
+		return fmt.Errorf("worker count must be at least 1")
+	}
+	if workers > 50 {
+		return fmt.Errorf("worker count must be at most 50")
+	}
+	return nil
 }
