@@ -22,21 +22,42 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle interrupt signals
+	// Handle interrupt signals with proper cleanup
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Use a separate goroutine with done channel for proper cleanup
+	done := make(chan bool, 1)
 	go func() {
+		defer func() {
+			signal.Stop(sigChan) // Stop signal notifications
+			close(sigChan)       // Close the channel
+			done <- true         // Signal completion
+		}()
+
 		<-sigChan
 		logger.Glog.Info().Msg("Received interrupt signal, shutting down gracefully...")
 		cancel()
-		// Give some time for cleanup
-		time.Sleep(2 * time.Second)
+
+		// Give some time for cleanup with timeout
+		select {
+		case <-time.After(2 * time.Second):
+			logger.Glog.Warn().Msg("Graceful shutdown timeout, forcing exit")
+		case <-ctx.Done():
+			logger.Glog.Info().Msg("Graceful shutdown completed")
+		}
 		os.Exit(0)
 	}()
 
 	appCtx, err := appcontext.Init()
 	if err != nil {
 		handleInitializationError(err)
+		// Ensure signal handler cleanup before exit
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(100 * time.Millisecond):
+		}
 		os.Exit(1)
 	}
 

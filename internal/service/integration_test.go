@@ -17,6 +17,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	graphqlPath    = "/graphql"
+	testOrgName    = "testorg"
+	testRepoName   = "test-repo"
+	testBranchName = "test-branch"
+	mainBranchName = "main"
+)
+
 func TestGitHubAPIIntegration(t *testing.T) {
 	// Create mock server
 	mockServer := testutils.NewMockGitHubServer()
@@ -158,6 +166,47 @@ func TestGitHubAPIIntegration(t *testing.T) {
 	})
 }
 
+func TestGitHubAPIIntegrationWithTimeout(t *testing.T) {
+	// Create mock server with proper cleanup
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+
+	// Set up test environment with restoration
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer func() {
+		if err := os.Setenv("GITHUB_TOKEN", originalToken); err != nil {
+			t.Logf("Warning: failed to restore GITHUB_TOKEN: %v", err)
+		}
+	}()
+
+	if err := os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456"); err != nil {
+		t.Fatalf("Failed to set test token: %v", err)
+	}
+
+	// Create test context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testCtx := createTestContext(t, mockServer.URL())
+
+	t.Run("GetReposWithTimeout", func(t *testing.T) {
+		done := make(chan error, 1)
+		go func() {
+			_, err := GetReposWithOrg(testCtx, "testorg")
+			done <- err
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("GetReposWithOrg failed: %v", err)
+			}
+		case <-ctx.Done():
+			t.Error("GetReposWithOrg timed out")
+		}
+	})
+}
+
 func TestGraphQLIntegration(t *testing.T) {
 	// Create mock server
 	mockServer := testutils.NewMockGitHubServer()
@@ -222,21 +271,19 @@ func TestGraphQLIntegration(t *testing.T) {
 		err := customGraphQLClient.QueryWithContext(reqCtx, &query, variables)
 
 		require.NoError(t, err)
-
 		// Verify request was made
 		requests := mockServer.GetRequests()
 		assert.Len(t, requests, 1)
 		assert.Equal(t, "POST", requests[0].Method)
-		assert.Equal(t, "/graphql", requests[0].Path)
+		assert.Equal(t, graphqlPath, requests[0].Path)
 		assert.Contains(t, requests[0].Headers, "Content-Type")
 	})
 
 	t.Run("GraphQLError", func(t *testing.T) {
 		// Clear previous requests
 		mockServer.ClearRequests()
-
 		// Set custom error response for GraphQL
-		mockServer.SetResponse("/graphql", testutils.MockResponse{
+		mockServer.SetResponse(graphqlPath, testutils.MockResponse{
 			StatusCode: http.StatusBadRequest,
 			Body: map[string]interface{}{
 				"errors": []map[string]interface{}{
@@ -259,11 +306,10 @@ func TestGraphQLIntegration(t *testing.T) {
 		err := customGraphQLClient.QueryWithContext(reqCtx, &query, nil)
 
 		assert.Error(t, err)
-
 		// Verify request was made
 		requests := mockServer.GetRequests()
 		assert.Len(t, requests, 1)
-		assert.Equal(t, "/graphql", requests[0].Path)
+		assert.Equal(t, graphqlPath, requests[0].Path)
 	})
 }
 

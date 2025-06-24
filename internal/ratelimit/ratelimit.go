@@ -79,8 +79,8 @@ func (rl *RateLimiter) WaitIfNeeded(ctx context.Context, resource string) error 
 		return nil // No rate limit info available, proceed
 	}
 
-	// If we have enough remaining requests, proceed
-	if info.Remaining > 10 { // Keep a buffer of 10 requests
+	// If we have remaining requests or reset time has passed, proceed
+	if info.Remaining > 0 || time.Now().After(info.ResetTime) {
 		return nil
 	}
 

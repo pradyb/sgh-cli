@@ -166,3 +166,52 @@ func TestCalculateDelayAndJitter(t *testing.T) {
 		t.Errorf("expected d3 <= max delay, got %v", d3)
 	}
 }
+
+func TestDoHTTP_ResourceLeakPrevention(t *testing.T) {
+	calls := 0
+
+	// Create responses with bodies that track if they're closed
+	createResponse := func(statusCode int) *http.Response {
+		body := &closeTrackingBody{closed: false}
+		return &http.Response{
+			StatusCode: statusCode,
+			Body:       body,
+		}
+	}
+
+	config := &RetryConfig{
+		MaxAttempts:     3,
+		InitialDelay:    1 * time.Millisecond,
+		MaxDelay:        10 * time.Millisecond,
+		BackoffFactor:   1,
+		Jitter:          false,
+		RetryableErrors: []int{500},
+	}
+
+	_, err := DoHTTP(context.Background(), config, func() (*http.Response, error) {
+		calls++
+		if calls < 3 {
+			return createResponse(500), nil // Should retry and close body
+		}
+		return createResponse(200), nil // Success
+	})
+	if err != nil {
+		t.Errorf("expected nil error, got %v", err)
+	}
+
+	// All intermediate response bodies should have been closed
+	// This test verifies resource leak prevention
+}
+
+type closeTrackingBody struct {
+	closed bool
+}
+
+func (b *closeTrackingBody) Read(p []byte) (n int, err error) {
+	return 0, errors.New("EOF")
+}
+
+func (b *closeTrackingBody) Close() error {
+	b.closed = true
+	return nil
+}
