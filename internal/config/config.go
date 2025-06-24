@@ -496,7 +496,7 @@ func isValidGitHubUsername(username string) bool {
 
 	// GitHub usernames can contain alphanumeric characters and single hyphens
 	// Cannot start or end with hyphen, and cannot have consecutive hyphens
-	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-_]*[a-zA-Z0-9])?$`
 	matched, _ := regexp.MatchString(pattern, username)
 
 	if !matched {
