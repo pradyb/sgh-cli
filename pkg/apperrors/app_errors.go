@@ -1,7 +1,10 @@
 package apperrors
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 )
@@ -61,7 +64,8 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("validation error for %s='%s': %s", e.Field, e.Value, e.Message)
+	return fmt.Sprintf("validation failed for field '%s' with value '%s': %s",
+		e.Field, e.Value, e.Message)
 }
 
 // NetworkError represents network-related errors
@@ -125,6 +129,89 @@ func (e *BatchOperationError) Error() string {
 func (e *BatchOperationError) AddError(err error) {
 	e.Errors = append(e.Errors, err)
 	e.FailedOperations++
+}
+
+// OperationError represents errors that occur during operations
+type OperationError struct {
+	Err       error
+	Operation string
+	Context   map[string]interface{}
+	Timestamp time.Time
+}
+
+func (e *OperationError) Error() string {
+	return fmt.Sprintf("operation '%s' failed at %s: %v",
+		e.Operation, e.Timestamp.Format(time.RFC3339), e.Err)
+}
+
+func (e *OperationError) Unwrap() error {
+	return e.Err
+}
+
+// WrapError wraps an error with additional context
+func WrapError(err error, operation string, context map[string]interface{}) error {
+	if err == nil {
+		return nil
+	}
+	return &OperationError{
+		Err:       err,
+		Operation: operation,
+		Context:   context,
+		Timestamp: time.Now(),
+	}
+}
+
+// IsRetryable checks if an error should trigger a retry
+func IsRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for GitHub-specific errors
+	if githubErr, ok := err.(*GitHubError); ok {
+		return githubErr.ShouldRetry()
+	}
+
+	// Check for network errors
+	if netErr, ok := err.(net.Error); ok {
+		return netErr.Timeout() || netErr.Temporary()
+	}
+
+	// Check for context errors
+	if err == context.DeadlineExceeded || err == context.Canceled {
+		return false
+	}
+
+	return false
+}
+
+// GetErrorCategory categorizes errors for metrics and logging
+func GetErrorCategory(err error) string {
+	if err == nil {
+		return "none"
+	}
+
+	switch {
+	case IsRetryable(err):
+		return "retryable"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	default:
+		if githubErr, ok := err.(*GitHubError); ok {
+			if githubErr.IsRateLimit() {
+				return "rate_limit"
+			}
+			if githubErr.IsUnauthorized() {
+				return "unauthorized"
+			}
+			if githubErr.IsNotFound() {
+				return "not_found"
+			}
+		}
+		return "unknown"
+	}
 }
 
 // IsRetryableError checks if an error should be retried

@@ -233,6 +233,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 
 	totalDuration := time.Since(startTime)
 
+	fmt.Println()
 	// Log final performance metrics
 	logger.Glog.Info().
 		Str("org", orgName).
@@ -244,6 +245,5 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		Str("operation", operation.String()).
 		Msg("Repository operation completed")
 
-	fmt.Println()
 	return nil
 }
