@@ -12,10 +12,10 @@ import (
 )
 
 type delegateKeyMap struct {
-	status        key.Binding
-	approve       key.Binding
-	merge         key.Binding
-	approve_merge key.Binding
+	status       key.Binding
+	approve      key.Binding
+	merge        key.Binding
+	approveMerge key.Binding
 }
 
 type eventMsg struct {
@@ -40,7 +40,7 @@ func newDelegateKeyMap() *delegateKeyMap {
 			key.WithKeys("m"),
 			key.WithHelp("m", "merge"),
 		),
-		approve_merge: key.NewBinding(
+		approveMerge: key.NewBinding(
 			key.WithKeys("M"),
 			key.WithHelp("M", "approve and merge"),
 		),
@@ -91,7 +91,7 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 					return eventMsg{eventType: "MERGE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
 				}
 				return tea.Batch(statusMsgCmd, eventCmd)
-			case key.Matches(msg, keys.approve_merge):
+			case key.Matches(msg, keys.approveMerge):
 				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approve and Merging the PR " + title))
 				eventCmd := func() tea.Msg {
 					return eventMsg{eventType: "APPROVE_MERGE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
@@ -104,7 +104,7 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 	}
 
 	// help := []key.Binding{keys.status}
-	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approve_merge}
+	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approveMerge}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help
