@@ -4,46 +4,46 @@ import (
 	"sync"
 )
 
-type ASyncJob[T any] struct {
-	Id      int
+type AsyncJob[T any] struct {
+	ID      int
 	JobType string
 	JobData T
 }
 
-type ASyncJobResult[T, R any] struct {
-	Id      int
+type AsyncJobResult[T, R any] struct {
+	ID      int
 	JobData T
 	Result  R
 }
 
-type ASyncJobError[T any] struct {
-	Id      int
+type AsyncJobError[T any] struct {
+	ID      int
 	JobData T
 	Error   error
 }
 
-type ASyncJobHandler[T, R any] func(job ASyncJob[T]) (R, error)
+type AsyncJobHandler[T, R any] func(job AsyncJob[T]) (R, error)
 
-type ASyncJobResultHandler[T, R any] func(result ASyncJobResult[T, R])
+type AsyncJobResultHandler[T, R any] func(result AsyncJobResult[T, R])
 
-type ASyncJobErrorHandler[T any] func(err ASyncJobError[T])
+type AsyncJobErrorHandler[T any] func(err AsyncJobError[T])
 
-type ASyncJobQueue[T, R any] struct {
-	Jobs    chan ASyncJob[T]
-	Results chan ASyncJobResult[T, R]
-	Errors  chan ASyncJobError[T]
+type AsyncJobQueue[T, R any] struct {
+	Jobs    chan AsyncJob[T]
+	Results chan AsyncJobResult[T, R]
+	Errors  chan AsyncJobError[T]
 	wg      sync.WaitGroup
 }
 
-func NewASyncJobQueue[T, R any](jobQueueSize int) *ASyncJobQueue[T, R] {
-	return &ASyncJobQueue[T, R]{
-		Jobs:    make(chan ASyncJob[T], jobQueueSize),
-		Results: make(chan ASyncJobResult[T, R], jobQueueSize),
-		Errors:  make(chan ASyncJobError[T], jobQueueSize),
+func NewAsyncJobQueue[T, R any](jobQueueSize int) *AsyncJobQueue[T, R] {
+	return &AsyncJobQueue[T, R]{
+		Jobs:    make(chan AsyncJob[T], jobQueueSize),
+		Results: make(chan AsyncJobResult[T, R], jobQueueSize),
+		Errors:  make(chan AsyncJobError[T], jobQueueSize),
 	}
 }
 
-func (q *ASyncJobQueue[T, R]) Start(jobHandler ASyncJobHandler[T, R], resultHandler ASyncJobResultHandler[T, R], errorHandler ASyncJobErrorHandler[T], noOfWorkers int) {
+func (q *AsyncJobQueue[T, R]) Start(jobHandler AsyncJobHandler[T, R], resultHandler AsyncJobResultHandler[T, R], errorHandler AsyncJobErrorHandler[T], noOfWorkers int) {
 	// Start goroutines to handle results and errors concurrently
 	go func() {
 		for result := range q.Results {
@@ -71,22 +71,22 @@ func (q *ASyncJobQueue[T, R]) Start(jobHandler ASyncJobHandler[T, R], resultHand
 	close(q.Errors)
 }
 
-func (q *ASyncJobQueue[T, R]) worker(jobHandler ASyncJobHandler[T, R]) {
+func (q *AsyncJobQueue[T, R]) worker(jobHandler AsyncJobHandler[T, R]) {
 	defer q.wg.Done()
 	for job := range q.Jobs {
 		result, err := jobHandler(job)
 		if err != nil {
-			q.Errors <- ASyncJobError[T]{Id: job.Id, Error: err, JobData: job.JobData}
+			q.Errors <- AsyncJobError[T]{ID: job.ID, Error: err, JobData: job.JobData}
 		} else {
-			q.Results <- ASyncJobResult[T, R]{Id: job.Id, Result: result, JobData: job.JobData}
+			q.Results <- AsyncJobResult[T, R]{ID: job.ID, Result: result, JobData: job.JobData}
 		}
 	}
 }
 
-func (q *ASyncJobQueue[T, R]) AddJob(job ASyncJob[T]) {
+func (q *AsyncJobQueue[T, R]) AddJob(job AsyncJob[T]) {
 	q.Jobs <- job
 }
 
-func (q *ASyncJobQueue[T, R]) Close() {
+func (q *AsyncJobQueue[T, R]) Close() {
 	close(q.Jobs)
 }

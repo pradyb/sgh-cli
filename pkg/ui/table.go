@@ -252,7 +252,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				return pullRequestStyle(row, col, rows)
 			}).
-			Headers("Id", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl").
+			Headers("ID", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl").
 			Rows(rows...)
 
 		fmt.Println(t)

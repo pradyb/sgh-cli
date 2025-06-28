@@ -56,7 +56,13 @@ By default, it will list 50 members in each team.`,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			teams, err := team.GetTeamAndMembers(ctx, orgName, teamName, noOfMembers, allMembers)
+			req := team.TeamMembersRequest{
+				OrgName:     orgName,
+				TeamName:    teamName,
+				NoOfMembers: noOfMembers,
+				AllMembers:  allMembers,
+			}
+			teams, err := team.GetTeamAndMembers(ctx, req)
 			if err != nil {
 				logger.Glog.Err(err).Msg("Error getting team and members")
 				return

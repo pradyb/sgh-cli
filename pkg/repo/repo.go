@@ -1,3 +1,5 @@
+// Package repo provides functions for interacting with GitHub repositories, including listing,
+// filtering, and retrieving repository details for organizations.
 package repo
 
 import (
@@ -12,6 +14,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// GetReposForOrg retrieves repositories for the given organization, optionally filtering by config.
+// If all is true, returns all repositories; otherwise, applies config-based filtering.
 func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Repository, error) {
 	var queryString string
 	queryString = "org:" + orgName
@@ -47,7 +51,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 				Language:              repo.PrimaryLanguage.Name,
 				Private:               repo.IsPrivate,
 				OpenPullRequestsCount: repo.PullRequests.TotalCount,
-				//OpenIssuesCount:       repo.Issues.TotalCount,
+				// OpenIssuesCount:       repo.Issues.TotalCount,
 			})
 		}
 		variables["repoCursor"] = githubv4.String(searchRepositoriesQuery.Search.PageInfo.EndCursor)
@@ -73,6 +77,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 	return make([]model.Repository, 0), nil
 }
 
+// GetSelectedRepoNames returns the names of selected repositories for the given organization.
 func GetSelectedRepoNames(ctx *context.Context, orgName string) ([]string, error) {
 	repos, err := GetReposForOrg(ctx, orgName, false)
 	if err != nil {
@@ -86,6 +91,7 @@ func GetSelectedRepoNames(ctx *context.Context, orgName string) ([]string, error
 	return repoNames, nil
 }
 
+// filteredRepos filters the given repositories for the organization using config rules.
 func filteredRepos(ctx *context.Context, repositories []model.Repository, orgName string) ([]model.Repository, error) {
 	var filteredRepos []model.Repository
 	for _, repo := range repositories {
@@ -96,6 +102,7 @@ func filteredRepos(ctx *context.Context, repositories []model.Repository, orgNam
 	return filteredRepos, nil
 }
 
+// saveRepositoryNamesForFuzzySearch saves repository names for fuzzy search in config.
 func saveRepositoryNamesForFuzzySearch(ctx *context.Context, orgName string, repositories []model.Repository) {
 	var repoNames []string
 	for _, repo := range repositories {

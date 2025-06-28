@@ -172,7 +172,7 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 
 func process[R OperationResultType](ctx *context.Context, orgName string, repoNames []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
 	startTime := time.Now()
-	jobQueue := async.NewASyncJobQueue[any, any](len(repoNames))
+	jobQueue := async.NewAsyncJobQueue[any, any](len(repoNames))
 	message := RepoOperationConfig[operation]["message"]
 
 	bar := ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
@@ -183,7 +183,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	var mu sync.Mutex
 
 	for i, repoName := range repoNames {
-		jobQueue.AddJob(async.ASyncJob[any]{Id: i, JobData: repoName})
+		jobQueue.AddJob(async.AsyncJob[any]{ID: i, JobData: repoName})
 	}
 	jobQueue.Close()
 
@@ -201,7 +201,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		Msg("Starting repository operation")
 
 	jobQueue.Start(
-		func(job async.ASyncJob[any]) (any, error) {
+		func(job async.AsyncJob[any]) (any, error) {
 			jobStartTime := time.Now()
 			response, err := operationHandler(ctx, orgName, job.JobData.(string))
 			jobDuration := time.Since(jobStartTime)
@@ -225,9 +225,9 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 			bar.Describe(fmt.Sprintf("Processed %s", job.JobData.(string)))
 			bar.Add(1)
 			return response, err
-		}, func(result async.ASyncJobResult[any, any]) {
+		}, func(result async.AsyncJobResult[any, any]) {
 			resultHandler(result.JobData.(string), RepoOperationResult[R]{Result: result.Result.(R)})
-		}, func(err async.ASyncJobError[any]) {
+		}, func(err async.AsyncJobError[any]) {
 			errorHandler(err.JobData.(string), err.Error)
 		}, noOfWorkers)
 

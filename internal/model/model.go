@@ -10,7 +10,7 @@ type Repositories struct {
 }
 
 type Repository struct {
-	Id                    int    `json:"id"`
+	ID                    int    `json:"id"`
 	Name                  string `json:"name"`
 	Private               bool   `json:"private"`
 	Description           string `json:"description"`
@@ -137,7 +137,7 @@ func (a Actor) Name() string {
 }
 
 type User struct {
-	Id         int    `json:"id"`
+	ID         int    `json:"id"`
 	Login      string `json:"login"`
 	Type       string `json:"type"`
 	Name       string `json:"name"`
@@ -178,13 +178,13 @@ type MergeResponse struct {
 type ReviewPullRequestResponse struct {
 	RepositoryName string
 	PRNumber       int
-	Id             int    `json:"id"`
+	ID             int    `json:"id"`
 	User           User   `json:"user"`
 	State          string `json:"state"`
 	Body           string `json:"body"`
 	CreatedAt      string `json:"created_at"`
 	SubmittedAt    string `json:"submitted_at"`
-	CommitId       string `json:"commit_id"`
+	CommitID       string `json:"commit_id"`
 	ErrorMessage   string
 }
 
@@ -245,7 +245,7 @@ type Restriction struct {
 
 type Check struct {
 	Context string `json:"context"`
-	AppId   int    `json:"app_id"`
+	AppID   int    `json:"app_id"`
 }
 
 type RequiredPullRequestReviews struct {
@@ -361,9 +361,7 @@ type CommitResponse struct {
 }
 
 func (cr CommitResponse) RepoName() string {
-	str := cr.HtmlUrl
-	str1 := str[0:strings.Index(str, "/commit")]
-	return str1[strings.LastIndex(str1, "/")+1:]
+	return cr.RepositoryName
 }
 
 type CheckRunResponse struct {

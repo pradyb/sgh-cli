@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	pb "github.com/prady-lab/sgh-cli/pkg/protected_branch"
+	pb "github.com/prady-lab/sgh-cli/pkg/protectedbranch"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/prady-lab/sgh-cli/utils"
 )

@@ -237,12 +237,20 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("eventType", eventType).Msg("Processing Event")
 	var actionMessage string
 	actionSuccess := true
-	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
+
+	req := pr.PRDetailsRequest{
+		OrgName:  orgName,
+		RepoName: repoName,
+		PRNumber: prNumber,
+		LastSHA:  lastSha,
+	}
+	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, req)
+
 	switch eventType {
 	case "APPROVE":
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		if actionSuccess {
-			pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
+			pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
 		}
 	case "MERGE", "APPROVE_MERGE":
 		if eventType == "APPROVE_MERGE" {
@@ -252,7 +260,7 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 		if actionSuccess {
 			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews, eventType)
 			if actionSuccess {
-				pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, orgName, repoName, prNumber, lastSha)
+				pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
 			}
 		}
 	}
@@ -265,7 +273,14 @@ func canApprovePR(prResponse model.PullRequestResponse) bool {
 
 func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
 	if canApprovePR(prResponse) {
-		reviewResponse := pr.ReviewPullRequest(ctx, orgName, repoName, prNumber, "APPROVE", "Changes approved")
+		req := pr.PRReviewRequest{
+			OrgName:  orgName,
+			RepoName: repoName,
+			PRNumber: prNumber,
+			Event:    "APPROVE",
+			Body:     "Changes approved",
+		}
+		reviewResponse := pr.ReviewPullRequest(ctx, req)
 		if reviewResponse.ErrorMessage != "" {
 			return reviewResponse.ErrorMessage, false
 		}
@@ -294,7 +309,14 @@ func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPu
 func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse, eventType string) (string, bool) {
 	if canMergePR(prResponse, prReviews, eventType) {
 		title := "Merge pull request #" + strconv.Itoa(prNumber) + " from " + orgName + "/" + prResponse.Head.Ref
-		mergeResponse := pr.MergePullRequest(ctx, orgName, repoName, prNumber, title, prResponse.TitleName)
+		req := pr.PRMergeRequest{
+			OrgName:  orgName,
+			RepoName: repoName,
+			PRNumber: prNumber,
+			Title:    title,
+			Body:     prResponse.TitleName,
+		}
+		mergeResponse := pr.MergePullRequest(ctx, req)
 		if mergeResponse.ErrorMessage != "" {
 			return mergeResponse.ErrorMessage, false
 		}

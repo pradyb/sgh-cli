@@ -143,7 +143,13 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			response := pr.UpdatePullRequest(ctx, orgName, repoName, prNumber, action)
+			req := pr.PRUpdateRequest{
+				OrgName:  orgName,
+				RepoName: repoName,
+				PRNumber: prNumber,
+				State:    action,
+			}
+			response := pr.UpdatePullRequest(ctx, req)
 			ui.PrintPullRequestResponses([]model.PullRequestResponse{response})
 		},
 	}
@@ -172,7 +178,14 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			response := pr.MergePullRequest(ctx, orgName, repoName, prNumber, title, body)
+			req := pr.PRMergeRequest{
+				OrgName:  orgName,
+				RepoName: repoName,
+				PRNumber: prNumber,
+				Title:    title,
+				Body:     body,
+			}
+			response := pr.MergePullRequest(ctx, req)
 			ui.PrintMergeResponses([]model.MergeResponse{response})
 		},
 	}

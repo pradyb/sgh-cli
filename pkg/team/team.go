@@ -1,6 +1,9 @@
+// Package team provides functions for interacting with GitHub teams and their members.
+// It supports listing teams, retrieving team members, and related operations for organizations.
 package team
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/shurcooL/githubv4"
@@ -9,6 +12,14 @@ import (
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
+
+// TeamMembersRequest contains parameters for getting team and members information.
+type TeamMembersRequest struct {
+	OrgName     string
+	TeamName    string
+	NoOfMembers int
+	AllMembers  bool
+}
 
 type Members struct {
 	TotalCount int
@@ -37,11 +48,11 @@ type TeamQuery struct {
 	} `graphql:"organization(login: $orgName)"`
 }
 
-func GetTeamAndMembers(ctx *context.Context, orgName string, teamName string, noOfMembers int, allMembers bool) ([]model.OrgTeam, error) {
+func GetTeamAndMembers(ctx *context.Context, req TeamMembersRequest) ([]model.OrgTeam, error) {
 	variables := map[string]interface{}{
-		"orgName":      githubv4.String(orgName),
-		"noOfMembers":  githubv4.Int(noOfMembers),
-		"teamName":     githubv4.String(teamName),
+		"orgName":      githubv4.String(req.OrgName),
+		"noOfMembers":  githubv4.Int(req.NoOfMembers),
+		"teamName":     githubv4.String(req.TeamName),
 		"memberCursor": (*githubv4.String)(nil),
 	}
 
@@ -54,12 +65,12 @@ func GetTeamAndMembers(ctx *context.Context, orgName string, teamName string, no
 		var q TeamQuery
 		err := service.Query(ctx, &q, variables)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to query team members: %w", err)
 		}
 
 		for _, team := range q.Organization.Teams.Edges {
 			currentMembers = append(currentMembers, getMembers(team.Node.Members, strings.ReplaceAll(string(q.Organization.Url), q.Organization.Name, "orgs/"+q.Organization.Name)+"/people/")...)
-			if allMembers && team.Node.Members.PageInfo.HasNextPage {
+			if req.AllMembers && team.Node.Members.PageInfo.HasNextPage {
 				currentTeamNextPage = team.Node.Members.PageInfo.EndCursor
 				break
 			} else {

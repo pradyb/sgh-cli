@@ -1,3 +1,5 @@
+// Package protectedbranch provides functions for managing GitHub protected branches, including listing,
+// updating, and deleting protected branch settings across multiple repositories in an organization.
 package protectedbranch
 
 import (
@@ -15,6 +17,32 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
+// ProtectedBranchListRequest contains parameters for listing protected branches.
+type ProtectedBranchListRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	BranchName       string
+}
+
+// ProtectedBranchDetailsRequest contains parameters for getting protected branch details.
+type ProtectedBranchDetailsRequest struct {
+	OrgName    string
+	RepoName   string
+	BranchName string
+	RepoCursor githubv4.String
+}
+
+// ProtectedBranchDeleteRequest contains parameters for deleting protected branches.
+type ProtectedBranchDeleteRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	BranchName       string
+}
+
+// ListProtectedBranches lists protected branches for the given organization, repositories, and branch name.
+// It supports both GraphQL and REST-based listing depending on the number of repositories.
 func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []string, excludeRepoNames []string, branchName string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 
@@ -61,13 +89,19 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 	} else {
 		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationListProtectedBranch,
 			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-				return getProtectedBranchDetails(ctx, orgName, repoName, branchName, githubv4.String("")), nil
+				req := ProtectedBranchDetailsRequest{
+					OrgName:    orgName,
+					RepoName:   repoName,
+					BranchName: branchName,
+					RepoCursor: githubv4.String(""),
+				}
+				return getProtectedBranchDetails(ctx, req), nil
 			},
 			func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
 				responses = append(responses, result.Result)
 			},
 			func(repoName string, err error) {
-				responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()})
+				responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: fmt.Sprintf("failed to list protected branches: %v", err)})
 			})
 	}
 	return responses
@@ -89,25 +123,25 @@ func getQueryString(ctx *context.Context, orgName string, repoName string) strin
 	return queryString
 }
 
-func getProtectedBranchDetails(ctx *context.Context, orgName, repoName, branchName string, repoCursor githubv4.String) model.ProtectedBranch {
-	queryString := getQueryString(ctx, orgName, repoName)
+func getProtectedBranchDetails(ctx *context.Context, req ProtectedBranchDetailsRequest) model.ProtectedBranch {
+	queryString := getQueryString(ctx, req.OrgName, req.RepoName)
 	variables := map[string]interface{}{
 		"queryString": githubv4.String(queryString),
-		"branchName":  githubv4.String(branchName),
-		"repoCursor":  repoCursor,
+		"branchName":  githubv4.String(req.BranchName),
+		"repoCursor":  req.RepoCursor,
 	}
 
 	var searchProtectedBranchesQuery model.SearchProtectedBranchesQuery
 	err := service.Query(ctx, &searchProtectedBranchesQuery, variables)
 	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in listing protected branches")
-		return model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: err.Error()}
+		return model.ProtectedBranch{RepositoryName: req.RepoName, ErrorMessage: fmt.Sprintf("failed to get protected branch details: %v", err)}
 	}
-	branches, _ := transformToProtectedBranch(searchProtectedBranchesQuery, branchName)
+	branches, _ := transformToProtectedBranch(searchProtectedBranchesQuery, req.BranchName)
 	if len(branches) > 0 {
 		return branches[0]
 	}
-	return model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: "No protected branch found"}
+	return model.ProtectedBranch{RepositoryName: req.RepoName, ErrorMessage: "No protected branch found"}
 }
 
 func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtectedBranchesQuery, branchName string) ([]model.ProtectedBranch, string) {
@@ -279,6 +313,7 @@ const payload = `
     }
 	`
 
+// ProtectedBranchRequest contains parameters for updating or deleting protected branches.
 type ProtectedBranchRequest struct {
 	OrgName           string
 	RepoNames         []string
@@ -291,6 +326,7 @@ type ProtectedBranchRequest struct {
 	RemovePushUsers   []string
 }
 
+// UpdateProtectedBranch updates protected branch settings for the given request and excluded repositories.
 func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest, excludeRepoNames []string) []model.ProtectedBranch {
 	responses := make([]model.ProtectedBranch, 0)
 	protectedbranchMap := make(map[string]model.ProtectedBranch)
@@ -319,15 +355,16 @@ func UpdateProtectedBranch(ctx *context.Context, request ProtectedBranchRequest,
 	return responses
 }
 
+// UpdateProtectedBranchForRepo updates protected branch settings for a single repository.
 func UpdateProtectedBranchForRepo(ctx *context.Context, repoName string, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranch, error) {
 	requestPayload, err := createRequestPayload(ctx, repoName, request, existingProtectedBranch)
 	if err != nil {
-		return model.ProtectedBranch{RepositoryName: repoName}, err
+		return model.ProtectedBranch{RepositoryName: repoName}, fmt.Errorf("failed to create request payload: %w", err)
 	}
 
 	jsonBody, err := json.Marshal(requestPayload)
 	if err != nil {
-		return model.ProtectedBranch{RepositoryName: repoName}, err
+		return model.ProtectedBranch{RepositoryName: repoName}, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
 	return service.UpdateProtectedBranch(ctx, request.OrgName, repoName, request.BranchName, jsonBody)
 }
@@ -335,7 +372,7 @@ func UpdateProtectedBranchForRepo(ctx *context.Context, repoName string, request
 func createRequestPayload(ctx *context.Context, repoName string, request ProtectedBranchRequest, existingProtectedBranch model.ProtectedBranch) (model.ProtectedBranchRequest, error) {
 	var requestPayload model.ProtectedBranchRequest
 	if err := json.Unmarshal([]byte(payload), &requestPayload); err != nil {
-		return requestPayload, err
+		return requestPayload, fmt.Errorf("failed to unmarshal payload template: %w", err)
 	}
 
 	addStatusChecks(ctx, repoName, request, &requestPayload)
@@ -402,6 +439,7 @@ func addRestrictions(ctx *context.Context, request ProtectedBranchRequest, exist
 	}
 }
 
+// DeleteProtectedBranch deletes protected branches for the given organization, repositories, and branch name.
 func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []string, excludeRepoNames []string, branchName string) []model.RefUIResponse {
 	responses := make([]model.RefUIResponse, 0)
 
@@ -413,7 +451,7 @@ func DeleteProtectedBranch(ctx *context.Context, orgName string, repoNames []str
 			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_PROTECTED_BRANCH", "Protected Branch deleted", ""))
 		},
 		func(repoName string, err error) {
-			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_PROTECTED_BRANCH", "", err.Error()))
+			responses = append(responses, model.CreateNewCommonResponse(repoName, branchName, "DELETE_PROTECTED_BRANCH", "", fmt.Sprintf("failed to delete protected branch: %v", err)))
 		})
 	return responses
 }

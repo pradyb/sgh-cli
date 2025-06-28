@@ -222,7 +222,7 @@ type PullRequestDetailQuery struct {
 							SubmittedAt string
 							Commit      struct {
 								Oid string
-								Id  string
+								ID  string
 							}
 						}
 					}
@@ -314,7 +314,7 @@ type RulesEdgeFragment struct {
 }
 
 type RuleFragment struct {
-	Id                string
+	ID                string
 	Type              string
 	Parameters        RuleParameters
 	RepositoryRuleset struct {
@@ -351,4 +351,27 @@ type RulePullRequestParam struct {
 	RequireCodeOwnerReview         bool
 	RequireLastPushApproval        bool
 	RequiredReviewThreadResolution bool
+}
+
+type ReviewPullRequestQuery struct {
+	Repository struct {
+		PullRequest struct {
+			Reviews struct {
+				Edges []struct {
+					Node struct {
+						ID          string
+						Author      User
+						State       string
+						Body        string
+						CreatedAt   string
+						SubmittedAt string
+						Commit      struct {
+							Oid string
+						}
+					}
+				}
+				PageInfo PageInfo
+			} `graphql:"reviews(first: $noOfReviews, after: $reviewCursor, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"pullRequest(number: $prNumber)"`
+	} `graphql:"repository(owner: $owner, name: $repoName)"`
 }

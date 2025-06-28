@@ -48,7 +48,14 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			responses := commit.ListCommits(ctx, orgName, repoNames, excludeRepos, branchName, noOfDays)
+			req := commit.CommitListRequest{
+				OrgName:      orgName,
+				RepoNames:    repoNames,
+				ExcludeRepos: excludeRepos,
+				BranchName:   branchName,
+				NoOfDays:     noOfDays,
+			}
+			responses := commit.ListCommits(ctx, req)
 			if details {
 				logger.Glog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
 				ui.PrintCommitResponses(responses, includeMergeCommits)

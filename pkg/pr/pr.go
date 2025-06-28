@@ -1,6 +1,7 @@
 package pr
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
+// PullRequestRequest contains parameters for creating a pull request.
 type PullRequestRequest struct {
 	OrgName  string
 	RepoName string
@@ -23,37 +25,76 @@ type PullRequestRequest struct {
 	Body     string
 }
 
+// PRDetailsRequest contains parameters for getting PR details.
+type PRDetailsRequest struct {
+	OrgName  string
+	RepoName string
+	PRNumber int
+	LastSHA  string
+}
+
+// PRReviewRequest contains parameters for reviewing a pull request.
+type PRReviewRequest struct {
+	OrgName  string
+	RepoName string
+	PRNumber int
+	Event    string
+	Body     string
+}
+
+// PRMergeRequest contains parameters for merging a pull request.
+type PRMergeRequest struct {
+	OrgName  string
+	RepoName string
+	PRNumber int
+	Title    string
+	Body     string
+}
+
+// PRUpdateRequest contains parameters for updating a pull request.
+type PRUpdateRequest struct {
+	OrgName  string
+	RepoName string
+	PRNumber int
+	State    string
+}
+
 func CreateNewPullRequest(ctx *context.Context, prRequest PRRequest) []model.PullRequestResponse {
 	responses := make([]model.PullRequestResponse, 0)
 
 	processor.ProcessRepositoriesOperation(ctx, prRequest.OrgName, prRequest.RepoNames, prRequest.ExcludeRepoNames, processor.OperationCreatePullRequest,
 		func(ctx *context.Context, orgName, repoName string) (model.PullRequestResponse, error) {
-			return CreateNewPullRequestForRepo(ctx, PullRequestRequest{orgName, repoName, prRequest.BaseRef, prRequest.HeadRef, prRequest.Title, prRequest.Body}, true)
+			request := PullRequestRequest{
+				OrgName:  orgName,
+				RepoName: repoName,
+				BaseRef:  prRequest.BaseRef,
+				HeadRef:  prRequest.HeadRef,
+				Title:    prRequest.Title,
+				Body:     prRequest.Body,
+			}
+			return CreateNewPullRequestForRepo(ctx, request, false)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.PullRequestResponse]) {
 			responses = append(responses, result.Result)
 		},
 		func(repoName string, err error) {
-			responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
+			responses = append(responses, model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to create pull request: %v", err)})
 		})
 	return responses
 }
 
 func CreateNewPullRequestForRepo(ctx *context.Context, request PullRequestRequest, fetchPR bool) (model.PullRequestResponse, error) {
-	prResponse, err := service.CreateNewPullRequest(ctx, request.OrgName, request.RepoName, request.Title, request.Body, request.BaseRef, request.HeadRef)
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(request.OrgName, []string{request.RepoName})
+	if len(actualRepoNames) == 0 {
+		return model.PullRequestResponse{}, fmt.Errorf("repository not found: %s", request.RepoName)
+	}
+
+	response, err := service.CreateNewPullRequest(ctx, request.OrgName, actualRepoNames[0], request.Title, request.Body, request.BaseRef, request.HeadRef)
 	if err != nil {
-		return model.PullRequestResponse{}, err
+		return model.PullRequestResponse{}, fmt.Errorf("failed to create pull request: %w", err)
 	}
-	assignees := ctx.Config.PullRequestAssignees(request.OrgName)
-	if len(assignees) > 0 {
-		service.AddIssueAssignees(ctx, request.OrgName, request.RepoName, prResponse.PRNumber, assignees)
-		service.AddReviewers(ctx, request.OrgName, request.RepoName, prResponse.PRNumber, assignees)
-	}
-	if fetchPR {
-		return service.GetPullRequestInfo(ctx, request.OrgName, request.RepoName, prResponse.PRNumber)
-	} else {
-		return prResponse, nil
-	}
+
+	return response, nil
 }
 
 type PRRequest struct {
@@ -137,7 +178,7 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 				responses = append(responses, result.Result...)
 			},
 			func(repoName string, err error) {
-				responses = append(responses, model.PullRequestResponse{ErrorMessage: err.Error()})
+				responses = append(responses, model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to list pull requests: %v", err)})
 			})
 		return responses
 	}
@@ -171,10 +212,10 @@ func getSearchQuery(ctx *context.Context, prRequest PRRequest) string {
 	return queryString
 }
 
-func ReviewPullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, event, body string) model.ReviewPullRequestResponse {
-	response, err := service.ReviewPullRequest(ctx, orgName, repoName, prNumber, event, body)
+func ReviewPullRequest(ctx *context.Context, req PRReviewRequest) model.ReviewPullRequestResponse {
+	response, err := service.ReviewPullRequest(ctx, req.OrgName, req.RepoName, req.PRNumber, req.Event, req.Body)
 	if err != nil {
-		return model.ReviewPullRequestResponse{ErrorMessage: err.Error()}
+		return model.ReviewPullRequestResponse{ErrorMessage: fmt.Sprintf("failed to review pull request: %v", err)}
 	}
 	return response
 }
@@ -182,7 +223,7 @@ func ReviewPullRequest(ctx *context.Context, orgName string, repoName string, pr
 func ListPullRequestReviews(ctx *context.Context, orgName string, repoName string, prNumber int) []model.ReviewPullRequestResponse {
 	response, err := service.ListPullRequestReviews(ctx, orgName, repoName, prNumber)
 	if err != nil {
-		return []model.ReviewPullRequestResponse{{ErrorMessage: err.Error()}}
+		return []model.ReviewPullRequestResponse{{ErrorMessage: fmt.Sprintf("failed to list pull request reviews: %v", err)}}
 	}
 	return response
 }
@@ -190,41 +231,41 @@ func ListPullRequestReviews(ctx *context.Context, orgName string, repoName strin
 func GetPullRequestFiles(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestFilesResponse {
 	response, err := service.GetPullRequestFiles(ctx, orgName, repoName, prNumber)
 	if err != nil {
-		return model.PullRequestFilesResponse{RepositoryName: repoName, PRNumber: prNumber, ErrorMessage: err.Error()}
+		return model.PullRequestFilesResponse{RepositoryName: repoName, PRNumber: prNumber, ErrorMessage: fmt.Sprintf("failed to get pull request files: %v", err)}
 	}
-	return model.PullRequestFilesResponse{RepositoryName: repoName, PRNumber: prNumber, Files: response}
+	return model.PullRequestFilesResponse{Files: response, RepositoryName: repoName, PRNumber: prNumber}
 }
 
 func GetPullRequestInfo(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestResponse {
 	response, err := service.GetPullRequestInfo(ctx, orgName, repoName, prNumber)
 	if err != nil {
-		return model.PullRequestResponse{ErrorMessage: err.Error()}
+		return model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to get pull request info: %v", err)}
 	}
 	return response
 }
 
-func UpdatePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, state string) model.PullRequestResponse {
-	response, err := service.UpdatePullRequest(ctx, orgName, repoName, prNumber, state)
+func UpdatePullRequest(ctx *context.Context, req PRUpdateRequest) model.PullRequestResponse {
+	response, err := service.UpdatePullRequest(ctx, req.OrgName, req.RepoName, req.PRNumber, req.State)
 	if err != nil {
-		return model.PullRequestResponse{ErrorMessage: err.Error()}
+		return model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to update pull request: %v", err)}
 	}
 	return response
 }
 
-func MergePullRequest(ctx *context.Context, orgName string, repoName string, prNumber int, title, body string) model.MergeResponse {
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+func MergePullRequest(ctx *context.Context, req PRMergeRequest) model.MergeResponse {
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
 	if len(actualRepoNames) == 0 {
-		return model.MergeResponse{RepositoryName: actualRepoNames[0], ErrorMessage: "Repository not found"}
+		return model.MergeResponse{RepositoryName: req.RepoName, ErrorMessage: "Repository not found"}
 	}
-	response, err := service.MergePullRequest(ctx, orgName, actualRepoNames[0], prNumber, title, body)
+	response, err := service.MergePullRequest(ctx, req.OrgName, actualRepoNames[0], req.PRNumber, req.Title, req.Body)
 	if err != nil {
-		return model.MergeResponse{RepositoryName: actualRepoNames[0], ErrorMessage: err.Error()}
+		return model.MergeResponse{RepositoryName: actualRepoNames[0], ErrorMessage: fmt.Sprintf("failed to merge pull request: %v", err)}
 	}
 	response.RepositoryName = actualRepoNames[0]
 	return response
 }
 
-func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+func GetPRDetails(ctx *context.Context, req PRDetailsRequest) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
 	var wg sync.WaitGroup
 	var pullRequestResponse model.PullRequestResponse
 	var pullRequestFilesResponse model.PullRequestFilesResponse
@@ -234,30 +275,34 @@ func GetPRDetails(ctx *context.Context, orgName string, repoName string, prNumbe
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		pullRequestResponse = GetPullRequestInfo(ctx, orgName, repoName, prNumber)
+		pullRequestResponse = GetPullRequestInfo(ctx, req.OrgName, req.RepoName, req.PRNumber)
 	}()
 	go func() {
 		defer wg.Done()
-		pullRequestFilesResponse = GetPullRequestFiles(ctx, orgName, repoName, prNumber)
+		pullRequestFilesResponse = GetPullRequestFiles(ctx, req.OrgName, req.RepoName, req.PRNumber)
 	}()
 	go func() {
 		defer wg.Done()
-		checkRunResponse = commit.GetCommitCheckRuns(ctx, orgName, repoName, lastSha)
+		checkRunResponse = commit.GetCommitCheckRuns(ctx, commit.CommitCheckRunsRequest{
+			OrgName:   req.OrgName,
+			RepoName:  req.RepoName,
+			CommitSHA: req.LastSHA,
+		})
 	}()
 	go func() {
 		defer wg.Done()
-		prReviews = ListPullRequestReviews(ctx, orgName, repoName, prNumber)
+		prReviews = ListPullRequestReviews(ctx, req.OrgName, req.RepoName, req.PRNumber)
 	}()
 
 	wg.Wait()
 	return pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews
 }
 
-func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, prNumber int, lastSha string) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
+func GetPRDetailsGraphQL(ctx *context.Context, req PRDetailsRequest) (model.PullRequestResponse, model.PullRequestFilesResponse, model.CheckRunResponse, []model.ReviewPullRequestResponse) {
 	variables := map[string]any{
-		"orgName":  githubv4.String(orgName),
-		"repoName": githubv4.String(repoName),
-		"prNumber": githubv4.Int(prNumber),
+		"orgName":  githubv4.String(req.OrgName),
+		"repoName": githubv4.String(req.RepoName),
+		"prNumber": githubv4.Int(req.PRNumber),
 	}
 
 	var prResponse model.PullRequestResponse
@@ -353,7 +398,7 @@ func GetPRDetailsGraphQL(ctx *context.Context, orgName string, repoName string, 
 			Body:        review.Node.Body,
 			CreatedAt:   review.Node.CreatedAt,
 			SubmittedAt: review.Node.SubmittedAt,
-			CommitId:    review.Node.Commit.Oid,
+			CommitID:    review.Node.Commit.Oid,
 		})
 	}
 

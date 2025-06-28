@@ -49,7 +49,15 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.CreateNewTags(ctx, orgName, repoNames, excludeRepoNames, tagName, refBranchName, message)
+			req := tag.TagCreateRequest{
+				OrgName:          orgName,
+				RepoNames:        repoNames,
+				ExcludeRepoNames: excludeRepoNames,
+				TagName:          tagName,
+				RefBranchName:    refBranchName,
+				Message:          message,
+			}
+			responses := tag.CreateNewTags(ctx, req)
 			ui.PrintResponses(responses)
 		},
 	}
@@ -85,7 +93,13 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			responses := tag.DeleteTags(ctx, orgName, repoNames, excludeRepoNames, tagName)
+			req := tag.TagDeleteRequest{
+				OrgName:          orgName,
+				RepoNames:        repoNames,
+				ExcludeRepoNames: excludeRepoNames,
+				TagName:          tagName,
+			}
+			responses := tag.DeleteTags(ctx, req)
 			ui.PrintResponses(responses)
 		},
 	}

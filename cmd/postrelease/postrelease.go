@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/prady-lab/sgh-cli/pkg/context"
-	postrelease "github.com/prady-lab/sgh-cli/pkg/post_release"
+	postrelease "github.com/prady-lab/sgh-cli/pkg/postrelease"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/prady-lab/sgh-cli/utils"
 )
