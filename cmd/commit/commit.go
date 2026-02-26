@@ -56,6 +56,10 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 				NoOfDays:     noOfDays,
 			}
 			responses := commit.ListCommits(ctx, req)
+			if ctx.JSON {
+				ui.PrintJSON(responses)
+				return
+			}
 			if details {
 				logger.Glog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
 				ui.PrintCommitResponses(responses, includeMergeCommits)

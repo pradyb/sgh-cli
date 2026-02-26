@@ -43,11 +43,18 @@ func listCommand(ctx *context.Context) *cobra.Command {
 			repositories, err := repo.GetReposForOrg(ctx, orgName, isAllRepos)
 			if err != nil {
 				logger.Glog.Error().Err(err).Msgf("Error in getting the repositories for the organization %s", orgName)
+				return
 			}
 			if len(repositories) > 0 {
+				if ctx.JSON {
+					ui.PrintJSON(repositories)
+					return
+				}
 				ui.PrintRepositories(repositories)
 			} else {
-				logger.Glog.Info().Msgf("No repositories found for the organization %s", orgName)
+				ui.PrintNoDataMessage("No repositories found for "+orgName+".",
+					"Hint: use the -a flag to include all repositories.",
+					"Hint: verify the organization name is correct.")
 			}
 		},
 	}

@@ -17,17 +17,17 @@ import (
 var (
 	re = lipgloss.NewRenderer(os.Stdout)
 
-	HeaderStyle  = re.NewStyle().Padding(0, 1).Foreground(White).Bold(true).Align(lipgloss.Center)
-	FooterStyle  = re.NewStyle().Padding(0, 1).Foreground(Turquoise).Bold(true).Align(lipgloss.Center)
+	HeaderStyle  = re.NewStyle().Padding(0, 1).Foreground(Cyan).Bold(true).Align(lipgloss.Center)
+	FooterStyle  = re.NewStyle().Padding(0, 1).Foreground(Cyan).Bold(true).Align(lipgloss.Center)
 	CellStyle    = re.NewStyle().Padding(0, 1)
-	OddRowStyle  = CellStyle.Foreground(Gray)
-	EvenRowStyle = CellStyle.Foreground(LightGray)
-	BorderStyle  = lipgloss.NewStyle().Foreground(White)
+	OddRowStyle  = CellStyle.Foreground(White)
+	EvenRowStyle = CellStyle.Foreground(Subtle)
+	BorderStyle  = lipgloss.NewStyle().Foreground(Dimmed)
 
 	CommitMessageStyle = lipgloss.NewStyle().Foreground(White).Bold(true)
-	CommitAuthorStyle  = lipgloss.NewStyle().Foreground(Gray).Italic(true)
-	CommitDateStyle    = lipgloss.NewStyle().Foreground(Gray).Italic(true)
-	CommitShaStyle     = lipgloss.NewStyle().Foreground(LightGray).Italic(true)
+	CommitAuthorStyle  = lipgloss.NewStyle().Foreground(Subtle).Italic(true)
+	CommitDateStyle    = lipgloss.NewStyle().Foreground(Subtle).Italic(true)
+	CommitShaStyle     = lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
 )
 
 type TableRowType interface {
@@ -70,33 +70,68 @@ func defaultTableStyle(row, col, totalRows, repoColIndex int, isFooterPresent bo
 	return style
 }
 
-func printNoDataMessage(message string) {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		PaddingTop(1).
-		PaddingLeft(2).
-		PaddingBottom(1)
+func PrintNoDataMessage(message string, hints ...string) {
+	iconStyle := lipgloss.NewStyle().Foreground(Yellow)
+	msgStyle := lipgloss.NewStyle().Bold(true).Foreground(White)
+	hintStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+	wrapStyle := lipgloss.NewStyle().PaddingTop(1).PaddingLeft(2).PaddingBottom(1)
 
-	fmt.Println(style.Render(message))
+	lines := iconStyle.Render("⚠ ") + msgStyle.Render(message)
+	for _, hint := range hints {
+		lines += "\n" + hintStyle.Render("  "+hint)
+	}
+
+	fmt.Println(wrapStyle.Render(lines))
 }
 
 func printErrorMessageMap(errorMessageMap map[string][]string) {
 	if len(errorMessageMap) > 0 {
-		fmt.Println()
-		fmt.Println("Failed to process the request the following repositories")
-		for errorMessage, repos := range errorMessageMap {
-			fmt.Println(lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color(Red)).
-				Render(errorMessage))
+		headingStyle := lipgloss.NewStyle().Bold(true).Foreground(Red).PaddingTop(1)
+		errorMsgStyle := lipgloss.NewStyle().Bold(true).Foreground(Red).PaddingLeft(2)
+		repoStyle := lipgloss.NewStyle().Italic(true).Foreground(Dimmed).PaddingLeft(4)
 
-			fmt.Println(lipgloss.NewStyle().
-				Italic(true).
-				Render(strings.Join(repos, "\n")))
+		totalRepos := 0
+		for _, repos := range errorMessageMap {
+			totalRepos += len(repos)
+		}
+
+		fmt.Println(headingStyle.Render(fmt.Sprintf("✗ Failed to process %d %s:", totalRepos, pluralize("repository", totalRepos))))
+		for errorMessage, repos := range errorMessageMap {
+			fmt.Println(errorMsgStyle.Render(errorMessage))
+			fmt.Println(repoStyle.Render(strings.Join(repos, ", ")))
 		}
 		fmt.Println()
 	}
+}
+
+const (
+	maxLenDescription = 60
+	maxLenTitle       = 50
+	maxLenSSHUrl      = 45
+	maxLenWorkflow    = 40
+	maxLenRefs        = 35
+	maxLenBranch      = 30
+	maxLenName        = 20
+)
+
+func truncateText(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	if maxLen <= 3 {
+		return text[:maxLen]
+	}
+	return text[:maxLen-3] + "..."
+}
+
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	if strings.HasSuffix(word, "y") {
+		return word[:len(word)-1] + "ies"
+	}
+	return word + "s"
 }
 
 func PrintRepositories(repos []model.Repository) {
@@ -105,21 +140,16 @@ func PrintRepositories(repos []model.Repository) {
 		if repo.OpenPullRequestsCount != 0 {
 			prCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/pulls", prCount)
 		}
-		/*issueCount := strconv.Itoa(repo.OpenIssuesCount)
-		if repo.OpenIssuesCount != 0 {
-			issueCount = fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl+"/issues", issueCount)
-		}*/
 
 		return []string{
 			repo.Name,
-			repo.Description,
+			truncateText(repo.Description, maxLenDescription),
 			repo.DefaultBranch,
 			repo.Language,
 			strconv.FormatBool(repo.Private),
-			repo.SSHUrl,
+			truncateText(repo.SSHUrl, maxLenSSHUrl),
 			fmt.Sprintf(HyperLinkFormat, repo.HTMLUrl, "Link"),
 			prCount,
-			// issueCount,
 		}
 	})
 
@@ -132,14 +162,13 @@ func PrintRepositories(repos []model.Repository) {
 
 	fmt.Println()
 	t := table.New().
+		Width(TerminalWidth()).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			style := repositoryTableStyle(row, col, rows)
-			return style
+			return repositoryTableStyle(row, col, rows)
 		}).
-		// Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs", "Open Issues").
 		Headers(repositoryNameDisplayName, "Description", "Default branch", "Language", "Is Private", "SSH URL", "HTML Page", "Open PRs").
 		Rows(rows...)
 
@@ -149,15 +178,15 @@ func PrintRepositories(repos []model.Repository) {
 func repositoryTableStyle(row, col int, rows [][]string) lipgloss.Style {
 	style := defaultTableStyle(row, col, len(rows), 0, true)
 
-	if col == 1 {
-		style = style.Width(50)
-	}
-	if row > -1 && row < len(rows)-1 {
-		if col == 7 || col == 8 {
-			style = style.Align(lipgloss.Center, lipgloss.Center)
-			if rows[row][col] != "0" {
-				style = style.Foreground(lipgloss.Color(Red))
-			}
+	if row >= 0 {
+		switch col {
+		case 3, 4, 6:
+			style = style.Align(lipgloss.Center)
+		case 7:
+			style = style.Align(lipgloss.Right)
+		}
+		if row < len(rows)-1 && col == 7 && rows[row][col] != "0" {
+			style = style.Foreground(Red)
 		}
 	}
 	return style
@@ -165,7 +194,8 @@ func repositoryTableStyle(row, col int, rows [][]string) lipgloss.Style {
 
 func PrintResponses(responses []model.RefUIResponse) {
 	if len(responses) == 0 {
-		printNoDataMessage("No data found for the given input")
+		PrintNoDataMessage("No data found for the given input.",
+			"Hint: verify the org, repo, and branch flags are correct.")
 		return
 	}
 	failedRows := make([][]string, 0)
@@ -205,7 +235,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				style := defaultTableStyle(row, col, len(failedRows), 0, true)
 				if col == 1 && row != -1 && row != len(failedRows)-1 {
-					style = style.Foreground(lipgloss.Color(Red))
+					style = style.Foreground(Red)
 				}
 				return style
 			}).
@@ -216,11 +246,15 @@ func PrintResponses(responses []model.RefUIResponse) {
 	}
 }
 
-func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
+func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy string, compact bool) {
 	if len(prResponses) == 0 {
-		printNoDataMessage("No Pull Requests found for the given input")
+		PrintNoDataMessage("No Pull Requests found.",
+			"Hint: try --state all to include closed PRs.")
 		return
 	}
+
+	sortPullRequests(prResponses, sortBy)
+
 	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(prResponses)+1)
 	for _, pr := range prResponses {
@@ -231,28 +265,42 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 			rows = append(rows, []string{
 				strconv.Itoa(pr.PRNumber),
 				pr.RepositoryName(),
-				pr.TitleName,
-				pr.AuthorName(),
-				pr.AssigneesName(),
-				pr.ReviewersName(),
+				truncateText(pr.TitleName, maxLenTitle),
+				truncateText(pr.AuthorName(), maxLenName),
+				truncateText(pr.AssigneesName(), maxLenName),
+				truncateText(pr.ReviewersName(), maxLenName),
 				pr.State + " / " + pr.MergeStateStatus,
-				refs,
+				truncateText(refs, maxLenRefs),
 				fmt.Sprintf(HyperLinkFormat, pr.HTMLUrl, "Open"),
 			})
 		}
 	}
 
 	if len(rows) > 0 {
+		headers := []string{"ID", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl"}
+		if compact {
+			PrintCompactTable(headers, rows)
+			return
+		}
 		rows = append(rows, []string{"", "Total Pull Requests", strconv.Itoa(len(prResponses))})
 		fmt.Println()
 		t := table.New().
+			Width(TerminalWidth()).
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				return pullRequestStyle(row, col, rows)
 			}).
-			Headers("ID", repositoryNameDisplayName, "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl").
+			Headers(
+				"ID",
+				SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+				SortIndicator("Title", sortBy, "title"),
+				SortIndicator("Created User", sortBy, "author"),
+				"Assignees", "Reviewers",
+				SortIndicator("Status/Merge State", sortBy, "status"),
+				"Refs", "HTMLUrl",
+			).
 			Rows(rows...)
 
 		fmt.Println(t)
@@ -261,25 +309,43 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse) {
 	printErrorMessageMap(errorMessageMap)
 }
 
+func sortPullRequests(prs []model.PullRequestResponse, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(prs, func(i, j int) bool { return prs[i].RepositoryName() < prs[j].RepositoryName() })
+	case "title":
+		sort.Slice(prs, func(i, j int) bool { return prs[i].TitleName < prs[j].TitleName })
+	case "author":
+		sort.Slice(prs, func(i, j int) bool { return prs[i].AuthorName() < prs[j].AuthorName() })
+	case "status":
+		sort.Slice(prs, func(i, j int) bool { return prs[i].State < prs[j].State })
+	}
+}
+
 func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
 	style := defaultTableStyle(row, col, len(rows), 1, true)
 
-	if col == 2 {
-		style = style.Width(40)
-	}
-	if row >= 0 && row < len(rows)-1 {
-		if col == 6 && rows[row][6] == "closed" {
-			style = style.Strikethrough(true).Foreground(lipgloss.Color("#BFD641"))
-		} else if col == 6 {
-			style = style.Foreground(lipgloss.Color("#DFC57B"))
+	if row >= 0 {
+		switch col {
+		case 0, 6, 8:
+			style = style.Align(lipgloss.Center)
 		}
+	}
+
+	if row >= 0 && row < len(rows)-1 && col == 6 {
+		status := strings.SplitN(rows[row][6], " / ", 2)[0]
+		if status == "closed" {
+			style = style.Strikethrough(true)
+		}
+		style = style.Foreground(StatusColor(status))
 	}
 	return style
 }
 
 func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 	if len(mergeResponses) == 0 {
-		printNoDataMessage("No Merge Responses found for the given input")
+		PrintNoDataMessage("No Merge Responses found.",
+			"Hint: ensure the PRs exist and are mergeable.")
 		return
 	}
 	rows := make([][]string, 0, len(mergeResponses)+1)
@@ -299,7 +365,7 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 			style := defaultTableStyle(row, col, len(mergeResponses), 0, true)
 			if row > 0 && row < len(rows) {
 				if col == 1 && strings.Contains(rows[row][col], "documentation_url") {
-					style = style.Foreground(lipgloss.Color(Red))
+					style = style.Foreground(Red)
 				}
 			}
 			return style
@@ -312,7 +378,8 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 
 func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 	if len(pbResponses) == 0 {
-		printNoDataMessage("No Protected Branches found for the given input")
+		PrintNoDataMessage("No Protected Branches found.",
+			"Hint: check that branch protection rules are configured for the target repos.")
 		return
 	}
 	rows, failedRows := getProtectedBranches(pbResponses)
@@ -342,7 +409,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
 				if col == 1 && row != -1 {
-					style = style.Foreground(lipgloss.Color(Red))
+					style = style.Foreground(Red)
 				}
 				return style
 			}).
@@ -406,7 +473,8 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 
 func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 	if len(prResponses) == 0 {
-		printNoDataMessage("No Post Release activity performed for the given input")
+		PrintNoDataMessage("No Post Release activity performed.",
+			"Hint: verify that the source and target branches exist.")
 		return
 	}
 	errorMessageMap := map[string][]string{}
@@ -448,13 +516,15 @@ func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
 
 func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCommits bool) {
 	if len(commitResponses) == 0 {
-		printNoDataMessage("No Commits found for the given input")
+		PrintNoDataMessage("No Commits found.",
+			"Hint: try a wider date range with --since and --until.")
 		return
 	}
 	rows, failedRows := getCommitResponses(commitResponses, includeMergeCommits)
 
 	fmt.Println()
 	t := table.New().
+		Width(TerminalWidth()).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
 		BorderRow(true).
@@ -466,6 +536,14 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 			}
 			if col == 0 && row != -1 && row != len(rows)-1 {
 				style = style.Foreground(Green)
+			}
+			if row >= 0 {
+				switch col {
+				case 5:
+					style = style.Align(lipgloss.Center)
+				case 4:
+					style = style.Align(lipgloss.Right)
+				}
 			}
 
 			return style
@@ -485,7 +563,7 @@ func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCo
 			StyleFunc(func(row, col int) lipgloss.Style {
 				var style lipgloss.Style
 				if col == 1 && row != -1 {
-					style = style.Foreground(lipgloss.Color(Red))
+					style = style.Foreground(Red)
 				}
 				return style
 			}).
@@ -509,14 +587,19 @@ func getCommitResponses(commitResponses []model.CommitResponse, includeMergeComm
 			if commit.ErrorMessage != "" {
 				failedRows = append(failedRows, []string{commit.RepositoryName, commit.ErrorMessage})
 			} else {
-				rows = append(rows, []string{
-					commit.RepoName(),
-					commit.Commit.Author.Name,
-					commit.Commit.Author.Date,
-					commit.Commit.Message,
-					strconv.Itoa(commit.Commit.CommentCount),
-					fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
-				})
+			// Commit messages can contain newlines; take only the first line
+			msg := commit.Commit.Message
+			if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
+				msg = msg[:idx]
+			}
+			rows = append(rows, []string{
+				commit.RepoName(),
+				commit.Commit.Author.Name,
+				RelativeTime(commit.Commit.Author.Date),
+				msg,
+				strconv.Itoa(commit.Commit.CommentCount),
+				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
+			})
 			}
 		}
 	}
@@ -526,7 +609,8 @@ func getCommitResponses(commitResponses []model.CommitResponse, includeMergeComm
 
 func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool) {
 	if len(commitResponses) == 0 {
-		printNoDataMessage("No Commits found for the given input")
+		PrintNoDataMessage("No Commits found.",
+			"Hint: try a wider date range with --since and --until.")
 		return
 	}
 	repoCommits := getRepoCommitsMap(commitResponses, includeMergeCommits)
@@ -554,7 +638,7 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 			commitsRows = append(commitsRows, []string{
 				commit.Commit.Message,
 				commit.Commit.Author.Name,
-				commit.Commit.Author.Date,
+				RelativeTime(commit.Commit.Author.Date),
 				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Tree.Sha[:7]),
 			})
 		}
@@ -574,9 +658,9 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 			}
 			switch col {
 			case 0:
-				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
+				style = CellStyle.Foreground(Subtle).AlignVertical(lipgloss.Center)
 			case 1:
-				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
+				style = CellStyle.Foreground(Subtle).Align(lipgloss.Center, lipgloss.Center)
 			}
 
 			return style
@@ -601,7 +685,8 @@ func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommi
 
 func PrintTeams(teams []model.OrgTeam) {
 	if len(teams) == 0 {
-		printNoDataMessage("No Teams found for the given input")
+		PrintNoDataMessage("No Teams found.",
+			"Hint: ensure the org name is correct and you have team read access.")
 		return
 	}
 	rows := convertToRows(teams, func(team model.OrgTeam) []string {
@@ -631,9 +716,9 @@ func PrintTeams(teams []model.OrgTeam) {
 			}
 			switch col {
 			case 0:
-				style = CellStyle.Foreground(lipgloss.Color(Gray)).AlignVertical(lipgloss.Center)
+				style = CellStyle.Foreground(Subtle).AlignVertical(lipgloss.Center)
 			case 1, 3:
-				style = CellStyle.Foreground(lipgloss.Color(Gray)).Align(lipgloss.Center, lipgloss.Center)
+				style = CellStyle.Foreground(Subtle).Align(lipgloss.Center, lipgloss.Center)
 			}
 			if row == len(rows)-1 {
 				style = FooterStyle
@@ -646,11 +731,14 @@ func PrintTeams(teams []model.OrgTeam) {
 	fmt.Println(t)
 }
 
-func PrintWorkflowRuns(runs []model.WorkflowRun) {
+func PrintWorkflowRuns(runs []model.WorkflowRun, sortBy string, compact bool) {
 	if len(runs) == 0 {
-		printNoDataMessage("No Workflow Runs found for the given input")
+		PrintNoDataMessage("No Workflow Runs found.",
+			"Hint: try --status in_progress or remove filters to see all runs.")
 		return
 	}
+
+	sortWorkflowRuns(runs, sortBy)
 
 	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(runs)+1)
@@ -670,33 +758,74 @@ func PrintWorkflowRuns(runs []model.WorkflowRun) {
 		rows = append(rows, []string{
 			run.RepositoryName,
 			strconv.Itoa(run.ID),
-			run.Name,
+			strconv.Itoa(run.RunNumber),
+			truncateText(run.Name, maxLenWorkflow),
 			statusConclusion,
-			run.HeadBranch,
+			truncateText(run.HeadBranch, maxLenBranch),
 			run.Event,
 			actorName,
-			run.CreatedAt,
+			RelativeTime(run.CreatedAt),
 			fmt.Sprintf(HyperLinkFormat, run.HTMLUrl, "Open"),
 		})
 	}
 
 	if len(rows) > 0 {
+		headers := []string{"Repository", "Run ID", "Run #", "Workflow", "Status", "Branch", "Event", "Actor", "Created At", "URL"}
+		if compact {
+			PrintCompactTable(headers, rows)
+			return
+		}
 		rows = append(rows, []string{"Total Workflow Runs", strconv.Itoa(len(rows))})
 		fmt.Println()
 		t := table.New().
+			Width(TerminalWidth()).
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
 				return workflowRunTableStyle(row, col, rows)
 			}).
-			Headers(repositoryNameDisplayName, "Run ID", "Workflow", "Status", "Branch", "Event", "Actor", "Created At", "URL").
+			Headers(
+				SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+				"Run ID", "Run #",
+				SortIndicator("Workflow", sortBy, "name"),
+				SortIndicator("Status", sortBy, "status"),
+				"Branch", "Event", "Actor",
+				SortIndicator("Created At", sortBy, "created"),
+				"URL",
+			).
 			Rows(rows...)
 
 		fmt.Println(t)
 	}
 
 	printErrorMessageMap(errorMessageMap)
+}
+
+func sortWorkflowRuns(runs []model.WorkflowRun, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(runs, func(i, j int) bool { return runs[i].RepositoryName < runs[j].RepositoryName })
+	case "name":
+		sort.Slice(runs, func(i, j int) bool { return runs[i].Name < runs[j].Name })
+	case "status":
+		sort.Slice(runs, func(i, j int) bool {
+			si, sj := runs[i].Conclusion, runs[j].Conclusion
+			if si == "" {
+				si = runs[i].Status
+			}
+			if sj == "" {
+				sj = runs[j].Status
+			}
+			return si < sj
+		})
+	case "created":
+		sort.Slice(runs, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, runs[i].CreatedAt)
+			tj, _ := time.Parse(time.RFC3339, runs[j].CreatedAt)
+			return ti.After(tj)
+		})
+	}
 }
 
 func PrintWorkflowRunDetail(detail model.WorkflowRunDetail) {
@@ -707,7 +836,8 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 	var b strings.Builder
 
 	if detail.ErrorMessage != "" {
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAFAFA")).PaddingTop(1).PaddingLeft(2).PaddingBottom(1).Render(fmt.Sprintf("Error: %s", detail.ErrorMessage)))
+		errStyle := lipgloss.NewStyle().Bold(true).Foreground(Red).PaddingTop(1).PaddingLeft(2).PaddingBottom(1)
+		b.WriteString(errStyle.Render(fmt.Sprintf("✗ Error: %s", detail.ErrorMessage)))
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -723,39 +853,34 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 	}
 
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(White).PaddingLeft(1)
-	labelStyle := lipgloss.NewStyle().Foreground(Gray).PaddingLeft(2)
-	valueStyle := lipgloss.NewStyle().Foreground(LightGray)
-
-	statusStyle := lipgloss.NewStyle().Bold(true)
-	switch statusConclusion {
-	case "success":
-		statusStyle = statusStyle.Foreground(Green)
-	case "failure":
-		statusStyle = statusStyle.Foreground(lipgloss.Color(Red))
-	case "in_progress", "queued":
-		statusStyle = statusStyle.Foreground(lipgloss.Color("#DFC57B"))
-	case "cancelled", "skipped":
-		statusStyle = statusStyle.Foreground(LightGray)
-	}
+	labelStyle := lipgloss.NewStyle().Foreground(Dimmed).PaddingLeft(2)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	statusStyle := lipgloss.NewStyle().Bold(true).Foreground(StatusColor(statusConclusion))
 
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Workflow Run #%d - %s", run.RunNumber, run.Name)))
+	b.WriteString(titleStyle.Render(fmt.Sprintf("%s Workflow Run #%d - %s", StatusIcon(statusConclusion), run.RunNumber, run.Name)))
 	b.WriteString("\n\n")
 	b.WriteString(labelStyle.Render("Repository:  ") + valueStyle.Render(run.RepositoryName) + "\n")
 	b.WriteString(labelStyle.Render("Run ID:      ") + valueStyle.Render(strconv.Itoa(run.ID)) + "\n")
+	b.WriteString(labelStyle.Render("Run Number:  ") + valueStyle.Render(strconv.Itoa(run.RunNumber)) + "\n")
 	b.WriteString(labelStyle.Render("Status:      ") + statusStyle.Render(statusConclusion) + "\n")
 	b.WriteString(labelStyle.Render("Branch:      ") + valueStyle.Render(run.HeadBranch) + "\n")
 	b.WriteString(labelStyle.Render("Event:       ") + valueStyle.Render(run.Event) + "\n")
 	b.WriteString(labelStyle.Render("Actor:       ") + valueStyle.Render(actorName) + "\n")
 	b.WriteString(labelStyle.Render("Attempt:     ") + valueStyle.Render(strconv.Itoa(run.RunAttempt)) + "\n")
-	b.WriteString(labelStyle.Render("Created:     ") + valueStyle.Render(run.CreatedAt) + "\n")
-	b.WriteString(labelStyle.Render("Updated:     ") + valueStyle.Render(run.UpdatedAt) + "\n")
+	b.WriteString(labelStyle.Render("Created:     ") + valueStyle.Render(RelativeTime(run.CreatedAt)) + "\n")
+	b.WriteString(labelStyle.Render("Updated:     ") + valueStyle.Render(RelativeTime(run.UpdatedAt)) + "\n")
 	b.WriteString(labelStyle.Render("Commit:      ") + valueStyle.Render(run.HeadSha) + "\n")
 	b.WriteString(labelStyle.Render("URL:         ") + valueStyle.Render(fmt.Sprintf(HyperLinkFormat, run.HTMLUrl, run.HTMLUrl)) + "\n")
 
 	if len(detail.Jobs) == 0 {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAFAFA")).PaddingTop(1).PaddingLeft(2).PaddingBottom(1).Render("No jobs found for this workflow run"))
+		iconStyle := lipgloss.NewStyle().Foreground(Yellow)
+		msgStyle := lipgloss.NewStyle().Bold(true).Foreground(White)
+		hintStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+		wrapStyle := lipgloss.NewStyle().PaddingTop(1).PaddingLeft(2).PaddingBottom(1)
+		b.WriteString(wrapStyle.Render(
+			iconStyle.Render("⚠ ")+msgStyle.Render("No jobs found for this workflow run.")+
+				"\n"+hintStyle.Render("  The run may still be queuing or was skipped.")))
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -776,15 +901,14 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 			if step.Conclusion != "" {
 				stepConclusion = step.Conclusion
 			}
-			icon := statusIcon(stepConclusion)
-			stepsDetail = append(stepsDetail, fmt.Sprintf("%s %s", icon, step.Name))
+			stepsDetail = append(stepsDetail, fmt.Sprintf("%s %s", StatusIcon(stepConclusion), step.Name))
 		}
 
 		rows = append(rows, []string{
 			job.Name,
 			jobConclusion,
-			job.StartedAt,
-			job.CompletedAt,
+			RelativeTime(job.StartedAt),
+			RelativeTime(job.CompletedAt),
 			strings.Join(stepsDetail, "\n"),
 			fmt.Sprintf(HyperLinkFormat, job.HTMLUrl, "Open"),
 		})
@@ -792,21 +916,19 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 
 	b.WriteString("\n\n")
 	t := table.New().
+		Width(TerminalWidth()).
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), -1, false)
-			if row >= 0 && col == 1 {
-				switch rows[row][1] {
-				case "success":
-					style = style.Foreground(Green)
-				case "failure":
-					style = style.Foreground(lipgloss.Color(Red))
-				case "in_progress", "queued":
-					style = style.Foreground(lipgloss.Color("#DFC57B"))
-				case "cancelled", "skipped":
-					style = style.Foreground(LightGray)
+			if row >= 0 {
+				switch col {
+				case 1, 5:
+					style = style.Align(lipgloss.Center)
+				}
+				if col == 1 {
+					style = style.Foreground(StatusColor(rows[row][1]))
 				}
 			}
 			return style
@@ -819,42 +941,18 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 	return b.String()
 }
 
-func statusIcon(conclusion string) string {
-	switch conclusion {
-	case "success":
-		return "✓"
-	case "failure":
-		return "✗"
-	case "cancelled":
-		return "⊘"
-	case "skipped":
-		return "○"
-	case "in_progress":
-		return "●"
-	case "queued":
-		return "◌"
-	default:
-		return "·"
-	}
-}
-
 func workflowRunTableStyle(row, col int, rows [][]string) lipgloss.Style {
 	style := defaultTableStyle(row, col, len(rows), 0, true)
 
-	if col == 2 {
-		style = style.Width(30)
-	}
-	if row >= 0 && row < len(rows)-1 && col == 3 {
-		status := rows[row][3]
-		switch status {
-		case "success":
-			style = style.Foreground(Green)
-		case "failure":
-			style = style.Foreground(lipgloss.Color(Red))
-		case "in_progress", "queued":
-			style = style.Foreground(lipgloss.Color("#DFC57B"))
-		case "cancelled", "skipped":
-			style = style.Foreground(LightGray)
+	if row >= 0 {
+		switch col {
+		case 4, 6, 9:
+			style = style.Align(lipgloss.Center)
+		case 1, 2:
+			style = style.Align(lipgloss.Right)
+		}
+		if row < len(rows)-1 && col == 4 {
+			style = style.Foreground(StatusColor(rows[row][4]))
 		}
 	}
 	return style

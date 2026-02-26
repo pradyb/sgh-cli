@@ -252,6 +252,8 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	totalDuration := time.Since(startTime)
 
 	fmt.Println()
+	ui.PrintSummaryBanner(len(repoNames), successCount, errorCount, totalDuration)
+
 	// Log final performance metrics
 	logger.Glog.Info().
 		Str("org", orgName).

@@ -11,6 +11,7 @@ func NewProgressBar(maxSize int, description string) *progressbar.ProgressBar {
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionSetWidth(30),
 		progressbar.OptionShowCount(),
+		progressbar.OptionSetPredictTime(true),
 		progressbar.OptionShowElapsedTimeOnFinish(),
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSpinnerType(14),
