@@ -51,7 +51,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 			responses := pr.CreateNewPullRequest(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body})
 			logger.Flog.Info().Msg("Pull request created successfully")
-			ui.PrintPullRequestResponses(responses)
+			ui.PrintPullRequestResponses(responses, "", ctx.Compact)
 		},
 	}
 
@@ -76,6 +76,7 @@ var (
 	author          string
 	assignee        string
 	reviewer        string
+	prSortBy        string
 )
 
 func ListCommand(ctx *context.Context) *cobra.Command {
@@ -97,7 +98,11 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 			orgName, _ := cmd.Flags().GetString("org")
 			if !interactive {
 				responses := pr.ListPullRequests(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests})
-				ui.PrintPullRequestResponses(responses)
+				if ctx.JSON {
+					ui.PrintJSON(responses)
+					return
+				}
+				ui.PrintPullRequestResponses(responses, prSortBy, ctx.Compact)
 			} else {
 				prompt.RunInteractivePR(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, LastCount: lastCount, Author: author, Assignee: assignee, Reviewer: reviewer, All: allPullRequests, IsInteractive: interactive})
 			}
@@ -114,6 +119,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	listCmd.Flags().StringVarP(&author, "author", "a", "", "The `author` of the pull request")
 	listCmd.Flags().StringVarP(&assignee, "assignee", "A", "", "The `assignee` of the pull request")
 	listCmd.Flags().StringVarP(&reviewer, "reviewer", "R", "", "The `reviewer` of the pull request")
+	listCmd.Flags().StringVar(&prSortBy, "sort", "", "sort results by: repo, title, author, status")
 
 	listCmd.MarkPersistentFlagRequired("org")
 
@@ -150,7 +156,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 				State:    action,
 			}
 			response := pr.UpdatePullRequest(ctx, req)
-			ui.PrintPullRequestResponses([]model.PullRequestResponse{response})
+			ui.PrintPullRequestResponses([]model.PullRequestResponse{response}, "", ctx.Compact)
 		},
 	}
 

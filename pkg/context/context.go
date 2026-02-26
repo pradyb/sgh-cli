@@ -23,6 +23,8 @@ type Context struct {
 
 	Verbose     bool
 	LogResponse bool
+	Compact     bool
+	JSON        bool
 }
 
 func Init() (*Context, error) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
@@ -22,6 +23,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/workflow"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -102,25 +104,66 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.CompletionOptions.DisableNoDescFlag = true
 	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
 	rootCmd.PersistentFlags().IntP("workers", "w", 5, "number of workers")
+	rootCmd.PersistentFlags().BoolP("compact", "C", false, "minimal tab-separated output, suitable for piping")
+	rootCmd.PersistentFlags().BoolP("json", "J", false, "output results as JSON for scripting")
 
-	rootCmd.AddCommand(config.NewConfigCommand(ctx))
-	rootCmd.AddCommand(repo.NewRepoCommand(ctx))
-	rootCmd.AddCommand(branch.NewBranchCommand(ctx))
-	rootCmd.AddCommand(tag.NewTagCommand(ctx))
-	rootCmd.AddCommand(pr.NewPRCommand(ctx))
-	rootCmd.AddCommand(protectedbranch.NewProtectedBranchCommand(ctx))
-	rootCmd.AddCommand(postrelease.NewPostReleaseCommand(ctx))
-	rootCmd.AddCommand(commit.NewCommitCommand(ctx))
-	rootCmd.AddCommand(clone.NewCloneCommand(ctx))
-	rootCmd.AddCommand(team.NewTeamCommand(ctx))
-	rootCmd.AddCommand(health.NewHealthCommand(ctx))
-	rootCmd.AddCommand(workflow.NewWorkflowCommand(ctx))
-	rootCmd.AddCommand(version.NewVersionCommand())
+	// Command groups for organized help output
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "repo", Title: "Repository Management:"},
+		&cobra.Group{ID: "git", Title: "Git Operations:"},
+		&cobra.Group{ID: "cicd", Title: "CI/CD & Release:"},
+		&cobra.Group{ID: "org", Title: "Organization:"},
+		&cobra.Group{ID: "util", Title: "Utilities:"},
+	)
+
+	repoCmd := repo.NewRepoCommand(ctx)
+	repoCmd.GroupID = "repo"
+	cloneCmd := clone.NewCloneCommand(ctx)
+	cloneCmd.GroupID = "repo"
+	commitCmd := commit.NewCommitCommand(ctx)
+	commitCmd.GroupID = "repo"
+
+	branchCmd := branch.NewBranchCommand(ctx)
+	branchCmd.GroupID = "git"
+	tagCmd := tag.NewTagCommand(ctx)
+	tagCmd.GroupID = "git"
+	prCmd := pr.NewPRCommand(ctx)
+	prCmd.GroupID = "git"
+	pbCmd := protectedbranch.NewProtectedBranchCommand(ctx)
+	pbCmd.GroupID = "git"
+
+	workflowCmd := workflow.NewWorkflowCommand(ctx)
+	workflowCmd.GroupID = "cicd"
+	postreleaseCmd := postrelease.NewPostReleaseCommand(ctx)
+	postreleaseCmd.GroupID = "cicd"
+
+	teamCmd := team.NewTeamCommand(ctx)
+	teamCmd.GroupID = "org"
+
+	configCmd := config.NewConfigCommand(ctx)
+	configCmd.GroupID = "util"
+	healthCmd := health.NewHealthCommand(ctx)
+	healthCmd.GroupID = "util"
+	versionCmd := version.NewVersionCommand()
+	versionCmd.GroupID = "util"
+
+	rootCmd.AddCommand(repoCmd, cloneCmd, commitCmd)
+	rootCmd.AddCommand(branchCmd, tagCmd, prCmd, pbCmd)
+	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
+	rootCmd.AddCommand(teamCmd)
+	rootCmd.AddCommand(configCmd, healthCmd, versionCmd)
+
+	// Cobra auto-generates the completion command; assign it to the util group
+	// so it appears alongside config, health, and version.
+	rootCmd.InitDefaultCompletionCmd()
+	if completionCmd, _, _ := rootCmd.Find([]string{"completion"}); completionCmd != nil && completionCmd.Name() == "completion" {
+		completionCmd.GroupID = "util"
+	}
 
 	return rootCmd
 }
@@ -178,7 +221,10 @@ func validateCommandRequirements(cmd *cobra.Command) {
 		orgFlag, _ := cmd.Flags().GetString("org")
 		if orgFlag == "" {
 			logger.Glog.Error().Msg("Organization parameter is required for this command")
-			fmt.Fprintf(os.Stderr, "Error: Organization parameter is required for '%s' command. Use --org or -o flag.\n", cmdName)
+			printCLIError(
+				fmt.Sprintf("Organization parameter is required for '%s' command.", cmdName),
+				"Use --org or -o flag to specify the organization.",
+			)
 			os.Exit(1)
 		}
 
@@ -188,7 +234,10 @@ func validateCommandRequirements(cmd *cobra.Command) {
 				Str("org", orgFlag).
 				Err(err).
 				Msg("Invalid organization name")
-			fmt.Fprintf(os.Stderr, "Error: Invalid organization name '%s': %v\n", orgFlag, err)
+			printCLIError(
+				fmt.Sprintf("Invalid organization name '%s': %v", orgFlag, err),
+				"Organization names can only contain alphanumeric characters, hyphens, and underscores.",
+			)
 			os.Exit(1)
 		}
 	}
@@ -200,7 +249,10 @@ func validateCommandRequirements(cmd *cobra.Command) {
 			Int("workers", workers).
 			Err(err).
 			Msg("Invalid worker count")
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		printCLIError(
+			err.Error(),
+			"Worker count must be between 1 and 50.",
+		)
 		os.Exit(1)
 	}
 }
@@ -215,6 +267,23 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 
 	workers, _ := cmd.Flags().GetInt("workers")
 	ctx.SetWorkerCount(workers)
+
+	compact, _ := cmd.Flags().GetBool("compact")
+	ctx.Compact = compact
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	ctx.JSON = jsonOutput
+}
+
+func printCLIError(msg string, hint string) {
+	errStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Red)
+	hintStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, errStyle.Render("  ✗ "+msg))
+	if hint != "" {
+		fmt.Fprintln(os.Stderr, hintStyle.Render("    "+hint))
+	}
+	fmt.Fprintln(os.Stderr)
 }
 
 func logCommandExecution(cmd *cobra.Command) {

@@ -6,8 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +35,17 @@ This command helps diagnose issues with the CLI setup.`,
 }
 
 func runHealthCheck(ctx *context.Context) {
-	fmt.Println("🔍 Running sgh-cli health check...")
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Cyan)
+	labelStyle := lipgloss.NewStyle().Foreground(ui.White).Width(32)
+	passStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Green)
+	failStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Red)
+	errDetailStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true).PaddingLeft(6)
+	summaryOk := lipgloss.NewStyle().Bold(true).Foreground(ui.Green)
+	summaryFail := lipgloss.NewStyle().Bold(true).Foreground(ui.Yellow)
+	hintStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+
+	fmt.Println()
+	fmt.Println(titleStyle.Render("  sgh-cli health check"))
 	fmt.Println()
 
 	checks := []struct {
@@ -48,24 +60,27 @@ func runHealthCheck(ctx *context.Context) {
 	}
 
 	allPassed := true
+	passCount := 0
 	for _, check := range checks {
-		fmt.Printf("  %-30s... ", check.name)
-		if err := check.fn(ctx); err != nil {
-			fmt.Println("❌ FAILED")
-			fmt.Printf("     Error: %v\n", err)
+		err := check.fn(ctx)
+		if err != nil {
+			fmt.Printf("  %s %s\n", failStyle.Render("✗"), labelStyle.Render(check.name))
+			fmt.Println(errDetailStyle.Render(err.Error()))
 			allPassed = false
 		} else {
-			fmt.Println("✅ PASSED")
+			fmt.Printf("  %s %s\n", passStyle.Render("✓"), labelStyle.Render(check.name))
+			passCount++
 		}
 	}
 
 	fmt.Println()
 	if allPassed {
-		fmt.Println("🎉 All health checks passed! sgh-cli is ready to use.")
+		fmt.Printf("  %s\n", summaryOk.Render(fmt.Sprintf("All %d checks passed — sgh-cli is ready to use.", passCount)))
 	} else {
-		fmt.Println("⚠️  Some health checks failed. Please review the errors above.")
-		fmt.Println("💡 Run with --verbose for more detailed information.")
+		fmt.Printf("  %s\n", summaryFail.Render(fmt.Sprintf("%d/%d checks passed. Review the errors above.", passCount, len(checks))))
+		fmt.Printf("  %s\n", hintStyle.Render("Run with --verbose for more detailed information."))
 	}
+	fmt.Println()
 }
 
 func checkGitHubAPIConnectivity(ctx *context.Context) error {

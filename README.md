@@ -27,6 +27,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - **Bulk Repository Operations**: Manage multiple repositories across entire organizations
 - **Advanced Branch & Tag Management**: Create, delete, and manage branches and tags across repos
 - **Pull Request Automation**: Create, list, update, and merge pull requests in bulk
+- **GitHub Actions / Workflow Runs**: List, view, rerun, and cancel workflow runs across repos with live monitoring
 - **Protected Branch Management**: Configure and update branch protection rules
 - **Post-Release Workflows**: Automate post-release activities like merging and tagging
 - **Team Management**: List teams and members across your organization
@@ -34,6 +35,9 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - **Flexible Filtering**: Use include/exclude patterns to target specific repositories
 - **Concurrent Processing**: Configurable worker threads for fast bulk operations
 - **Interactive PR Management**: Interactive terminal UI for pull request operations
+- **Compact & JSON Output**: Pipe-friendly tab-separated (`--compact`) and JSON (`--json`) output modes
+- **Adaptive Terminal UI**: Tables auto-size to terminal width with colored status indicators
+- **Shell Completion**: Built-in completion for Bash, Zsh, Fish, and PowerShell
 - **Graceful Error Handling**: Comprehensive error handling with helpful guidance
 - **Rate Limit Management**: Built-in rate limiting and retry mechanisms
 
@@ -168,44 +172,81 @@ sgh config add pattern deprecated-* --org my-organization --exclude
 
 ## 📚 Available Commands
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `repo` | `list` | List and manage repositories |
-| `clone` | - | Clone multiple repositories at once |
-| `commit` | `list` | Track and list commits across repositories |
-| `branch` | `create`, `delete` | Create and delete branches across repositories |
-| `tag` | `create`, `delete` | Create and delete tags across repositories |
-| `pb` | `list`, `update`, `delete` | Manage protected branch settings |
-| `pr` | `create`, `list`, `update`, `merge` | Create, list, update, and merge pull requests |
-| `post-release` | - | Automate post-release workflows |
-| `team` | `list` | List teams and members |
-| `config` | `add`, `list` | Manage CLI configuration |
-| `version` | - | Display version information |
-| `health` | - | Check system health and connectivity |
+Commands are organized into groups:
 
 ### Repository Management
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `repo` | `list` | List repositories for an organization |
+| `clone` | - | Clone multiple repositories at once |
+| `commit` | `list` | Track and list commits across repositories |
+
+### Git Operations
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `branch` | `create`, `delete` | Create and delete branches across repositories |
+| `tag` | `create`, `delete` | Create and delete tags across repositories |
+| `pr` | `create`, `list`, `update`, `merge` | Create, list, update, and merge pull requests |
+| `pb` | `list`, `update`, `delete` | Manage protected branch settings |
+
+### CI/CD & Release
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `workflow` | `list`, `view`, `rerun`, `cancel` | Manage GitHub Actions workflow runs |
+| `post-release` | - | Automate post-release workflows |
+
+### Organization
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `team` | `list` | List teams and members |
+
+### Utilities
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `config` | `add`, `list` | Manage CLI configuration |
+| `health` | - | Check system health and connectivity |
+| `version` | - | Display version information |
+| `completion` | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
+
+### Command Details
+
+**Repository Management:**
 - `repo list <owner>` - List repositories for an organization
 - `clone --org <org> [--branch <branch>]` - Clone multiple repositories
 - `commit list --org <org> [--days <n>]` - Track commits across repositories
 
-### Branch & Tag Operations  
+**Branch & Tag Operations:**
 - `branch create --org <org> --new <name> --ref <ref>` - Create branches across repos
 - `branch delete --org <org> --branch <name>` - Delete branches across repos
 - `tag create --org <org> --tag <name> --head <ref> --message <msg>` - Create tags
 - `tag delete --org <org> --tag <name>` - Delete tags
 
-### Pull Request Workflows
+**Pull Request Workflows:**
 - `pr create --org <org> --title <title> --head <branch> --base <branch>` - Create PRs
-- `pr list --org <org> [--all-status]` - List pull requests
+- `pr list --org <org> [--all-status] [--sort repo|title|author|status]` - List pull requests
 - `pr update --org <org> --repo <repo> --pr <number> --action <close|open>` - Update PRs
-- `pr list --interactive` - Interactive PR management
+- `pr list --interactive` - Interactive PR management with Bubble Tea UI
 
-### Protected Branch Management
+**Workflow Runs (GitHub Actions):**
+- `workflow list --org <org>` - List workflow runs across repositories
+- `workflow list --org <org> --running` - Show only in-progress runs
+- `workflow list --org <org> --failed --branch main` - Show failed runs on a branch
+- `workflow view --org <org> --repo <repo> --run <id>` - View run details with jobs & steps
+- `workflow view --org <org> --repo <repo> --run <id> --watch` - Live monitor until completion
+- `workflow rerun --org <org> --repo <repo> --run <id>` - Re-trigger a workflow run
+- `workflow cancel --org <org> --repo <repo> --run <id>` - Cancel an in-progress run
+
+**Protected Branch Management:**
 - `pb list --org <org> --branch <branch>` - List protection settings
 - `pb update --org <org> --branch <branch> [options]` - Update protection rules
 - `pb delete --org <org> --branch <branch>` - Remove protection
 
-### Organization Management
+**Organization & Configuration:**
 - `team list --org <org>` - List teams and members
 - `config add <key> <value>` - Add configuration
 - `config list` - Show current configuration
@@ -290,6 +331,36 @@ sgh clone --org my-org --branch develop
 sgh commit list --org my-org --days 7 --details --include-merge-commits
 ```
 
+### Workflow Runs (GitHub Actions)
+```bash
+# List all recent workflow runs across repos
+sgh workflow list --org my-org
+
+# Show only running workflows
+sgh workflow list --org my-org --running
+
+# Show only failed workflows on a specific branch
+sgh workflow list --org my-org --failed --branch main
+
+# Sort by status
+sgh workflow list --org my-org --sort status
+
+# View detailed run info with jobs and steps
+sgh workflow view --org my-org --repo my-app --run 123456789
+
+# Watch a run live until it completes (polls every 10s)
+sgh workflow view --org my-org --repo my-app --run 123456789 --watch
+
+# Watch with a custom polling interval
+sgh workflow view --org my-org --repo my-app --run 123456789 --watch --interval 5
+
+# Rerun a failed workflow
+sgh workflow rerun --org my-org --repo my-app --run 123456789
+
+# Cancel a running workflow
+sgh workflow cancel --org my-org --repo my-app --run 123456789
+```
+
 ### Team Management
 ```bash
 # List all teams
@@ -322,6 +393,16 @@ sgh config list
 - `-v, --verbose` - Enable verbose output
 - `-L, --log-response` - Log HTTP responses for debugging
 - `-w, --workers int` - Number of concurrent workers (default: 5)
+- `-C, --compact` - Minimal tab-separated output, suitable for piping to `grep`/`awk`/`cut`
+- `-J, --json` - Output results as JSON for scripting and automation
+
+### Per-Command Flags
+
+Some list commands support additional flags:
+
+- `--sort <field>` - Sort table output (available on `pr list` and `workflow list`)
+- `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
+- `--watch`, `--interval` - Live monitoring (on `workflow view`)
 
 ## 🔍 Advanced Usage
 
@@ -334,6 +415,36 @@ sgh branch create --org my-org --new feature --ref main --repo api-*
 
 # Exclude legacy applications
 sgh pr create --org my-org --title "Update" --head feature --base main --exclude-repos legacy-*
+```
+
+### Output Modes
+Use `--compact` or `--json` for scripting:
+
+```bash
+# Tab-separated output — pipe to grep, awk, cut, etc.
+sgh pr list --org my-org -C | grep "open"
+sgh workflow list --org my-org --running -C | awk '{print $1, $4}'
+
+# JSON output — pipe to jq for structured processing
+sgh repo list my-org --json | jq '.[].name'
+sgh workflow list --org my-org --json | jq '.[] | select(.status == "failure")'
+```
+
+### Shell Completion
+Generate completion scripts for your shell:
+
+```bash
+# Bash
+sgh completion bash > /etc/bash_completion.d/sgh
+
+# Zsh
+sgh completion zsh > "${fpath[1]}/_sgh"
+
+# Fish
+sgh completion fish > ~/.config/fish/completions/sgh.fish
+
+# PowerShell
+sgh completion powershell | Out-String | Invoke-Expression
 ```
 
 ### Concurrent Processing
@@ -499,27 +610,32 @@ sgh-cli/
 │   ├── clone/             # Repository cloning
 │   ├── commit/            # Commit tracking
 │   ├── config/            # Configuration management
+│   ├── health/            # Health check command
+│   ├── postrelease/       # Post-release automation
 │   ├── pr/                # Pull request operations
-│   ├── protected_branch/  # Protected branch management
+│   ├── protectedbranch/   # Protected branch management
 │   ├── repo/              # Repository operations
 │   ├── tag/               # Tag management
 │   ├── team/              # Team management
-│   └── version/           # Version information
+│   ├── version/           # Version information
+│   └── workflow/          # GitHub Actions workflow management
 ├── internal/              # Internal packages
-│   ├── async/             # Asynchronous operations
+│   ├── async/             # Async job queue & worker pool
 │   ├── circuitbreaker/    # Circuit breaker pattern
-│   ├── client/            # HTTP client
+│   ├── client/            # HTTP client with resilience (retry, rate limit)
 │   ├── config/            # Configuration handling
-│   ├── model/             # Data models
-│   ├── processor/         # Data processing
-│   ├── ratelimit/         # Rate limiting
-│   ├── retry/             # Retry mechanisms
-│   └── service/           # GitHub API services
+│   ├── model/             # Data models (repos, PRs, workflows, etc.)
+│   ├── processor/         # Bulk repository operation processor
+│   ├── ratelimit/         # GitHub API rate limiting
+│   ├── retry/             # Exponential backoff retry
+│   └── service/           # GitHub REST & GraphQL API services
 ├── pkg/                   # Public packages
-│   ├── apperrors/         # Application errors
-│   ├── context/           # Application context
-│   ├── logger/            # Logging utilities
-│   └── ui/                # User interface components
+│   ├── apperrors/         # Application error types
+│   ├── context/           # Global application context
+│   ├── logger/            # Structured logging (zerolog)
+│   ├── pr/prompt/         # Interactive PR selection (Bubble Tea)
+│   ├── ui/                # Table rendering, colors, progress bars
+│   └── workflow/          # Workflow business logic
 └── utils/                 # Utility functions
 ```
 
@@ -550,9 +666,10 @@ We welcome contributions! Please feel free to submit a Pull Request. For major c
 
 ## 🙏 Acknowledgments
 
-- Built with [Cobra](https://github.com/spf13/cobra) for CLI functionality
+- Built with [Cobra](https://github.com/spf13/cobra) for CLI structure and shell completion
 - Uses [GitHub REST API](https://docs.github.com/en/rest) and [GraphQL API](https://docs.github.com/en/graphql)
-- Interactive UI powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+- Interactive UI powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Bubbles](https://github.com/charmbracelet/bubbles)
+- Table rendering and styling with [Lipgloss](https://github.com/charmbracelet/lipgloss)
 - Progress bars with [Progressbar](https://github.com/schollz/progressbar)
 - Logging with [Zerolog](https://github.com/rs/zerolog)
 - Inspired by the need for bulk GitHub operations in large organizations

@@ -1,6 +1,9 @@
 package prompt
 
 import (
+	"os/exec"
+	"runtime"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +19,8 @@ type delegateKeyMap struct {
 	approve      key.Binding
 	merge        key.Binding
 	approveMerge key.Binding
+	closePR      key.Binding
+	openBrowser  key.Binding
 }
 
 type eventMsg struct {
@@ -24,6 +29,22 @@ type eventMsg struct {
 	orgName    string
 	repoName   string
 	selectedPR model.PullRequestResponse
+}
+
+// confirmMsg is sent when the user triggers a destructive action (approve, merge, close).
+// The actual action is deferred until the user confirms with 'y'.
+type confirmMsg struct {
+	eventType  string
+	ctx        *context.Context
+	orgName    string
+	repoName   string
+	selectedPR model.PullRequestResponse
+	prompt     string
+}
+
+// browserOpenMsg signals that a URL should be opened in the default browser.
+type browserOpenMsg struct {
+	url string
 }
 
 func newDelegateKeyMap() *delegateKeyMap {
@@ -44,31 +65,49 @@ func newDelegateKeyMap() *delegateKeyMap {
 			key.WithKeys("M"),
 			key.WithHelp("M", "approve and merge"),
 		),
+		closePR: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "close PR"),
+		),
+		openBrowser: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "open in browser"),
+		),
 	}
+}
+
+func openURL(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
 }
 
 func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 	d.Styles.SelectedTitle = lipgloss.NewStyle().Bold(true).
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#25A065"}).
+		BorderForeground(ui.CrayolaGreen).
 		Foreground(ui.CrayolaGreen).
 		Padding(0, 0, 0, 1)
 	d.Styles.SelectedDesc = lipgloss.NewStyle().Italic(true).
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#F793FF", Dark: "#25A065"}).
-		Foreground(ui.CrayolaGreen).
+		BorderForeground(ui.CrayolaGreen).
+		Foreground(ui.Subtle).
 		Padding(0, 0, 0, 2)
 
 	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
-		var title string
-
 		selectedPR, ok := m.SelectedItem().(model.PullRequestResponse)
-		if ok {
-			title = selectedPR.Title()
-		} else {
+		if !ok {
 			return nil
 		}
+		title := selectedPR.Title()
 
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -79,32 +118,68 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 					return eventMsg{eventType: "STATUS", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
 				}
 				return tea.Batch(statusMsgCmd, eventCmd)
+
 			case key.Matches(msg, keys.approve):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approving the PR " + title))
-				eventCmd := func() tea.Msg {
-					return eventMsg{eventType: "APPROVE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
+				return func() tea.Msg {
+					return confirmMsg{
+						eventType:  "APPROVE",
+						ctx:        ctx,
+						orgName:    orgName,
+						repoName:   selectedPR.RepositoryName(),
+						selectedPR: selectedPR,
+						prompt:     "Approve PR " + title + "? (y/n)",
+					}
 				}
-				return tea.Batch(statusMsgCmd, eventCmd)
+
 			case key.Matches(msg, keys.merge):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Merging the PR " + title))
-				eventCmd := func() tea.Msg {
-					return eventMsg{eventType: "MERGE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
+				return func() tea.Msg {
+					return confirmMsg{
+						eventType:  "MERGE",
+						ctx:        ctx,
+						orgName:    orgName,
+						repoName:   selectedPR.RepositoryName(),
+						selectedPR: selectedPR,
+						prompt:     "Merge PR " + title + "? (y/n)",
+					}
 				}
-				return tea.Batch(statusMsgCmd, eventCmd)
+
 			case key.Matches(msg, keys.approveMerge):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Approve and Merging the PR " + title))
-				eventCmd := func() tea.Msg {
-					return eventMsg{eventType: "APPROVE_MERGE", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
+				return func() tea.Msg {
+					return confirmMsg{
+						eventType:  "APPROVE_MERGE",
+						ctx:        ctx,
+						orgName:    orgName,
+						repoName:   selectedPR.RepositoryName(),
+						selectedPR: selectedPR,
+						prompt:     "Approve and Merge PR " + title + "? (y/n)",
+					}
 				}
-				return tea.Batch(statusMsgCmd, eventCmd)
+
+			case key.Matches(msg, keys.closePR):
+				return func() tea.Msg {
+					return confirmMsg{
+						eventType:  "CLOSE",
+						ctx:        ctx,
+						orgName:    orgName,
+						repoName:   selectedPR.RepositoryName(),
+						selectedPR: selectedPR,
+						prompt:     "Close PR " + title + "? (y/n)",
+					}
+				}
+
+			case key.Matches(msg, keys.openBrowser):
+				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Opening " + title + " in browser..."))
+				openCmd := func() tea.Msg {
+					return browserOpenMsg{url: selectedPR.HTMLUrl}
+				}
+				return tea.Batch(statusMsgCmd, openCmd)
 			}
 		}
 
 		return nil
 	}
 
-	// help := []key.Binding{keys.status}
-	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approveMerge}
+	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approveMerge, keys.closePR, keys.openBrowser}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help

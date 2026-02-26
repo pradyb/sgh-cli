@@ -2,13 +2,11 @@ package workflow
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -82,6 +80,7 @@ var (
 	running          bool
 	queued           bool
 	failed           bool
+	sortBy           string
 )
 
 func listCommand(ctx *context.Context) *cobra.Command {
@@ -125,7 +124,11 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 				Count:            lastCount,
 			}
 			responses := workflow.ListWorkflowRuns(ctx, req)
-			ui.PrintWorkflowRuns(responses)
+			if ctx.JSON {
+				ui.PrintJSON(responses)
+				return
+			}
+			ui.PrintWorkflowRuns(responses, sortBy, ctx.Compact)
 		},
 	}
 
@@ -137,6 +140,7 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 	listCmd.Flags().BoolVar(&failed, "failed", false, "show only failed workflow runs")
 	listCmd.Flags().StringVarP(&branch, "branch", "B", "", "filter by `branch` name")
 	listCmd.Flags().IntVarP(&lastCount, "last", "l", 10, "number of workflow runs to fetch per repository")
+	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, status, created")
 	listCmd.MarkFlagsMutuallyExclusive("status", "running", "queued", "failed")
 	listCmd.MarkPersistentFlagRequired("org")
 
@@ -195,40 +199,80 @@ Use --watch to poll for updates until the run completes.`,
 	return viewCmd
 }
 
+// --- Bubble Tea watch model ---
+
+type watchTickMsg struct{}
+type watchDataMsg struct{ detail model.WorkflowRunDetail }
+
+type watchModel struct {
+	ctx      *context.Context
+	req      workflow.WorkflowRunRequest
+	interval time.Duration
+	detail   model.WorkflowRunDetail
+	loading  bool
+	done     bool
+}
+
+func newWatchModel(ctx *context.Context, req workflow.WorkflowRunRequest, interval time.Duration) watchModel {
+	return watchModel{ctx: ctx, req: req, interval: interval, loading: true}
+}
+
+func (m watchModel) Init() tea.Cmd {
+	return m.fetchDetail
+}
+
+func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case watchDataMsg:
+		m.detail = msg.detail
+		m.loading = false
+		if !m.detail.IsInProgress() {
+			m.done = true
+			return m, tea.Quit
+		}
+		return m, tea.Tick(m.interval, func(time.Time) tea.Msg { return watchTickMsg{} })
+
+	case watchTickMsg:
+		m.loading = true
+		return m, m.fetchDetail
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			m.done = true
+			return m, tea.Quit
+		case "r":
+			m.loading = true
+			return m, m.fetchDetail
+		}
+	}
+	return m, nil
+}
+
+func (m watchModel) View() string {
+	if m.loading && m.detail.Run.ID == 0 {
+		return "\n  Fetching workflow run details...\n"
+	}
+	rendered := ui.RenderWorkflowRunDetail(m.detail)
+	if !m.done && m.detail.IsInProgress() {
+		hint := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true).PaddingLeft(2)
+		rendered += hint.Render(fmt.Sprintf("Watching — refreshes every %ds · r to refresh · q to quit", int(m.interval.Seconds())))
+		rendered += "\n"
+	}
+	return rendered
+}
+
+func (m watchModel) fetchDetail() tea.Msg {
+	detail := workflow.GetWorkflowRunDetail(m.ctx, m.req)
+	return watchDataMsg{detail: detail}
+}
+
 func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest) {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigChan)
-
 	interval := time.Duration(watchInterval) * time.Second
-	var prevLineCount int
-
-	for {
-		detail := workflow.GetWorkflowRunDetail(ctx, req)
-
-		// Move cursor up to overwrite previous output
-		if prevLineCount > 0 {
-			fmt.Fprintf(os.Stdout, "\033[%dA\033[J", prevLineCount)
-		}
-
-		rendered := ui.RenderWorkflowRunDetail(detail)
-		if detail.IsInProgress() {
-			watchHint := fmt.Sprintf("\n  Watching... refreshing every %ds (Ctrl+C to stop)\n", watchInterval)
-			rendered += watchHint
-		}
-		fmt.Print(rendered)
-		prevLineCount = strings.Count(rendered, "\n")
-
-		if !detail.IsInProgress() {
-			return
-		}
-
-		select {
-		case <-sigChan:
-			fmt.Println("\n  Watch stopped.")
-			return
-		case <-time.After(interval):
-		}
+	m := newWatchModel(ctx, req, interval)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		logger.Glog.Error().Err(err).Msg("Watch mode error")
 	}
 }
 
@@ -252,7 +296,7 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 			if response.ErrorMessage != "" {
 				logger.Glog.Error().Msg(response.ErrorMessage)
 			} else {
-				ui.PrintWorkflowRuns([]model.WorkflowRun{response})
+				ui.PrintWorkflowRuns([]model.WorkflowRun{response}, "", false)
 			}
 		},
 	}
@@ -286,7 +330,7 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 			if response.ErrorMessage != "" {
 				logger.Glog.Error().Msg(response.ErrorMessage)
 			} else {
-				ui.PrintWorkflowRuns([]model.WorkflowRun{response})
+				ui.PrintWorkflowRuns([]model.WorkflowRun{response}, "", false)
 			}
 		},
 	}

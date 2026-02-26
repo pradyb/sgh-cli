@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -202,10 +204,12 @@ func (c *HttpClient) doSingleRequest(ctx context.Context, req *http.Request) (*h
 	}
 
 	if res.StatusCode >= 400 {
-		body, _ := httputil.DumpResponse(res, true)
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		msg := extractGitHubMessage(body, res.StatusCode)
 		return res, &apperrors.GitHubError{
 			StatusCode: res.StatusCode,
-			Message:    string(body),
+			Message:    msg,
 			URL:        req.URL.String(),
 		}
 	}
@@ -317,4 +321,20 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 		return err
 	}
 	return queryErr
+}
+
+// extractGitHubMessage parses a GitHub API JSON error body and returns
+// a clean, human-readable message. Falls back to the raw body on parse failure.
+func extractGitHubMessage(body []byte, statusCode int) string {
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &payload); err == nil && payload.Message != "" {
+		return fmt.Sprintf("%d: %s", statusCode, payload.Message)
+	}
+	text := string(body)
+	if len(text) > 200 {
+		text = text[:200] + "..."
+	}
+	return fmt.Sprintf("%d: %s", statusCode, text)
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -34,11 +36,29 @@ This includes:
 }
 
 func displayVersion() {
-	fmt.Printf("🚀 sgh-cli version information:\n\n")
-	fmt.Printf("Version:     %s\n", Version)
-	fmt.Printf("Commit SHA:  %s\n", CommitSHA)
-	fmt.Printf("Build Date:  %s\n", BuildDate)
-	fmt.Printf("Go Version:  %s\n", runtime.Version())
-	fmt.Printf("Platform:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Printf("Architecture: %s\n", runtime.GOARCH)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Cyan)
+	labelStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Width(14)
+	valueStyle := lipgloss.NewStyle().Foreground(ui.White)
+	accentStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Green)
+
+	fmt.Println()
+	fmt.Println(titleStyle.Render("sgh-cli"))
+	fmt.Println()
+
+	rows := [][2]string{
+		{"Version", Version},
+		{"Commit SHA", CommitSHA},
+		{"Build Date", BuildDate},
+		{"Go Version", runtime.Version()},
+		{"Platform", runtime.GOOS + "/" + runtime.GOARCH},
+	}
+
+	for _, row := range rows {
+		val := valueStyle.Render(row[1])
+		if row[0] == "Version" {
+			val = accentStyle.Render(row[1])
+		}
+		fmt.Printf("  %s %s\n", labelStyle.Render(row[0]), val)
+	}
+	fmt.Println()
 }

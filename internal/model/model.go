@@ -108,15 +108,30 @@ func (pr PullRequestResponse) FirstReviewerName() string {
 	}
 }
 
+func (pr PullRequestResponse) stateIcon() string {
+	switch strings.ToUpper(pr.State) {
+	case "OPEN":
+		return "●"
+	case "CLOSED":
+		return "✗"
+	case "MERGED":
+		return "⊕"
+	default:
+		return "·"
+	}
+}
+
 func (pr PullRequestResponse) Title() string {
-	return strconv.Itoa(pr.PRNumber) + " " + pr.TitleName + " (" + pr.RepositoryName() + ")"
+	return pr.stateIcon() + " #" + strconv.Itoa(pr.PRNumber) + " " + pr.TitleName + " (" + pr.RepositoryName() + ")"
 }
 
 func (pr PullRequestResponse) Description() string {
+	state := "[" + strings.ToLower(pr.State) + "]"
+	branch := pr.Base.Ref + " ← " + pr.Head.Ref
 	if pr.FirstReviewerName() == "" {
-		return pr.AuthorName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
+		return state + " " + pr.AuthorName() + "  " + branch
 	}
-	return pr.AuthorName() + " " + pr.FirstReviewerName() + " " + pr.Base.Ref + " < " + pr.Head.Ref
+	return state + " " + pr.AuthorName() + " → " + pr.FirstReviewerName() + "  " + branch
 }
 
 func (pr PullRequestResponse) FilterValue() string {
