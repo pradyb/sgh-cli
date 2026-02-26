@@ -402,3 +402,63 @@ type OrgTeamMember struct {
 	Url       string
 	PeopleUrl string
 }
+
+type WorkflowRun struct {
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
+	Status         string `json:"status"`
+	Conclusion     string `json:"conclusion"`
+	HeadBranch     string `json:"head_branch"`
+	HeadSha        string `json:"head_sha"`
+	Event          string `json:"event"`
+	HTMLUrl        string `json:"html_url"`
+	RunNumber      int    `json:"run_number"`
+	RunAttempt     int    `json:"run_attempt"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+	Actor          User   `json:"actor"`
+	RepositoryName string
+	ErrorMessage   string
+}
+
+type WorkflowRunsResponse struct {
+	TotalCount   int           `json:"total_count"`
+	WorkflowRuns []WorkflowRun `json:"workflow_runs"`
+}
+
+type WorkflowJob struct {
+	ID          int            `json:"id"`
+	RunID       int            `json:"run_id"`
+	Name        string         `json:"name"`
+	Status      string         `json:"status"`
+	Conclusion  string         `json:"conclusion"`
+	StartedAt   string         `json:"started_at"`
+	CompletedAt string         `json:"completed_at"`
+	HTMLUrl     string         `json:"html_url"`
+	Steps       []WorkflowStep `json:"steps"`
+}
+
+type WorkflowStep struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion"`
+	Number      int    `json:"number"`
+	StartedAt   string `json:"started_at"`
+	CompletedAt string `json:"completed_at"`
+}
+
+type WorkflowJobsResponse struct {
+	TotalCount int           `json:"total_count"`
+	Jobs       []WorkflowJob `json:"jobs"`
+}
+
+type WorkflowRunDetail struct {
+	Run          WorkflowRun
+	Jobs         []WorkflowJob
+	ErrorMessage string
+}
+
+func (d WorkflowRunDetail) IsInProgress() bool {
+	return d.ErrorMessage == "" &&
+		(d.Run.Status == "queued" || d.Run.Status == "in_progress" || d.Run.Status == "waiting" || d.Run.Status == "requested" || d.Run.Status == "pending")
+}

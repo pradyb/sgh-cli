@@ -430,3 +430,65 @@ func GetCommitCheckRuns(ctx *appcontext.Context, orgName, repoName, commitSha st
 	}
 	return checkRuns, nil
 }
+
+func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status string, count int) ([]model.WorkflowRun, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs?per_page=%d", GITHUB_BASE_URL, orgName, repoName, count)
+	if branch != "" {
+		url = fmt.Sprintf("%s&branch=%s", url, branch)
+	}
+	if status != "" {
+		url = fmt.Sprintf("%s&status=%s", url, status)
+	}
+	response, err := invokeAPI(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var runsResponse model.WorkflowRunsResponse
+	if err := json.Unmarshal(response, &runsResponse); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow runs response body")
+		return nil, err
+	}
+	return runsResponse.WorkflowRuns, nil
+}
+
+func RerunWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {
+	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/rerun", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func CancelWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {
+	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/cancel", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func GetWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (model.WorkflowRun, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	if err != nil {
+		return model.WorkflowRun{}, err
+	}
+	var run model.WorkflowRun
+	if err := json.Unmarshal(response, &run); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow run response body")
+		return model.WorkflowRun{}, err
+	}
+	return run, nil
+}
+
+func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID int) ([]model.WorkflowJob, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/jobs", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var jobsResponse model.WorkflowJobsResponse
+	if err := json.Unmarshal(response, &jobsResponse); err != nil {
+		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow jobs response body")
+		return nil, err
+	}
+	return jobsResponse.Jobs, nil
+}

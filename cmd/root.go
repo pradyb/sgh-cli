@@ -19,6 +19,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/cmd/version"
+	"github.com/prady-lab/sgh-cli/cmd/workflow"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/spf13/cobra"
@@ -118,6 +119,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(clone.NewCloneCommand(ctx))
 	rootCmd.AddCommand(team.NewTeamCommand(ctx))
 	rootCmd.AddCommand(health.NewHealthCommand(ctx))
+	rootCmd.AddCommand(workflow.NewWorkflowCommand(ctx))
 	rootCmd.AddCommand(version.NewVersionCommand())
 
 	return rootCmd

@@ -31,7 +31,7 @@ var (
 )
 
 type TableRowType interface {
-	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.OrgTeam
+	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.OrgTeam | model.WorkflowRun
 }
 
 type rowsConvertHandler[T TableRowType] func(data T) []string
@@ -644,4 +644,218 @@ func PrintTeams(teams []model.OrgTeam) {
 		Rows(rows...)
 
 	fmt.Println(t)
+}
+
+func PrintWorkflowRuns(runs []model.WorkflowRun) {
+	if len(runs) == 0 {
+		printNoDataMessage("No Workflow Runs found for the given input")
+		return
+	}
+
+	errorMessageMap := map[string][]string{}
+	rows := make([][]string, 0, len(runs)+1)
+	for _, run := range runs {
+		if run.ErrorMessage != "" {
+			errorMessageMap[run.ErrorMessage] = append(errorMessageMap[run.ErrorMessage], run.RepositoryName)
+			continue
+		}
+		statusConclusion := run.Status
+		if run.Conclusion != "" {
+			statusConclusion = run.Conclusion
+		}
+		actorName := run.Actor.Login
+		if actorName == "" {
+			actorName = run.Actor.Name
+		}
+		rows = append(rows, []string{
+			run.RepositoryName,
+			strconv.Itoa(run.ID),
+			run.Name,
+			statusConclusion,
+			run.HeadBranch,
+			run.Event,
+			actorName,
+			run.CreatedAt,
+			fmt.Sprintf(HyperLinkFormat, run.HTMLUrl, "Open"),
+		})
+	}
+
+	if len(rows) > 0 {
+		rows = append(rows, []string{"Total Workflow Runs", strconv.Itoa(len(rows))})
+		fmt.Println()
+		t := table.New().
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				return workflowRunTableStyle(row, col, rows)
+			}).
+			Headers(repositoryNameDisplayName, "Run ID", "Workflow", "Status", "Branch", "Event", "Actor", "Created At", "URL").
+			Rows(rows...)
+
+		fmt.Println(t)
+	}
+
+	printErrorMessageMap(errorMessageMap)
+}
+
+func PrintWorkflowRunDetail(detail model.WorkflowRunDetail) {
+	fmt.Print(RenderWorkflowRunDetail(detail))
+}
+
+func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
+	var b strings.Builder
+
+	if detail.ErrorMessage != "" {
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAFAFA")).PaddingTop(1).PaddingLeft(2).PaddingBottom(1).Render(fmt.Sprintf("Error: %s", detail.ErrorMessage)))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	run := detail.Run
+	statusConclusion := run.Status
+	if run.Conclusion != "" {
+		statusConclusion = run.Conclusion
+	}
+	actorName := run.Actor.Login
+	if actorName == "" {
+		actorName = run.Actor.Name
+	}
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(White).PaddingLeft(1)
+	labelStyle := lipgloss.NewStyle().Foreground(Gray).PaddingLeft(2)
+	valueStyle := lipgloss.NewStyle().Foreground(LightGray)
+
+	statusStyle := lipgloss.NewStyle().Bold(true)
+	switch statusConclusion {
+	case "success":
+		statusStyle = statusStyle.Foreground(Green)
+	case "failure":
+		statusStyle = statusStyle.Foreground(lipgloss.Color(Red))
+	case "in_progress", "queued":
+		statusStyle = statusStyle.Foreground(lipgloss.Color("#DFC57B"))
+	case "cancelled", "skipped":
+		statusStyle = statusStyle.Foreground(LightGray)
+	}
+
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf("Workflow Run #%d - %s", run.RunNumber, run.Name)))
+	b.WriteString("\n\n")
+	b.WriteString(labelStyle.Render("Repository:  ") + valueStyle.Render(run.RepositoryName) + "\n")
+	b.WriteString(labelStyle.Render("Run ID:      ") + valueStyle.Render(strconv.Itoa(run.ID)) + "\n")
+	b.WriteString(labelStyle.Render("Status:      ") + statusStyle.Render(statusConclusion) + "\n")
+	b.WriteString(labelStyle.Render("Branch:      ") + valueStyle.Render(run.HeadBranch) + "\n")
+	b.WriteString(labelStyle.Render("Event:       ") + valueStyle.Render(run.Event) + "\n")
+	b.WriteString(labelStyle.Render("Actor:       ") + valueStyle.Render(actorName) + "\n")
+	b.WriteString(labelStyle.Render("Attempt:     ") + valueStyle.Render(strconv.Itoa(run.RunAttempt)) + "\n")
+	b.WriteString(labelStyle.Render("Created:     ") + valueStyle.Render(run.CreatedAt) + "\n")
+	b.WriteString(labelStyle.Render("Updated:     ") + valueStyle.Render(run.UpdatedAt) + "\n")
+	b.WriteString(labelStyle.Render("Commit:      ") + valueStyle.Render(run.HeadSha) + "\n")
+	b.WriteString(labelStyle.Render("URL:         ") + valueStyle.Render(fmt.Sprintf(HyperLinkFormat, run.HTMLUrl, run.HTMLUrl)) + "\n")
+
+	if len(detail.Jobs) == 0 {
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAFAFA")).PaddingTop(1).PaddingLeft(2).PaddingBottom(1).Render("No jobs found for this workflow run"))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render("Jobs"))
+
+	rows := make([][]string, 0)
+	for _, job := range detail.Jobs {
+		jobConclusion := job.Status
+		if job.Conclusion != "" {
+			jobConclusion = job.Conclusion
+		}
+
+		stepsDetail := make([]string, 0, len(job.Steps))
+		for _, step := range job.Steps {
+			stepConclusion := step.Status
+			if step.Conclusion != "" {
+				stepConclusion = step.Conclusion
+			}
+			icon := statusIcon(stepConclusion)
+			stepsDetail = append(stepsDetail, fmt.Sprintf("%s %s", icon, step.Name))
+		}
+
+		rows = append(rows, []string{
+			job.Name,
+			jobConclusion,
+			job.StartedAt,
+			job.CompletedAt,
+			strings.Join(stepsDetail, "\n"),
+			fmt.Sprintf(HyperLinkFormat, job.HTMLUrl, "Open"),
+		})
+	}
+
+	b.WriteString("\n\n")
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(rows), -1, false)
+			if row >= 0 && col == 1 {
+				switch rows[row][1] {
+				case "success":
+					style = style.Foreground(Green)
+				case "failure":
+					style = style.Foreground(lipgloss.Color(Red))
+				case "in_progress", "queued":
+					style = style.Foreground(lipgloss.Color("#DFC57B"))
+				case "cancelled", "skipped":
+					style = style.Foreground(LightGray)
+				}
+			}
+			return style
+		}).
+		Headers("Job", "Status", "Started", "Completed", "Steps", "URL").
+		Rows(rows...)
+
+	b.WriteString(t.String())
+	b.WriteString("\n")
+	return b.String()
+}
+
+func statusIcon(conclusion string) string {
+	switch conclusion {
+	case "success":
+		return "✓"
+	case "failure":
+		return "✗"
+	case "cancelled":
+		return "⊘"
+	case "skipped":
+		return "○"
+	case "in_progress":
+		return "●"
+	case "queued":
+		return "◌"
+	default:
+		return "·"
+	}
+}
+
+func workflowRunTableStyle(row, col int, rows [][]string) lipgloss.Style {
+	style := defaultTableStyle(row, col, len(rows), 0, true)
+
+	if col == 2 {
+		style = style.Width(30)
+	}
+	if row >= 0 && row < len(rows)-1 && col == 3 {
+		status := rows[row][3]
+		switch status {
+		case "success":
+			style = style.Foreground(Green)
+		case "failure":
+			style = style.Foreground(lipgloss.Color(Red))
+		case "in_progress", "queued":
+			style = style.Foreground(lipgloss.Color("#DFC57B"))
+		case "cancelled", "skipped":
+			style = style.Foreground(LightGray)
+		}
+	}
+	return style
 }

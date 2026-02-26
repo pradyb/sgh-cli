@@ -1,0 +1,122 @@
+package workflow
+
+import (
+	"fmt"
+
+	"github.com/prady-lab/sgh-cli/internal/model"
+	"github.com/prady-lab/sgh-cli/internal/processor"
+	"github.com/prady-lab/sgh-cli/internal/service"
+	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
+)
+
+type WorkflowListRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	Branch           string
+	Status           string
+	Count            int
+}
+
+type WorkflowRunRequest struct {
+	OrgName  string
+	RepoName string
+	RunID    int
+}
+
+func ListWorkflowRuns(ctx *context.Context, req WorkflowListRequest) []model.WorkflowRun {
+	responses := make([]model.WorkflowRun, 0)
+
+	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListWorkflowRuns,
+		func(ctx *context.Context, orgName, repoName string) ([]model.WorkflowRun, error) {
+			runs, err := service.ListWorkflowRuns(ctx, orgName, repoName, req.Branch, req.Status, req.Count)
+			if err != nil {
+				return nil, err
+			}
+			for i := range runs {
+				runs[i].RepositoryName = repoName
+			}
+			return runs, nil
+		},
+		func(repoName string, result processor.RepoOperationResult[[]model.WorkflowRun]) {
+			responses = append(responses, result.Result...)
+		},
+		func(repoName string, err error) {
+			responses = append(responses, model.WorkflowRun{
+				RepositoryName: repoName,
+				ErrorMessage:   fmt.Sprintf("failed to list workflow runs: %v", err),
+			})
+		})
+
+	return responses
+}
+
+func RerunWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRun {
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
+	repoName := actualRepoNames[0]
+
+	_, err := service.RerunWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Error().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Failed to rerun workflow")
+		return model.WorkflowRun{
+			RepositoryName: repoName,
+			ID:             req.RunID,
+			ErrorMessage:   fmt.Sprintf("failed to rerun workflow: %v", err),
+		}
+	}
+	return model.WorkflowRun{
+		RepositoryName: repoName,
+		ID:             req.RunID,
+		Status:         "rerun_requested",
+	}
+}
+
+func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRunDetail {
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
+	repoName := actualRepoNames[0]
+
+	run, err := service.GetWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Error().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Failed to get workflow run")
+		return model.WorkflowRunDetail{
+			Run:          model.WorkflowRun{RepositoryName: repoName, ID: req.RunID},
+			ErrorMessage: fmt.Sprintf("failed to get workflow run: %v", err),
+		}
+	}
+	run.RepositoryName = repoName
+
+	jobs, err := service.GetWorkflowRunJobs(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Error().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Failed to get workflow jobs")
+		return model.WorkflowRunDetail{
+			Run:          run,
+			ErrorMessage: fmt.Sprintf("failed to get workflow jobs: %v", err),
+		}
+	}
+
+	return model.WorkflowRunDetail{
+		Run:  run,
+		Jobs: jobs,
+	}
+}
+
+func CancelWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRun {
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
+	repoName := actualRepoNames[0]
+
+	_, err := service.CancelWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Error().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Failed to cancel workflow")
+		return model.WorkflowRun{
+			RepositoryName: repoName,
+			ID:             req.RunID,
+			ErrorMessage:   fmt.Sprintf("failed to cancel workflow: %v", err),
+		}
+	}
+	return model.WorkflowRun{
+		RepositoryName: repoName,
+		ID:             req.RunID,
+		Status:         "cancel_requested",
+	}
+}
