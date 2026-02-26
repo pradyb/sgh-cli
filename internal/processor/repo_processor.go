@@ -32,6 +32,9 @@ const (
 	OperationDeleteProtectedBranch
 	OperationPostRelease
 	OperationListCommits
+	OperationListWorkflowRuns
+	OperationRerunWorkflow
+	OperationCancelWorkflow
 )
 
 var RepoOperationConfig = map[OperationEnum]map[string]string{
@@ -77,10 +80,19 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationListCommits: {
 		"message": "Listing Commits",
 	},
+	OperationListWorkflowRuns: {
+		"message": "Listing Workflow Runs",
+	},
+	OperationRerunWorkflow: {
+		"message": "Rerunning Workflow",
+	},
+	OperationCancelWorkflow: {
+		"message": "Cancelling Workflow",
+	},
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun
 }
 
 type RepoOperationResult[R OperationResultType] struct {
@@ -130,6 +142,12 @@ func (o OperationEnum) String() string {
 		return "PostRelease"
 	case OperationListCommits:
 		return "ListCommits"
+	case OperationListWorkflowRuns:
+		return "ListWorkflowRuns"
+	case OperationRerunWorkflow:
+		return "RerunWorkflow"
+	case OperationCancelWorkflow:
+		return "CancelWorkflow"
 	default:
 		return fmt.Sprintf("UnknownOperation(%d)", o)
 	}
