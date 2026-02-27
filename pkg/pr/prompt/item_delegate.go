@@ -113,11 +113,9 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 		case tea.KeyMsg:
 			switch {
 			case key.Matches(msg, keys.status):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("PR status " + title))
-				eventCmd := func() tea.Msg {
+				return func() tea.Msg {
 					return eventMsg{eventType: "STATUS", selectedPR: selectedPR, ctx: ctx, orgName: orgName, repoName: selectedPR.RepositoryName()}
 				}
-				return tea.Batch(statusMsgCmd, eventCmd)
 
 			case key.Matches(msg, keys.approve):
 				return func() tea.Msg {
@@ -168,11 +166,9 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 				}
 
 			case key.Matches(msg, keys.openBrowser):
-				statusMsgCmd := m.NewStatusMessage(statusMessageStyle("Opening " + title + " in browser..."))
-				openCmd := func() tea.Msg {
+				return func() tea.Msg {
 					return browserOpenMsg{url: selectedPR.HTMLUrl}
 				}
-				return tea.Batch(statusMsgCmd, openCmd)
 			}
 		}
 

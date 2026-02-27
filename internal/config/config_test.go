@@ -1185,7 +1185,8 @@ func TestMatchPatterns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := matchPatterns(tt.patterns, tt.repoName)
+			config := setupConfig()
+			result := config.matchPatterns(tt.patterns, tt.repoName)
 			if result != tt.expected {
 				t.Errorf("Expected %v for patterns %v and repo '%s', got %v", tt.expected, tt.patterns, tt.repoName, result)
 			}
@@ -1435,12 +1436,13 @@ func BenchmarkIsOrganizationPresent(b *testing.B) {
 }
 
 func BenchmarkMatchPatterns(b *testing.B) {
+	config := setupConfig()
 	patterns := []string{".*api.*", "web-.*", "service-.*"}
 	repoName := "user-api-service"
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		matchPatterns(patterns, repoName)
+		config.matchPatterns(patterns, repoName)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 func CloneRepositories(ctx *context.Context, orgName string, repos []string, branch string) error {
@@ -21,16 +22,17 @@ func CloneRepositories(ctx *context.Context, orgName string, repos []string, bra
 	repoNames := make([]string, 0)
 
 	if len(repos) == 0 {
-		logger.Glog.Info().Msgf("%s for all configured repositories in %s", "Cloning", orgName)
+		logger.Flog.Info().Msgf("%s for all configured repositories in %s", "Cloning", orgName)
 		orgRepoNames, err := repo.GetSelectedRepoNames(ctx, orgName)
 		if err != nil {
 			logger.Glog.Error().Err(err).Msgf("Error in getting the Repos for the organization %s", orgName)
 			return err
 		}
 		repoNames = append(repoNames, orgRepoNames...)
+		ui.PrintSelectedRepos("Cloning", orgName, nil)
 	} else {
 		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)
-		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Cloning for selected repositories in %s", orgName)
+		logger.Flog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Cloning for selected repositories in %s", orgName)
 		repoNames = append(repoNames, actualRepoNames...)
 	}
 
@@ -43,14 +45,14 @@ func CloneRepositories(ctx *context.Context, orgName string, repos []string, bra
 			}
 		}
 	} else {
-		logger.Glog.Warn().Msgf("No repositories selected for cloning")
+		logger.Flog.Warn().Msgf("No repositories selected for cloning")
 	}
 	return nil
 }
 
 func executeCloneCmd(repo model.Repository, branch string) error {
 	var cloneCmd *exec.Cmd
-	logger.Glog.Info().Msgf("Cloning the repository %s: %s", repo.Name, repo.SSHUrl)
+	logger.Flog.Info().Msgf("Cloning the repository %s: %s", repo.Name, repo.SSHUrl)
 	if branch == "" {
 		cloneCmd = exec.Command("git", "clone", repo.SSHUrl)
 	} else {

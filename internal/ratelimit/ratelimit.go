@@ -90,7 +90,7 @@ func (rl *RateLimiter) WaitIfNeeded(ctx context.Context, resource string) error 
 		return nil // Reset time has passed
 	}
 
-	logger.Glog.Warn().
+	logger.Flog.Warn().
 		Str("resource", resource).
 		Int("remaining", info.Remaining).
 		Dur("waitTime", waitTime).
@@ -101,7 +101,7 @@ func (rl *RateLimiter) WaitIfNeeded(ctx context.Context, resource string) error 
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(waitTime):
-		logger.Glog.Info().
+		logger.Flog.Info().
 			Str("resource", resource).
 			Msg("Rate limit reset, resuming requests")
 		return nil

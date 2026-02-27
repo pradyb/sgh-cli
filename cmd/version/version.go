@@ -18,7 +18,7 @@ var (
 func NewVersionCommand() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
-		Short: "📋 Display version information",
+		Short: "Display version information",
 		Long: `Display detailed version information about sgh-cli.
 
 This includes:

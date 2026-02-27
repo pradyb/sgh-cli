@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
 	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
@@ -61,14 +60,6 @@ func invokeAPIFull(reqCtx context.Context, ctx *appcontext.Context, method, url 
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, &apperrors.GitHubError{
-			StatusCode: res.StatusCode,
-			Message:    string(body),
-			URL:        url,
-		}
-	}
-
 	return &apiResponse{Body: body, LinkHeader: res.Header.Get("Link")}, nil
 }
 
@@ -102,7 +93,7 @@ func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, 
 	}
 	var refResponse refResponse
 	if err := json.Unmarshal(commitSHAResponse, &refResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the response body")
 		return model.RefResponse{}, err
 	}
 
@@ -117,7 +108,7 @@ func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, 
 	}
 	var branchResponse model.RefResponse
 	if err := json.Unmarshal(branchResponseByte, &branchResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the new branch response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the new branch response body")
 		return model.RefResponse{}, err
 	}
 	return branchResponse, nil
@@ -135,7 +126,7 @@ func CreateNewBranchFromCommit(ctx *appcontext.Context, orgName, repoName, newBr
 	}
 	var branchResponse model.RefResponse
 	if err := json.Unmarshal(branchResponseByte, &branchResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the branch response body")
 		return model.RefResponse{}, err
 	}
 	return branchResponse, nil
@@ -160,7 +151,7 @@ func ListBranches(ctx *appcontext.Context, orgName, repoName string) ([]model.Br
 		}
 		var page []model.BranchResponse
 		if err := json.Unmarshal(resp.Body, &page); err != nil {
-			logger.Glog.Error().Err(err).Msg("Error in unmarshal the branches response body")
+			logger.Flog.Error().Err(err).Msg("Error in unmarshal the branches response body")
 			return nil, err
 		}
 		allBranches = append(allBranches, page...)
@@ -180,7 +171,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	}
 	var refResponse refResponse
 	if err := json.Unmarshal(refCommitSHAResponse, &refResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the tag response body")
 		return model.RefResponse{}, err
 	}
 
@@ -195,7 +186,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	}
 	var tagCommitResponse refTagResponse
 	if err := json.Unmarshal(tagCommitSHAResponse, &tagCommitResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag commit sha response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the tag commit sha response body")
 		return model.RefResponse{}, err
 	}
 
@@ -210,7 +201,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	}
 	var tagResponse model.RefResponse
 	if err := json.Unmarshal(tagByteResponse, &tagResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the tag response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the tag response body")
 		return model.RefResponse{}, err
 	}
 
@@ -228,7 +219,7 @@ func ListTags(ctx *appcontext.Context, orgName, repoName string) ([]model.TagRes
 		}
 		var page []model.TagResponse
 		if err := json.Unmarshal(resp.Body, &page); err != nil {
-			logger.Glog.Error().Err(err).Msg("Error in unmarshal the tags response body")
+			logger.Flog.Error().Err(err).Msg("Error in unmarshal the tags response body")
 			return nil, err
 		}
 		allTags = append(allTags, page...)
@@ -262,7 +253,7 @@ func CreateNewPullRequest(ctx *appcontext.Context, orgName, repoName, title, bod
 	}
 	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the new PR response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the new PR response body")
 		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
@@ -275,7 +266,7 @@ func GetPullRequestInfo(ctx *appcontext.Context, orgName, repoName string, prNum
 	}
 	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body while getting the PR info")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the PR response body while getting the PR info")
 		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
@@ -331,7 +322,7 @@ func ListPullRequests(ctx *appcontext.Context, orgName, repoName string, baseRef
 		}
 		var page []model.PullRequestResponse
 		if err := json.Unmarshal(resp.Body, &page); err != nil {
-			logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+			logger.Flog.Error().Err(err).Msg("Error in unmarshal the PR response body")
 			return nil, err
 		}
 		allPRs = append(allPRs, page...)
@@ -354,7 +345,7 @@ func UpdatePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 	}
 	var prResponse model.PullRequestResponse
 	if err := json.Unmarshal(prResponseByte, &prResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the PR response body")
 		return model.PullRequestResponse{}, err
 	}
 	return prResponse, nil
@@ -367,7 +358,7 @@ func ListPullRequestReviews(ctx *appcontext.Context, orgName, repoName string, p
 	}
 	var reviewResponses []model.ReviewPullRequestResponse
 	if err := json.Unmarshal(reviewResponseByte, &reviewResponses); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
 		return nil, err
 	}
 	return reviewResponses, nil
@@ -380,7 +371,7 @@ func GetPullRequestFiles(ctx *appcontext.Context, orgName, repoName string, prNu
 	}
 	var files []model.PullRequestFile
 	if err := json.Unmarshal(filesResponseByte, &files); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR files response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the PR files response body")
 		return nil, err
 	}
 	return files, nil
@@ -402,7 +393,7 @@ func ReviewPullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("event", action).Msgf("PR Review successfully")
 	var reviewResponse model.ReviewPullRequestResponse
 	if err := json.Unmarshal(reviewResponseByte, &reviewResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the Review PR response body")
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
 	reviewResponse.RepositoryName = repoName
@@ -429,7 +420,7 @@ func MergePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumbe
 	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msgf("PR Merged successfully")
 	var mergeResponse model.MergeResponse
 	if err := json.Unmarshal(mergeResponseByte, &mergeResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the Merge response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the Merge response body")
 		return model.MergeResponse{}, err
 	}
 	return mergeResponse, nil
@@ -442,7 +433,7 @@ func UpdateProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchNam
 	}
 	var branch model.ProtectedBranch
 	if err := json.Unmarshal(response, &branch); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the branch response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the branch response body")
 		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
 	branch.RepositoryName = repoName
@@ -474,7 +465,7 @@ func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, 
 		}
 		var page []model.CommitResponse
 		if err := json.Unmarshal(resp.Body, &page); err != nil {
-			logger.Glog.Error().Err(err).Msg("Error in unmarshal the commits response body")
+			logger.Flog.Error().Err(err).Msg("Error in unmarshal the commits response body")
 			return nil, err
 		}
 		allCommits = append(allCommits, page...)
@@ -490,7 +481,7 @@ func GetCommitInfo(ctx *appcontext.Context, orgName, repoName, commitSha string)
 	}
 	var commit model.CommitResponse
 	if err := json.Unmarshal(response, &commit); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the commit response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the commit response body")
 		return model.CommitResponse{}, err
 	}
 	return commit, nil
@@ -503,7 +494,7 @@ func GetCommitCheckRuns(ctx *appcontext.Context, orgName, repoName, commitSha st
 	}
 	var checkRuns model.CheckRunResponse
 	if err := json.Unmarshal(response, &checkRuns); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the check runs response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the check runs response body")
 		return model.CheckRunResponse{}, err
 	}
 	return checkRuns, nil
@@ -523,7 +514,7 @@ func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status
 	}
 	var runsResponse model.WorkflowRunsResponse
 	if err := json.Unmarshal(response, &runsResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow runs response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the workflow runs response body")
 		return nil, err
 	}
 	return runsResponse.WorkflowRuns, nil
@@ -552,7 +543,7 @@ func GetWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int
 	}
 	var run model.WorkflowRun
 	if err := json.Unmarshal(response, &run); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow run response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the workflow run response body")
 		return model.WorkflowRun{}, err
 	}
 	return run, nil
@@ -565,7 +556,7 @@ func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID
 	}
 	var jobsResponse model.WorkflowJobsResponse
 	if err := json.Unmarshal(response, &jobsResponse); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the workflow jobs response body")
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the workflow jobs response body")
 		return nil, err
 	}
 	return jobsResponse.Jobs, nil

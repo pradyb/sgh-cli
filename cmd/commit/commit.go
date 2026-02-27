@@ -62,10 +62,10 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 				return
 			}
 			if details {
-				logger.Glog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
+				logger.Flog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
 				ui.PrintCommitResponses(responses, includeMergeCommits)
 			} else {
-				logger.Glog.Info().Msgf("Printing commit summary for past %d days", noOfDays)
+				logger.Flog.Info().Msgf("Printing commit summary for past %d days", noOfDays)
 				ui.PrintCommitSummary(responses, includeMergeCommits)
 			}
 		},

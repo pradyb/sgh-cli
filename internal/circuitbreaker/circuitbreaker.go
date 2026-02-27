@@ -185,7 +185,7 @@ func (cb *CircuitBreaker) setState(state State) {
 	oldState := cb.state
 	cb.state = state
 
-	logger.Glog.Info().
+	logger.Flog.Info().
 		Str("oldState", oldState.String()).
 		Str("newState", state.String()).
 		Msg("Circuit breaker state changed")
@@ -219,5 +219,5 @@ func (cb *CircuitBreaker) Reset() {
 	cb.requests = 0
 	cb.lastFailureTime = time.Time{}
 
-	logger.Glog.Info().Msg("Circuit breaker reset")
+	logger.Flog.Info().Msg("Circuit breaker reset")
 }

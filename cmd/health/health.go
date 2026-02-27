@@ -16,7 +16,7 @@ import (
 func NewHealthCommand(ctx *context.Context) *cobra.Command {
 	healthCmd := &cobra.Command{
 		Use:   "health",
-		Short: "🔍 Check the health and connectivity of sgh-cli",
+		Short: "Check the health and connectivity of sgh-cli",
 		Long: `Check the health and connectivity of sgh-cli components:
 
 • GitHub API connectivity
@@ -137,7 +137,7 @@ func checkRateLimitStatus(ctx *context.Context) error {
 	// Check if we're close to rate limits
 	for resource, info := range status {
 		if info.Remaining < 100 {
-			logger.Glog.Warn().
+			logger.Flog.Warn().
 				Str("resource", resource).
 				Int("remaining", info.Remaining).
 				Msg("Rate limit is low")
@@ -154,7 +154,7 @@ func checkConfiguration(ctx *context.Context) error {
 
 	// Check if we have any organizations configured
 	if len(ctx.Config.Organizations) == 0 {
-		logger.Glog.Info().Msg("No organizations configured (this is normal for new installations)")
+		logger.Flog.Info().Msg("No organizations configured (this is normal for new installations)")
 	}
 
 	return nil

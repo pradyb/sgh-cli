@@ -48,11 +48,13 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  • Repository cloning and commit tracking
 			  • Flexible filtering with include/exclude patterns
 
-			🔧 Configuration:
-			  Environment Variables:
-			    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
+		🔧 Configuration:
+		  Environment Variables:
+		    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
+		    SGH_ORG         Default organization name (optional)
+		    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
 
-			  Config Files:
+		  Config Files:
 			    Windows: ~/sgh.json
 			    Linux:   ~/.config/sgh/sgh.json  
 			    Mac:     ~/.config/sgh/sgh.json
@@ -99,6 +101,15 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			setupContext(cmd, ctx)
 			logCommandExecution(cmd)
 		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if ctx.HttpClient != nil {
+				count := ctx.HttpClient.APICallCount()
+				if count > 0 {
+					style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+					fmt.Println(style.Render(fmt.Sprintf("  API calls: %d", count)))
+				}
+			}
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 		},
@@ -131,6 +142,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 		&cobra.Group{ID: "cicd", Title: "CI/CD & Release:"},
 		&cobra.Group{ID: "org", Title: "Organization:"},
 		&cobra.Group{ID: "util", Title: "Utilities:"},
+		&cobra.Group{ID: "shortcuts", Title: "Shortcuts:"},
 	)
 
 	repoCmd := repo.NewRepoCommand(ctx)
@@ -169,6 +181,12 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
 	rootCmd.AddCommand(teamCmd)
 	rootCmd.AddCommand(configCmd, healthCmd, versionCmd)
+
+	shortcutsCmd := newShortcutsHelpCommand()
+	shortcutsCmd.GroupID = "util"
+	rootCmd.AddCommand(shortcutsCmd)
+
+	registerShortcuts(rootCmd, ctx)
 
 	// Cobra auto-generates the completion command; assign it to the util group
 	// so it appears alongside config, health, and version.
@@ -224,6 +242,7 @@ func validateCommandRequirements(cmd *cobra.Command) {
 	skipOrg := map[string]bool{
 		"help": true, "completion": true, "health": true,
 		"version": true, "config": true, "repo": true,
+		"shortcuts": true,
 	}
 	noOrgRequired := !cmd.HasParent() || (cmd.Run == nil && cmd.RunE == nil)
 	for c := cmd; c != nil; c = c.Parent() {

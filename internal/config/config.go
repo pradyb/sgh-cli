@@ -6,21 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
+	"sort"
 	"strings"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
 const DefaultFilename = "sgh.json"
 
 type Config struct {
-	NoOfWorkers   int                     `json:"no_of_workers,omitempty"`
-	Organizations []Organization          `json:"organizations"`
-	orgData       map[string]Organization `json:"-"`
+	NoOfWorkers      int                        `json:"no_of_workers,omitempty"`
+	Organizations    []Organization             `json:"organizations"`
+	orgData          map[string]Organization    `json:"-"`
+	compiledPatterns map[string]*regexp.Regexp   `json:"-"`
 }
 
 type Organization struct {
@@ -54,10 +56,7 @@ func Init() (*Config, error) {
 	if err := config.Load(); err != nil {
 		return nil, err
 	}
-	config.orgData = make(map[string]Organization)
-	for _, org := range config.Organizations {
-		config.orgData[strings.ToLower(org.Name)] = org
-	}
+	config.rebuildOrgData()
 	return config, nil
 }
 
@@ -71,7 +70,7 @@ func (config *Config) OrganizationNames() []string {
 
 func (config *Config) RepositoriesNames(orgName string) []string {
 	if config == nil || config.orgData == nil {
-		logger.Glog.Warn().Str("org", orgName).Msg("Config not initialized")
+		logger.Flog.Warn().Str("org", orgName).Msg("Config not initialized")
 		return []string{}
 	}
 	org, exists := config.orgData[strings.ToLower(orgName)]
@@ -127,11 +126,25 @@ func (config *Config) TaggerName(orgName string) string {
 }
 
 func (config *Config) TaggerEmail(orgName string) string {
-	return config.orgData[strings.ToLower(orgName)].Tagger.Email
+	if config == nil || config.orgData == nil {
+		return ""
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ""
+	}
+	return org.Tagger.Email
 }
 
 func (config *Config) ProtectedBranchDetail(orgName string) ProtectedBranch {
-	return config.orgData[strings.ToLower(orgName)].ProtectedBranch
+	if config == nil || config.orgData == nil {
+		return ProtectedBranch{}
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ProtectedBranch{}
+	}
+	return org.ProtectedBranch
 }
 
 func (config *Config) IsOrganizationPresent(orgName string) bool {
@@ -188,9 +201,36 @@ func isPatternPresent(patterns []string, pattern string) bool {
 	return false
 }
 
+func (config *Config) rebuildOrgData() {
+	config.orgData = make(map[string]Organization, len(config.Organizations))
+	config.compiledPatterns = make(map[string]*regexp.Regexp)
+	for _, org := range config.Organizations {
+		config.orgData[strings.ToLower(org.Name)] = org
+		for _, p := range org.RepoPatterns.Include {
+			if _, exists := config.compiledPatterns[p]; !exists {
+				if r, err := regexp.Compile(p); err == nil {
+					config.compiledPatterns[p] = r
+				} else {
+					logger.Flog.Error().Err(err).Str("pattern", p).Msg("Failed to compile regex pattern")
+				}
+			}
+		}
+		for _, p := range org.RepoPatterns.Exclude {
+			if _, exists := config.compiledPatterns[p]; !exists {
+				if r, err := regexp.Compile(p); err == nil {
+					config.compiledPatterns[p] = r
+				} else {
+					logger.Flog.Error().Err(err).Str("pattern", p).Msg("Failed to compile regex pattern")
+				}
+			}
+		}
+	}
+}
+
 func (config *Config) AddOrganization(orgName string) bool {
 	if !config.IsOrganizationPresent(orgName) {
 		config.Organizations = append(config.Organizations, Organization{Name: orgName})
+		config.rebuildOrgData()
 		return true
 	}
 	return false
@@ -200,17 +240,18 @@ func (config *Config) AddRepository(orgName, repoName string) bool {
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
 			if !config.IsRepositoryPresent(orgName, repoName) {
-				config.Organizations[i].Repositories = append(org.Repositories, repoName)
+				config.Organizations[i].Repositories = append(config.Organizations[i].Repositories, repoName)
+				config.rebuildOrgData()
 				return true
-			} else {
-				return false
 			}
+			return false
 		}
 	}
 	config.Organizations = append(
 		config.Organizations,
 		Organization{Name: orgName, Repositories: []string{repoName}},
 	)
+	config.rebuildOrgData()
 	return true
 }
 
@@ -218,7 +259,8 @@ func (config *Config) AddPullRequestAssignee(orgName, pullRequestAssignee string
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
 			if !config.IsPullRequestAssigneePresent(orgName, pullRequestAssignee) {
-				config.Organizations[i].PullRequestAssignees = append(org.PullRequestAssignees, pullRequestAssignee)
+				config.Organizations[i].PullRequestAssignees = append(config.Organizations[i].PullRequestAssignees, pullRequestAssignee)
+				config.rebuildOrgData()
 				return true
 			}
 			return false
@@ -231,10 +273,12 @@ func (config *Config) AddRepositoryPattern(orgName string, include bool, exclude
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
 			if include && !config.IsRepositoryPatternPresent(orgName, pattern, true) {
-				config.Organizations[i].RepoPatterns.Include = append(org.RepoPatterns.Include, pattern)
+				config.Organizations[i].RepoPatterns.Include = append(config.Organizations[i].RepoPatterns.Include, pattern)
+				config.rebuildOrgData()
 				return true
 			} else if exclude && !config.IsRepositoryPatternPresent(orgName, pattern, false) {
-				config.Organizations[i].RepoPatterns.Exclude = append(org.RepoPatterns.Exclude, pattern)
+				config.Organizations[i].RepoPatterns.Exclude = append(config.Organizations[i].RepoPatterns.Exclude, pattern)
+				config.rebuildOrgData()
 				return true
 			}
 			return false
@@ -245,28 +289,50 @@ func (config *Config) AddRepositoryPattern(orgName string, include bool, exclude
 
 func (config *Config) ActualRepositoryNamesUsingFzf(orgName string, repos []string) []string {
 	actualRepoNames := make([]string, 0)
+	seen := make(map[string]bool)
 	configRepoNames := config.RepositoriesNames(orgName)
 	if len(configRepoNames) == 0 {
 		return repos
 	}
 	for _, repoName := range repos {
-		fuzzyNames := fuzzy.Find(repoName, configRepoNames)
-		if len(fuzzyNames) > 0 {
-			if len(fuzzyNames) == 1 {
-				actualRepoNames = append(actualRepoNames, fuzzyNames[0])
-			} else if len(fuzzyNames) > 1 {
-				if slices.Contains(fuzzyNames, repoName) {
-					actualRepoNames = append(actualRepoNames, repoName)
-				} else {
-					actualRepoNames = append(actualRepoNames, fuzzyNames[0])
-					logger.Glog.Warn().Str("matched names", strings.Join(fuzzyNames, ",")).Str("selected", fuzzyNames[0]).Msgf("Multiple Repos found for the search string %s", repoName)
-				}
-			}
-		} else {
-			actualRepoNames = append(actualRepoNames, repoName)
+		resolved := resolveRepoName(repoName, configRepoNames)
+		if !seen[resolved] {
+			seen[resolved] = true
+			actualRepoNames = append(actualRepoNames, resolved)
 		}
 	}
 	return actualRepoNames
+}
+
+func resolveRepoName(repoName string, configRepoNames []string) string {
+	// Prefer exact match (case-insensitive) — no ambiguity
+	for _, cfg := range configRepoNames {
+		if strings.EqualFold(cfg, repoName) {
+			return cfg
+		}
+	}
+
+	// Rank all fuzzy matches by Levenshtein distance (case-insensitive)
+	ranked := fuzzy.RankFindFold(repoName, configRepoNames)
+	if len(ranked) == 0 {
+		ui.PrintNoFuzzyMatchWarning(repoName)
+		return repoName
+	}
+
+	sort.Sort(ranked)
+	best := ranked[0].Target
+
+	if len(ranked) == 1 {
+		return best
+	}
+
+	matchNames := make([]string, len(ranked))
+	for i, r := range ranked {
+		matchNames[i] = r.Target
+	}
+	logger.Flog.Warn().Str("search", repoName).Str("matched", strings.Join(matchNames, ",")).Str("selected", best).Msg("Multiple repos matched fuzzy search")
+	ui.PrintFuzzyMatchWarning(repoName, matchNames, best)
+	return best
 }
 
 func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string) bool {
@@ -275,15 +341,15 @@ func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string)
 		return true
 	}
 	if repoPatterns.Include != nil {
-		if matchPatterns(repoPatterns.Include, repoName) {
+		if config.matchPatterns(repoPatterns.Include, repoName) {
 			if repoPatterns.Exclude != nil {
-				return !matchPatterns(repoPatterns.Exclude, repoName)
+				return !config.matchPatterns(repoPatterns.Exclude, repoName)
 			}
 			return true
 		}
 	}
 	if repoPatterns.Exclude != nil {
-		return !matchPatterns(repoPatterns.Exclude, repoName)
+		return !config.matchPatterns(repoPatterns.Exclude, repoName)
 	}
 	return false
 }
@@ -294,6 +360,7 @@ func (config *Config) SetTaggerName(orgName, taggerName string) {
 			config.Organizations[i].Tagger.Name = taggerName
 		}
 	}
+	config.rebuildOrgData()
 }
 
 func (config *Config) SetTaggerEmail(orgName, taggerEmail string) {
@@ -302,6 +369,7 @@ func (config *Config) SetTaggerEmail(orgName, taggerEmail string) {
 			config.Organizations[i].Tagger.Email = taggerEmail
 		}
 	}
+	config.rebuildOrgData()
 }
 
 func (config *Config) Load() error {
@@ -365,12 +433,19 @@ func configFile() string {
 	return filepath.Join(configDir, DefaultFilename)
 }
 
-func matchPatterns(patterns []string, repoName string) bool {
-	for _, configRepo := range patterns {
-		r, err := regexp.Compile(configRepo)
-		if err != nil {
-			logger.Glog.Error().Err(err).Msgf("Error in compiling the regex pattern: %s", configRepo)
-			return false
+func (config *Config) matchPatterns(patterns []string, repoName string) bool {
+	for _, pattern := range patterns {
+		r, ok := config.compiledPatterns[pattern]
+		if !ok {
+			var err error
+			r, err = regexp.Compile(pattern)
+			if err != nil {
+				logger.Flog.Error().Err(err).Str("pattern", pattern).Msg("Failed to compile regex pattern")
+				continue
+			}
+			if config.compiledPatterns != nil {
+				config.compiledPatterns[pattern] = r
+			}
 		}
 		if r.MatchString(repoName) {
 			return true
@@ -386,7 +461,7 @@ func (config *Config) validate() error {
 		return fmt.Errorf("no_of_workers must be non-negative, got %d", config.NoOfWorkers)
 	}
 	if config.NoOfWorkers > 100 {
-		logger.Glog.Warn().
+		logger.Flog.Warn().
 			Int("workers", config.NoOfWorkers).
 			Msg("Very high worker count may cause rate limiting issues")
 	}
@@ -415,7 +490,7 @@ func (config *Config) validate() error {
 			return fmt.Errorf("organization '%s' has negative approving_review_count: %d", org.Name, org.ProtectedBranch.ApprovingReviewCount)
 		}
 		if org.ProtectedBranch.ApprovingReviewCount > 10 {
-			logger.Glog.Warn().
+			logger.Flog.Warn().
 				Str("org", org.Name).
 				Int("count", org.ProtectedBranch.ApprovingReviewCount).
 				Msg("Very high approving review count may be impractical")

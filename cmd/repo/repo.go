@@ -28,12 +28,12 @@ func NewRepoCommand(ctx *context.Context) *cobra.Command {
 		`),
 	}
 
-	repoCmd.AddCommand(listCommand(ctx))
+	repoCmd.AddCommand(ListCommand(ctx))
 	repoCmd.AddCommand(searchCommand(ctx))
 	return repoCmd
 }
 
-func listCommand(ctx *context.Context) *cobra.Command {
+func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List all the selected repositories for the given owner/organization",
@@ -55,7 +55,7 @@ func listCommand(ctx *context.Context) *cobra.Command {
 				cmd.Help()
 				return
 			}
-			logger.Glog.Info().Msgf("Listing the repositories for the %s owner/organization", orgName)
+			logger.Flog.Info().Msgf("Listing the repositories for the %s owner/organization", orgName)
 			repositories, err := repo.GetReposForOrg(ctx, orgName, isAllRepos)
 			if err != nil {
 				logger.Glog.Error().Err(err).Msgf("Error in getting the repositories for the organization %s", orgName)

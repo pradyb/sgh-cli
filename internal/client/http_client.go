@@ -8,8 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/circuitbreaker"
@@ -22,6 +22,7 @@ import (
 
 type HttpClient struct {
 	Client         http.Client
+	Token          string
 	Verbose        bool
 	LogResponse    bool
 	RateLimiter    *ratelimit.RateLimiter
@@ -32,9 +33,10 @@ type HttpClient struct {
 type Interceptor struct {
 	OriginalTransport http.RoundTripper
 	RateLimiter       *ratelimit.RateLimiter
+	requestCount      atomic.Int64
 }
 
-func NewHttpClient(timeout time.Duration) *HttpClient {
+func NewHttpClient(timeout time.Duration, token string) *HttpClient {
 	rateLimiter := ratelimit.NewRateLimiter()
 	circuitBreaker := circuitbreaker.New(circuitbreaker.DefaultConfig())
 
@@ -58,6 +60,7 @@ func NewHttpClient(timeout time.Duration) *HttpClient {
 			Timeout:   timeout,
 			Transport: interceptor,
 		},
+		Token:          token,
 		RateLimiter:    rateLimiter,
 		RetryConfig:    retry.DefaultRetryConfig(),
 		CircuitBreaker: circuitBreaker,
@@ -65,6 +68,7 @@ func NewHttpClient(timeout time.Duration) *HttpClient {
 }
 
 func (i *Interceptor) RoundTrip(r *http.Request) (*http.Response, error) {
+	i.requestCount.Add(1)
 	start := time.Now()
 	resp, err := i.OriginalTransport.RoundTrip(r)
 	elapsed := time.Since(start).Milliseconds()
@@ -148,7 +152,7 @@ func (c *HttpClient) SendWithContext(ctx context.Context, req *http.Request) (*h
 }
 
 func (c *HttpClient) prepareRequest(req *http.Request) {
-	req.Header.Add("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+	req.Header.Add("Authorization", fmt.Sprintf("token %s", c.Token))
 	req.Header.Add("Content-Type", "application/json")
 }
 
@@ -207,7 +211,13 @@ func (c *HttpClient) doSingleRequest(ctx context.Context, req *http.Request) (*h
 		body, _ := io.ReadAll(res.Body)
 		res.Body.Close()
 		msg := extractGitHubMessage(body, res.StatusCode)
-		return res, &apperrors.GitHubError{
+		logger.Flog.Error().
+			Str("url", req.URL.String()).
+			Str("method", req.Method).
+			Int("statusCode", res.StatusCode).
+			Str("error", msg).
+			Msg("API error response")
+		return nil, &apperrors.GitHubError{
 			StatusCode: res.StatusCode,
 			Message:    msg,
 			URL:        req.URL.String(),
@@ -261,6 +271,14 @@ func (c *HttpClient) SetRetryConfig(config *retry.RetryConfig) {
 	c.RetryConfig = config
 }
 
+// APICallCount returns the total number of HTTP requests made.
+func (c *HttpClient) APICallCount() int64 {
+	if t, ok := c.Client.Transport.(*Interceptor); ok {
+		return t.requestCount.Load()
+	}
+	return 0
+}
+
 // GetRateLimitStatus returns current rate limit status
 func (c *HttpClient) GetRateLimitStatus() map[string]ratelimit.RateLimitInfo {
 	if c.RateLimiter == nil {
@@ -301,15 +319,13 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 			elapsed := time.Since(start).Milliseconds()
 
 			if err != nil {
-				logger.Glog.Error().Err(err).
+				logger.Flog.Error().Err(err).
 					Int("timeTakenInMs", int(elapsed)).
 					Msg("GraphQL query failed")
-
-				// Return error as-is - the retry package will determine if it's retryable
 				return err
 			}
 
-			logger.Glog.Debug().
+			logger.Flog.Debug().
 				Int("timeTakenInMs", int(elapsed)).
 				Msg("GraphQL query completed successfully")
 			return nil
@@ -317,7 +333,7 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 		return queryErr
 	})
 	if err != nil {
-		logger.Glog.Error().Err(err).Msg("GraphQL query execution failed")
+		logger.Flog.Error().Err(err).Msg("GraphQL query execution failed")
 		return err
 	}
 	return queryErr
@@ -328,13 +344,20 @@ func (c *GraphqlClient) QueryWithContext(ctx context.Context, query interface{},
 func extractGitHubMessage(body []byte, statusCode int) string {
 	var payload struct {
 		Message string `json:"message"`
+		Errors  []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &payload); err == nil && payload.Message != "" {
-		return fmt.Sprintf("%d: %s", statusCode, payload.Message)
+		msg := payload.Message
+		if len(payload.Errors) > 0 && payload.Errors[0].Message != "" {
+			msg += " — " + payload.Errors[0].Message
+		}
+		return msg
 	}
 	text := string(body)
 	if len(text) > 200 {
 		text = text[:200] + "..."
 	}
-	return fmt.Sprintf("%d: %s", statusCode, text)
+	return text
 }

@@ -262,7 +262,7 @@ func PrintBranches(branches []model.BranchResponse, orgName string, compact bool
 				prot = "yes"
 			}
 			branchURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s", orgName, b.RepositoryName, b.Name)
-			rows = append(rows, []string{b.RepositoryName, b.Name, b.Commit.SHA[:7], prot, branchURL})
+			rows = append(rows, []string{b.RepositoryName, b.Name, ShortSHA(b.Commit.SHA), prot, branchURL})
 		}
 		PrintCompactTable(headers, rows)
 		return
@@ -274,12 +274,8 @@ func PrintBranches(branches []model.BranchResponse, orgName string, compact bool
 		if b.Protected {
 			prot = "yes"
 		}
-		sha := b.Commit.SHA
-		if len(sha) > 7 {
-			sha = sha[:7]
-		}
 		branchURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s", orgName, b.RepositoryName, b.Name)
-		rows = append(rows, []string{b.RepositoryName, b.Name, sha, prot, fmt.Sprintf(HyperLinkFormat, branchURL, "Open")})
+		rows = append(rows, []string{b.RepositoryName, b.Name, ShortSHA(b.Commit.SHA), prot, fmt.Sprintf(HyperLinkFormat, branchURL, "Open")})
 	}
 	rows = append(rows, []string{"Total", strconv.Itoa(len(branches)), "", "", ""})
 
@@ -315,11 +311,7 @@ func PrintTags(tags []model.TagResponse, compact bool) {
 		headers := []string{"Repository", "Tag", "SHA"}
 		rows := make([][]string, 0, len(tags))
 		for _, t := range tags {
-			sha := t.Commit.SHA
-			if len(sha) > 7 {
-				sha = sha[:7]
-			}
-			rows = append(rows, []string{t.RepositoryName, t.Name, sha})
+			rows = append(rows, []string{t.RepositoryName, t.Name, ShortSHA(t.Commit.SHA)})
 		}
 		PrintCompactTable(headers, rows)
 		return
@@ -327,11 +319,7 @@ func PrintTags(tags []model.TagResponse, compact bool) {
 
 	rows := make([][]string, 0, len(tags))
 	for _, tg := range tags {
-		sha := tg.Commit.SHA
-		if len(sha) > 7 {
-			sha = sha[:7]
-		}
-		rows = append(rows, []string{tg.RepositoryName, tg.Name, sha})
+		rows = append(rows, []string{tg.RepositoryName, tg.Name, ShortSHA(tg.Commit.SHA)})
 	}
 	rows = append(rows, []string{"Total", strconv.Itoa(len(tags)), ""})
 
@@ -914,7 +902,7 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 				commit.Commit.Message,
 				commit.Commit.Author.Name,
 				RelativeTime(commit.Commit.Author.Date),
-				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, commit.Commit.Tree.Sha[:7]),
+				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, ShortSHA(commit.Commit.Tree.Sha)),
 			})
 		}
 		t.Rows(commitsRows...)

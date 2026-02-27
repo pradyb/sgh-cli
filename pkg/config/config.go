@@ -1,47 +1,57 @@
 package config
 
 import (
+	"fmt"
+
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
+)
+
+var (
+	successStyle = lipgloss.NewStyle().Foreground(ui.Green)
+	warnStyle    = lipgloss.NewStyle().Foreground(ui.Yellow)
 )
 
 func AddOrganization(ctx *context.Context, orgName string) bool {
 	if !ctx.Config.AddOrganization(orgName) {
-		logger.Glog.Info().Msgf("Organization %s already present", orgName)
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Organization %s already present", orgName)))
 		return true
 	}
 	saveConfig(ctx)
-	logger.Glog.Info().Msgf("Organization %s added successfully", orgName)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Organization %s added successfully", orgName)))
 	return false
 }
 
 func AddRepository(ctx *context.Context, orgName string, repoName string) bool {
 	if !ctx.Config.AddRepository(orgName, repoName) {
-		logger.Glog.Info().Msgf("Repository %s already present", repoName)
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Repository %s already present", repoName)))
 		return true
 	}
 	saveConfig(ctx)
-	logger.Glog.Info().Msgf("Repository %s added successfully", repoName)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Repository %s added successfully", repoName)))
 	return false
 }
 
 func AddPullRequestAssignee(ctx *context.Context, orgName string, assignee string) bool {
 	if !ctx.Config.AddPullRequestAssignee(orgName, assignee) {
-		logger.Glog.Info().Msgf("Pull request assignee %s already present", assignee)
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Pull request assignee %s already present", assignee)))
 		return true
 	}
 	saveConfig(ctx)
-	logger.Glog.Info().Msgf("Pull request assignee %s added successfully", assignee)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Pull request assignee %s added successfully", assignee)))
 	return false
 }
 
 func AddRepositoryPattern(ctx *context.Context, orgName string, include bool, exclude bool, pattern string) bool {
 	if !ctx.Config.AddRepositoryPattern(orgName, include, exclude, pattern) {
-		logger.Glog.Info().Msgf("Repository pattern already present")
+		fmt.Println(warnStyle.Render("  Repository pattern already present"))
 		return true
 	}
 	saveConfig(ctx)
-	logger.Glog.Info().Msgf("Repository pattern %s added successfully", pattern)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Repository pattern %s added successfully", pattern)))
 	return false
 }
 

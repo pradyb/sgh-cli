@@ -22,7 +22,7 @@ func NewTeamCommand(ctx *context.Context) *cobra.Command {
 		`),
 	}
 
-	teamCmd.AddCommand(listCommand(ctx))
+	teamCmd.AddCommand(ListCommand(ctx))
 	return teamCmd
 }
 
@@ -32,7 +32,7 @@ var (
 	teamName    string
 )
 
-func listCommand(ctx *context.Context) *cobra.Command {
+func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List teams and corresponding members in each team",

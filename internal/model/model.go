@@ -58,15 +58,18 @@ type PullRequestResponse struct {
 	Merged           bool     `json:"merged"`
 	IsMergeable      bool     `json:"mergeable"`
 	Mergeable        string
-	MergeStateStatus string `json:"mergeable_state"`
-	MergedBy         User   `json:"merged_by"`
-	MergeAt          string `json:"merged_at"`
-	Comments         int    `json:"comments"`
-	ReviewComments   int    `json:"review_comments"`
-	Commits          int    `json:"commits"`
-	ChangedFiles     int    `json:"changed_files"`
-	Additions        int    `json:"additions"`
-	Deletions        int    `json:"deletions"`
+	MergeStateStatus string   `json:"mergeable_state"`
+	MergedBy         User     `json:"merged_by"`
+	MergeAt          string   `json:"merged_at"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
+	Labels           []string `json:"labels,omitempty"`
+	Comments         int      `json:"comments"`
+	ReviewComments   int      `json:"review_comments"`
+	Commits          int      `json:"commits"`
+	ChangedFiles     int      `json:"changed_files"`
+	Additions        int      `json:"additions"`
+	Deletions        int      `json:"deletions"`
 	ErrorMessage     string
 }
 

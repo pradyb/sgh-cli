@@ -52,7 +52,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 		repoName := ""
 		if len(repoNames) == 1 {
 			actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
-			logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", "Listing Protected Branch", orgName)
+			logger.Flog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", "Listing Protected Branch", orgName)
 			repoName = actualRepoNames[0]
 		}
 		queryString := getQueryString(ctx, orgName, repoName)
@@ -83,7 +83,7 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 			}
 		}
 		if selectedBranchName != branchName {
-			logger.Glog.Warn().Msgf("selecting %s branch", selectedBranchName)
+			logger.Flog.Warn().Msgf("selecting %s branch", selectedBranchName)
 		}
 
 	} else {

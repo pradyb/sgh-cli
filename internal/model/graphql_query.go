@@ -152,16 +152,28 @@ type PullRequestDetailQuery struct {
 				BaseRefName        string
 				HeadRef            RefFragment `graphql:"headRef"`
 				HeadRefName        string
+				HeadRefOid         string
 				ReviewDecision     string
 				State              string
 				Mergeable          string
 				MergeStateStatus   string
+				CreatedAt          string
+				UpdatedAt          string
 				MergedAt           string
 				MergedBy           ActorFragment
 				Author             ActorFragment
 				Repository         SimpleRepositoryFragment
 				ReviewRequests     ReviewRequestsFragment `graphql:"reviewRequests(first: 50)"`
 				Assignees          AssigneesFragment      `graphql:"assignees(first: 10)"`
+				Labels             struct {
+					TotalCount int
+					Edges      []struct {
+						Node struct {
+							Name  string
+							Color string
+						}
+					}
+				} `graphql:"labels(first: 10)"`
 				TotalCommentsCount int
 				Comments           CommentsFragment `graphql:"comments(first: 10)"`
 				Commits            struct {

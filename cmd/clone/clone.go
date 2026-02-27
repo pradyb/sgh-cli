@@ -26,7 +26,7 @@ func NewCloneCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			logger.Glog.Info().Msgf("Cloning the Repositories for the %s owner/organization", orgName)
+			logger.Flog.Info().Msgf("Cloning the Repositories for the %s owner/organization", orgName)
 			err := clone.CloneRepositories(ctx, orgName, repoNames, branch)
 			if err != nil {
 				logger.Glog.Error().Err(err).Msgf("Error in getting the Repos for the organization %s", orgName)

@@ -140,7 +140,9 @@ func (v *GitHubValidator) ValidateUsername(username string) error {
 	return nil
 }
 
-// ValidateGitHubToken validates GitHub token format
+// ValidateGitHubToken validates GitHub token format.
+// Accepts classic PATs (ghp_), fine-grained PATs (github_pat_), and other
+// GitHub token types (gho_, ghu_, ghs_, ghr_) with a minimum length check.
 func (v *GitHubValidator) ValidateGitHubToken(token string) error {
 	if token == "" {
 		return &apperrors.ValidationError{
@@ -150,34 +152,24 @@ func (v *GitHubValidator) ValidateGitHubToken(token string) error {
 		}
 	}
 
-	// Classic tokens start with ghp_
-	if strings.HasPrefix(token, "ghp_") {
-		if len(token) != 40 {
-			return &apperrors.ValidationError{
-				Field:   "github_token",
-				Value:   "[REDACTED]",
-				Message: "classic GitHub token must be exactly 40 characters",
+	validPrefixes := []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"}
+	for _, prefix := range validPrefixes {
+		if strings.HasPrefix(token, prefix) {
+			if len(token) < 20 {
+				return &apperrors.ValidationError{
+					Field:   "github_token",
+					Value:   "[REDACTED]",
+					Message: "GitHub token appears too short to be valid",
+				}
 			}
+			return nil
 		}
-		return nil
-	}
-
-	// Fine-grained tokens start with github_pat_
-	if strings.HasPrefix(token, "github_pat_") {
-		if len(token) < 50 {
-			return &apperrors.ValidationError{
-				Field:   "github_token",
-				Value:   "[REDACTED]",
-				Message: "fine-grained GitHub token appears to be invalid",
-			}
-		}
-		return nil
 	}
 
 	return &apperrors.ValidationError{
 		Field:   "github_token",
 		Value:   "[REDACTED]",
-		Message: "GitHub token format is not recognized",
+		Message: "GitHub token format is not recognized (expected ghp_, gho_, ghu_, ghs_, ghr_, or github_pat_ prefix)",
 	}
 }
 

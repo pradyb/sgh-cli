@@ -83,6 +83,14 @@ func StatusIcon(conclusion string) string {
 	}
 }
 
+// ShortSHA safely truncates a SHA to 7 characters.
+func ShortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
+}
+
 // RelativeTime converts an RFC 3339 timestamp to a human-friendly string
 // like "3 minutes ago". Returns the original string on parse failure.
 func RelativeTime(timestamp string) string {
@@ -218,6 +226,85 @@ func PrintDryRunActions(operation string, org string, repos []string, details ma
 		fmt.Printf("  %s %s\n", labelStyle.Render("Repositories:"), dimStyle.Render("all configured repositories"))
 	}
 	fmt.Println()
+}
+
+// PrintFuzzyMatchWarning shows a styled warning when a repo name matched multiple repositories.
+func PrintFuzzyMatchWarning(searchTerm string, matches []string, selected string) {
+	warnStyle := lipgloss.NewStyle().Foreground(Yellow).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed)
+	selectedStyle := lipgloss.NewStyle().Foreground(Green).Bold(true)
+	matchStyle := lipgloss.NewStyle().Foreground(Subtle)
+	highlightStyle := lipgloss.NewStyle().Foreground(Yellow).Underline(true)
+	labelStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+
+	header := fmt.Sprintf("%s %d repos matched %s — using best match",
+		warnStyle.Render("⚠"),
+		len(matches),
+		warnStyle.Render("\""+searchTerm+"\""))
+
+	lines := make([]string, 0, len(matches)+1)
+	lines = append(lines, header)
+	lines = append(lines, "")
+	for _, m := range matches {
+		name := highlightMatch(m, searchTerm, matchStyle, highlightStyle)
+		if m == selected {
+			lines = append(lines, fmt.Sprintf("  %s %s  %s",
+				selectedStyle.Render("▸"),
+				selectedStyle.Render(m),
+				labelStyle.Render("← selected")))
+		} else {
+			lines = append(lines, fmt.Sprintf("  %s %s",
+				dimStyle.Render(" "),
+				name))
+		}
+	}
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Yellow).
+		Padding(0, 1).
+		MarginLeft(1).
+		MarginTop(1).
+		MarginBottom(1).
+		Render(strings.Join(lines, "\n"))
+
+	fmt.Fprintln(os.Stderr, box)
+}
+
+// highlightMatch highlights the search term portion within a repo name.
+func highlightMatch(name, term string, baseStyle, hlStyle lipgloss.Style) string {
+	lower := strings.ToLower(name)
+	idx := strings.Index(lower, strings.ToLower(term))
+	if idx < 0 {
+		return baseStyle.Render(name)
+	}
+	before := name[:idx]
+	match := name[idx : idx+len(term)]
+	after := name[idx+len(term):]
+	return baseStyle.Render(before) + hlStyle.Render(match) + baseStyle.Render(after)
+}
+
+// PrintNoFuzzyMatchWarning shows a styled warning when a repo name didn't match any configured repository.
+func PrintNoFuzzyMatchWarning(searchTerm string) {
+	warnStyle := lipgloss.NewStyle().Foreground(Yellow).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+	fmt.Fprintf(os.Stderr, "  %s No configured repo matched %s — %s\n",
+		warnStyle.Render("⚠"),
+		warnStyle.Render("\""+searchTerm+"\""),
+		dimStyle.Render("using as-is"))
+}
+
+// PrintSelectedRepos shows a concise styled line confirming which repos are targeted.
+func PrintSelectedRepos(operation string, orgName string, repoNames []string) {
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+	repoStyle := lipgloss.NewStyle().Foreground(Cyan)
+
+	repos := strings.Join(repoNames, ", ")
+	if len(repoNames) == 0 {
+		repos = "all configured"
+	}
+	fmt.Fprintf(os.Stderr, "  %s\n",
+		dimStyle.Render(operation+" in "+orgName+": ")+repoStyle.Render(repos))
 }
 
 const defaultTermWidth = 200

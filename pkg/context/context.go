@@ -52,12 +52,12 @@ func Init() (*Context, error) {
 		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 			httpTimeout = timeout
 		} else {
-			logger.Glog.Warn().Str("timeout", timeoutStr).Msg("Invalid SGH_TIMEOUT, using default")
+			logger.Flog.Warn().Str("timeout", timeoutStr).Msg("Invalid SGH_TIMEOUT, using default")
 		}
 	}
 
 	// Create HTTP client with timeout and rate limiting
-	httpClient := client.NewHttpClient(httpTimeout)
+	httpClient := client.NewHttpClient(httpTimeout, token)
 	if httpClient == nil {
 		return nil, fmt.Errorf("failed to create HTTP client")
 	}

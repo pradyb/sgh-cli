@@ -194,16 +194,17 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 	message := RepoOperationConfig[operation]["message"]
 
 	if len(repos) == 0 {
-		logger.Glog.Info().Msgf("%s for all configured repositories in %s", message, orgName)
+		logger.Flog.Info().Msgf("%s for all configured repositories in %s", message, orgName)
 		orgRepoNames, err := repo.GetSelectedRepoNames(ctx, orgName)
 		if err != nil {
 			logger.Glog.Error().Err(err).Msgf("Error in getting the Repos for the organization %s", orgName)
 			return err
 		}
 		repoNames = append(repoNames, orgRepoNames...)
+		ui.PrintSelectedRepos(message, orgName, nil)
 	} else {
 		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)
-		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", message, orgName)
+		logger.Flog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", message, orgName)
 		repoNames = append(repoNames, actualRepoNames...)
 	}
 
@@ -217,7 +218,7 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 	}
 
 	if len(filteredRepoNames) == 0 {
-		logger.Glog.Info().Msgf("No repositories to process")
+		logger.Flog.Info().Msgf("No repositories to process")
 		return nil
 	}
 
@@ -246,8 +247,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		noOfWorkers = 1
 	}
 
-	// Log performance metrics
-	logger.Glog.Info().
+	logger.Flog.Info().
 		Str("org", orgName).
 		Int("totalRepos", len(repoNames)).
 		Int("workers", noOfWorkers).
@@ -290,8 +290,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	fmt.Println()
 	ui.PrintSummaryBanner(len(repoNames), successCount, errorCount, totalDuration)
 
-	// Log final performance metrics
-	logger.Glog.Info().
+	logger.Flog.Info().
 		Str("org", orgName).
 		Int("totalRepos", len(repoNames)).
 		Int("successCount", successCount).

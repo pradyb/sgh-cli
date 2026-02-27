@@ -65,8 +65,8 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 		`),
 	}
 
-	workflowCmd.AddCommand(listCommand(ctx))
-	workflowCmd.AddCommand(viewCommand(ctx))
+	workflowCmd.AddCommand(ListCommand(ctx))
+	workflowCmd.AddCommand(ViewCommand(ctx))
 	workflowCmd.AddCommand(rerunCommand(ctx))
 	workflowCmd.AddCommand(cancelCommand(ctx))
 	return workflowCmd
@@ -85,7 +85,7 @@ var (
 	workflowName     string
 )
 
-func listCommand(ctx *context.Context) *cobra.Command {
+func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List workflow runs across repositories",
@@ -162,25 +162,39 @@ var (
 	watchInterval int
 )
 
-func viewCommand(ctx *context.Context) *cobra.Command {
+func ViewCommand(ctx *context.Context) *cobra.Command {
 	viewCmd := &cobra.Command{
 		Use:   "view",
 		Short: "View details of a workflow run including jobs and steps",
 		Long: `View detailed information about a specific GitHub Actions workflow run, including all jobs and their step-level status.
-Use --watch to poll for updates until the run completes.`,
+Use --watch to poll for updates until the run completes.
+If --run is omitted, automatically picks the latest in-progress or most recent run.`,
 		Aliases: []string{"detail", "info"},
 		Example: heredoc.Doc(`
+			$ sgh workflow view --org sample-org -r sample-repo1
 			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789
-			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789 --watch
+			$ sgh workflow view --org sample-org -r sample-repo1 --watch
 			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789 --watch --interval 5
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+
+			effectiveRunID := runID
+			if effectiveRunID == 0 {
+				resolved, err := workflow.GetLatestRunID(ctx, orgName, repoName)
+				if err != nil {
+					logger.Glog.Error().Err(err).Msg("Could not resolve latest workflow run")
+					return
+				}
+				effectiveRunID = resolved
+				fmt.Printf("  Using latest workflow run: %d\n", effectiveRunID)
+			}
+
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
 				RepoName: repoName,
-				RunID:    runID,
+				RunID:    effectiveRunID,
 			}
 
 			detail := workflow.GetWorkflowRunDetail(ctx, req)
@@ -195,12 +209,11 @@ Use --watch to poll for updates until the run completes.`,
 	}
 
 	viewCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
-	viewCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID")
+	viewCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID (defaults to latest in-progress or most recent run)")
 	viewCmd.Flags().BoolVarP(&watch, "watch", "W", false, "poll for updates until the workflow run completes")
 	viewCmd.Flags().IntVar(&watchInterval, "interval", 10, "polling interval in seconds when using --watch")
 	viewCmd.MarkPersistentFlagRequired("org")
 	viewCmd.MarkFlagRequired("repository")
-	viewCmd.MarkFlagRequired("run")
 
 	return viewCmd
 }

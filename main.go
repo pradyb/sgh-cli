@@ -36,15 +36,14 @@ func main() {
 		}()
 
 		<-sigChan
-		logger.Glog.Info().Msg("Received interrupt signal, shutting down gracefully...")
+		logger.Flog.Info().Msg("Received interrupt signal, shutting down gracefully...")
 		cancel()
 
-		// Give some time for cleanup with timeout
 		select {
 		case <-time.After(2 * time.Second):
-			logger.Glog.Warn().Msg("Graceful shutdown timeout, forcing exit")
+			logger.Flog.Warn().Msg("Graceful shutdown timeout, forcing exit")
 		case <-ctx.Done():
-			logger.Glog.Info().Msg("Graceful shutdown completed")
+			logger.Flog.Info().Msg("Graceful shutdown completed")
 		}
 		os.Exit(0)
 	}()
@@ -66,7 +65,7 @@ func main() {
 
 	// Execute with context for graceful shutdown
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		logger.Glog.Error().Err(err).Msg("Command execution failed")
+		logger.Flog.Error().Err(err).Msg("Command execution failed")
 		// Don't exit here - cobra already handles command errors and exit codes
 		// Just log for debugging purposes
 	}

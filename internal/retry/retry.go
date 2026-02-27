@@ -85,7 +85,7 @@ func Do(ctx context.Context, config *RetryConfig, fn RetryableFunc) error {
 		err := fn()
 		if err == nil {
 			if attempt > 1 {
-				logger.Glog.Info().
+				logger.Flog.Info().
 					Int("attempt", attempt).
 					Int("totalAttempts", config.MaxAttempts).
 					Msg("Operation succeeded after retry")
@@ -97,7 +97,7 @@ func Do(ctx context.Context, config *RetryConfig, fn RetryableFunc) error {
 
 		// Check if error is retryable
 		if !isRetryableError(err, config) {
-			logger.Glog.Debug().
+			logger.Flog.Debug().
 				Err(err).
 				Int("attempt", attempt).
 				Msg("Error is not retryable, giving up")
@@ -112,7 +112,7 @@ func Do(ctx context.Context, config *RetryConfig, fn RetryableFunc) error {
 		// Calculate delay
 		delay := calculateDelay(attempt, config)
 
-		logger.Glog.Warn().
+		logger.Flog.Warn().
 			Err(err).
 			Int("attempt", attempt).
 			Int("maxAttempts", config.MaxAttempts).
@@ -127,7 +127,7 @@ func Do(ctx context.Context, config *RetryConfig, fn RetryableFunc) error {
 		}
 	}
 
-	logger.Glog.Error().
+	logger.Flog.Error().
 		Err(lastErr).
 		Int("maxAttempts", config.MaxAttempts).
 		Msg("All retry attempts failed")
@@ -155,7 +155,7 @@ func DoHTTP(ctx context.Context, config *RetryConfig, fn HTTPRetryableFunc) (*ht
 		resp, err := fn()
 		if err == nil && resp != nil && isSuccessfulResponse(resp) {
 			if attempt > 1 {
-				logger.Glog.Info().
+				logger.Flog.Info().
 					Int("attempt", attempt).
 					Int("statusCode", resp.StatusCode).
 					Msg("HTTP request succeeded after retry")
@@ -168,7 +168,7 @@ func DoHTTP(ctx context.Context, config *RetryConfig, fn HTTPRetryableFunc) (*ht
 
 		// Check if error/response is retryable
 		if !isRetryableHTTPError(resp, err, config) {
-			logger.Glog.Debug().
+			logger.Flog.Debug().
 				Err(err).
 				Int("attempt", attempt).
 				Int("statusCode", getStatusCode(resp)).
@@ -189,7 +189,7 @@ func DoHTTP(ctx context.Context, config *RetryConfig, fn HTTPRetryableFunc) (*ht
 		// Calculate delay, considering Retry-After header
 		delay := calculateHTTPDelay(attempt, resp, config)
 
-		logger.Glog.Warn().
+		logger.Flog.Warn().
 			Err(err).
 			Int("attempt", attempt).
 			Int("maxAttempts", config.MaxAttempts).
@@ -205,7 +205,7 @@ func DoHTTP(ctx context.Context, config *RetryConfig, fn HTTPRetryableFunc) (*ht
 		}
 	}
 
-	logger.Glog.Error().
+	logger.Flog.Error().
 		Err(lastErr).
 		Int("maxAttempts", config.MaxAttempts).
 		Int("statusCode", getStatusCode(lastResp)).

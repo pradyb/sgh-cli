@@ -121,7 +121,7 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 	if len(prRequest.RepoNames) <= 1 {
 		// Invoke via GraphQL
 		if !prRequest.IsInteractive {
-			logger.Glog.Info().Msgf("Invoking GraphQL to list pull requests for %s", prRequest.OrgName)
+			logger.Flog.Info().Msgf("Invoking GraphQL to list pull requests for %s", prRequest.OrgName)
 		}
 
 		queryString := getSearchQuery(ctx, prRequest)
@@ -190,7 +190,7 @@ func getSearchQuery(ctx *context.Context, prRequest PRRequest) string {
 	var queryString string
 	if len(prRequest.RepoNames) == 1 {
 		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(prRequest.OrgName, prRequest.RepoNames)
-		logger.Glog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", prRequest.OrgName)
+		logger.Flog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("Listing Pull Requests for selected repositories in %s", prRequest.OrgName)
 		queryString = "repo:" + prRequest.OrgName + "/" + actualRepoNames[0]
 	} else {
 		queryString = "org:" + prRequest.OrgName
@@ -350,6 +350,8 @@ func GetPRDetailsGraphQL(ctx *context.Context, req PRDetailsRequest) (model.Pull
 		State:            prQueryReponse.State,
 		Mergeable:        prQueryReponse.Mergeable,
 		MergeStateStatus: prQueryReponse.MergeStateStatus,
+		CreatedAt:        prQueryReponse.CreatedAt,
+		UpdatedAt:        prQueryReponse.UpdatedAt,
 		MergeAt:          prQueryReponse.MergedAt,
 		MergedBy: model.User{
 			Login: prQueryReponse.MergedBy.User.Login,
@@ -363,6 +365,10 @@ func GetPRDetailsGraphQL(ctx *context.Context, req PRDetailsRequest) (model.Pull
 		ChangedFiles:   prQueryReponse.ChangedFiles,
 	}
 
+	for _, label := range prQueryReponse.Labels.Edges {
+		prResponse.Labels = append(prResponse.Labels, label.Node.Name)
+	}
+	prResponse.Head.Sha = prQueryReponse.HeadRefOid
 	prResponse.Assignees = populateAssignees(prQueryReponse.Assignees)
 	prResponse.Reviewers = populateReviewers(prQueryReponse.ReviewRequests)
 

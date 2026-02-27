@@ -43,10 +43,6 @@ var (
 			Background(ui.CrayolaGreen).
 			Padding(0, 1)
 
-	statusMessageStyle = lipgloss.NewStyle().
-				Foreground(ui.CrayolaGreen).
-				Render
-
 	re                = lipgloss.NewRenderer(os.Stdout)
 	CellStyle         = re.NewStyle().Padding(0, 1)
 	promptBorderStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
@@ -220,17 +216,15 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showEventPanel = true
 				m.showSpinner = true
 				m.resizeList()
-				statusMsgCmd := m.list.NewStatusMessage(statusMessageStyle("Processing " + pending.eventType + "..."))
 				eventCmd := func() tea.Msg {
 					return eventMsg{eventType: pending.eventType, selectedPR: pending.selectedPR, ctx: pending.ctx, orgName: pending.orgName, repoName: pending.repoName}
 				}
-				return m, tea.Batch(statusMsgCmd, eventCmd)
+				return m, eventCmd
 			default:
 				m.confirmPending = nil
-				statusMsgCmd := m.list.NewStatusMessage(statusMessageStyle("Cancelled"))
 				newListModel, cmd := m.list.Update(msg)
 				m.list = newListModel
-				return m, tea.Batch(statusMsgCmd, cmd)
+				return m, cmd
 			}
 		}
 	}
@@ -342,6 +336,15 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	}
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, req)
 
+	if pullRequestResponse.ErrorMessage != "" {
+		return eventStatusResponse{
+			eventType:           eventType,
+			pullRequestResponse: pullRequestResponse,
+			actionMessage:       pullRequestResponse.ErrorMessage,
+			actionSuccess:       false,
+		}
+	}
+
 	needsRefresh := false
 	switch eventType {
 	case "APPROVE":
@@ -352,7 +355,10 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 			actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		}
 		if actionSuccess {
-			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews, eventType)
+			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
+		}
+		if !actionSuccess && eventType == "APPROVE_MERGE" {
+			actionMessage = "Approved but merge failed: " + actionMessage
 		}
 		needsRefresh = actionSuccess
 	case "CLOSE":
@@ -367,29 +373,23 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	return eventStatusResponse{eventType: eventType, pullRequestResponse: pullRequestResponse, pullRequestFilesResponse: pullRequestFilesResponse, checkRunResponse: checkRunResponse, prReviews: prReviews, actionMessage: actionMessage, actionSuccess: actionSuccess}
 }
 
-func canApprovePR(prResponse model.PullRequestResponse) bool {
-	return prResponse.State == "OPEN" && prResponse.Mergeable == "MERGEABLE"
-}
-
 func approvePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
-	if canApprovePR(prResponse) {
-		req := pr.PRReviewRequest{
-			OrgName:  orgName,
-			RepoName: repoName,
-			PRNumber: prNumber,
-			Event:    "APPROVE",
-			Body:     "Changes approved",
-		}
-		reviewResponse := pr.ReviewPullRequest(ctx, req)
-		if reviewResponse.ErrorMessage != "" {
-			return reviewResponse.ErrorMessage, false
-		}
-		logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msg("PR Approved successfully")
-		return "PR Approved successfully", true
-	} else {
-		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("mergeStateStatus", prResponse.MergeStateStatus).Str("mergeable", prResponse.Mergeable).Str("state", prResponse.State).Msgf("PR cannot be approved at this moment")
-		return "PR cannot be approved at this moment", false
+	if prResponse.State != "OPEN" {
+		return "PR is not open — cannot approve", false
 	}
+	req := pr.PRReviewRequest{
+		OrgName:  orgName,
+		RepoName: repoName,
+		PRNumber: prNumber,
+		Event:    "APPROVE",
+		Body:     "Changes approved",
+	}
+	reviewResponse := pr.ReviewPullRequest(ctx, req)
+	if reviewResponse.ErrorMessage != "" {
+		return reviewResponse.ErrorMessage, false
+	}
+	logger.Flog.Info().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Msg("PR Approved successfully")
+	return "PR Approved successfully", true
 }
 
 func closePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
@@ -410,39 +410,24 @@ func closePR(ctx *context.Context, orgName, repoName string, prNumber int, prRes
 	return "PR Closed successfully", true
 }
 
-func canMergePR(prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse, eventType string) bool {
-	if !canApprovePR(prResponse) {
-		return false
+func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse) (string, bool) {
+	if prResponse.State != "OPEN" {
+		return "PR is not open — cannot merge", false
 	}
-	if prResponse.MergeStateStatus == "CLEAN" || (eventType == "APPROVE_MERGE" && prResponse.MergeStateStatus == "BLOCKED") {
-		if eventType != "APPROVE_MERGE" && (len(prReviews) == 0 || prReviews[0].State != "APPROVED") {
-			logger.Flog.Error().Str("state", prResponse.MergeStateStatus).Str("eventType", eventType).Int("prReviews", len(prReviews)).Msgf("PR cannot be merged at this moment")
-			return false
-		}
-		return true
+	if prResponse.Mergeable != "MERGEABLE" && prResponse.Mergeable != "" {
+		return fmt.Sprintf("PR is not mergeable (status: %s)", prResponse.Mergeable), false
 	}
-	return false
-}
 
-func mergePR(ctx *context.Context, orgName, repoName string, prNumber int, prResponse model.PullRequestResponse, prReviews []model.ReviewPullRequestResponse, eventType string) (string, bool) {
-	if canMergePR(prResponse, prReviews, eventType) {
-		title := "Merge pull request #" + strconv.Itoa(prNumber) + " from " + orgName + "/" + prResponse.Head.Ref
-		req := pr.PRMergeRequest{
-			OrgName:  orgName,
-			RepoName: repoName,
-			PRNumber: prNumber,
-			Title:    title,
-			Body:     prResponse.TitleName,
-		}
-		mergeResponse := pr.MergePullRequest(ctx, req)
-		if mergeResponse.ErrorMessage != "" {
-			return mergeResponse.ErrorMessage, false
-		}
-		return "PR Merged successfully", true
-	} else {
-		logger.Flog.Error().Str("org", orgName).Str("repo", repoName).Int("pr", prNumber).Str("MergeStateStatus", prResponse.MergeStateStatus).Msgf("PR cannot be merged at this moment")
-		return "PR is not mergeable", false
+	req := pr.PRMergeRequest{
+		OrgName:  orgName,
+		RepoName: repoName,
+		PRNumber: prNumber,
 	}
+	mergeResponse := pr.MergePullRequest(ctx, req)
+	if mergeResponse.ErrorMessage != "" {
+		return mergeResponse.ErrorMessage, false
+	}
+	return "PR Merged successfully", true
 }
 
 func truncateBody(body string, maxLen int) string {
@@ -463,6 +448,12 @@ func getSectionsRenders(status eventStatusResponse) []string {
 	sectionTitle := lipgloss.NewStyle().Foreground(ui.White).Background(ui.CrayolaGreen).Padding(0, 1).Align(lipgloss.Center)
 	sectionLabel := lipgloss.NewStyle().Foreground(ui.White).Bold(true)
 	bodyStyle := lipgloss.NewStyle().Foreground(ui.Subtle).Italic(true).PaddingLeft(2).PaddingRight(2)
+
+	if status.pullRequestResponse.ErrorMessage != "" {
+		errStyle := lipgloss.NewStyle().Foreground(ui.Red).Bold(true).Padding(1, 2)
+		sections = append(sections, errStyle.Render("✗ Error: "+status.pullRequestResponse.ErrorMessage))
+		return sections
+	}
 
 	sections = append(sections, sectionTitle.Render(status.pullRequestResponse.Title()))
 
@@ -503,20 +494,38 @@ func getSectionsRenders(status eventStatusResponse) []string {
 
 func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesResponse model.PullRequestFilesResponse) string {
 	responseRows := make([][]string, 0)
-	modifiedFiles := make([]string, 0)
+	additionsStyle := lipgloss.NewStyle().Foreground(ui.Green)
+	deletionsStyle := lipgloss.NewStyle().Foreground(ui.Red)
+	dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
 
+	modifiedFiles := make([]string, 0)
 	if len(pullRequestFilesResponse.Files) > 0 {
-		for _, file := range pullRequestFilesResponse.Files {
-			modifiedFiles = append(modifiedFiles, file.Filename)
-			if len(modifiedFiles) == 5 {
-				modifiedFiles = append(modifiedFiles, "...")
+		for i, file := range pullRequestFilesResponse.Files {
+			if i == 5 {
+				modifiedFiles = append(modifiedFiles, dimStyle.Render(fmt.Sprintf("... and %d more", len(pullRequestFilesResponse.Files)-5)))
 				break
 			}
+			changeIcon := "M"
+			switch strings.ToUpper(file.ChangeType) {
+			case "ADDED":
+				changeIcon = "A"
+			case "DELETED", "REMOVED":
+				changeIcon = "D"
+			case "RENAMED":
+				changeIcon = "R"
+			case "COPIED":
+				changeIcon = "C"
+			}
+			fileLine := fmt.Sprintf("%s %s  %s %s",
+				dimStyle.Render(changeIcon),
+				file.Filename,
+				additionsStyle.Render("+"+strconv.Itoa(file.Additions)),
+				deletionsStyle.Render("-"+strconv.Itoa(file.Deletions)),
+			)
+			modifiedFiles = append(modifiedFiles, fileLine)
 		}
 	}
 
-	additionsStyle := lipgloss.NewStyle().Foreground(ui.Green)
-	deletionsStyle := lipgloss.NewStyle().Foreground(ui.Red)
 	changesValue := additionsStyle.Render("+"+strconv.Itoa(prResponse.Additions)) + "  " + deletionsStyle.Render("-"+strconv.Itoa(prResponse.Deletions))
 
 	mergedAt := ui.RelativeTime(prResponse.MergeAt)
@@ -524,23 +533,44 @@ func getPRResponseTable(prResponse model.PullRequestResponse, pullRequestFilesRe
 		mergedAt = "-"
 	}
 
+	mergedByName := prResponse.MergedBy.Name
+	if mergedByName == "" {
+		mergedByName = prResponse.MergedBy.Login
+	}
+
+	headSha := ui.ShortSHA(prResponse.Head.Sha)
+
+	labelsValue := "-"
+	if len(prResponse.Labels) > 0 {
+		labelsValue = strings.Join(prResponse.Labels, ", ")
+	}
+
+	reviewDecision := prResponse.ReviewDecision
+	if reviewDecision == "" {
+		reviewDecision = "-"
+	}
+
 	responseRows = append(responseRows, []string{"PR Number", strconv.Itoa(prResponse.PRNumber)})
 	responseRows = append(responseRows, []string{"Repository", prResponse.RepositoryName()})
-	responseRows = append(responseRows, []string{"User", prResponse.AuthorName()})
+	responseRows = append(responseRows, []string{"Branch", prResponse.Base.Ref + " ← " + prResponse.Head.Ref})
+	responseRows = append(responseRows, []string{"Head SHA", headSha})
+	responseRows = append(responseRows, []string{"Author", prResponse.AuthorName()})
 	responseRows = append(responseRows, []string{"Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", ")})
 	responseRows = append(responseRows, []string{"Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", ")})
+	responseRows = append(responseRows, []string{"Labels", labelsValue})
 	responseRows = append(responseRows, []string{"State", prResponse.State})
+	responseRows = append(responseRows, []string{"Review Decision", reviewDecision})
 	responseRows = append(responseRows, []string{mergeableTitle, prResponse.Mergeable})
 	responseRows = append(responseRows, []string{mergeableStateTitle, prResponse.MergeStateStatus})
+	responseRows = append(responseRows, []string{"Created", ui.RelativeTime(prResponse.CreatedAt)})
+	responseRows = append(responseRows, []string{"Updated", ui.RelativeTime(prResponse.UpdatedAt)})
 	responseRows = append(responseRows, []string{"Merged At", mergedAt})
-	responseRows = append(responseRows, []string{"Merged By", prResponse.MergedBy.Login})
-	responseRows = append(responseRows, []string{"Review comments", strconv.Itoa(prResponse.ReviewComments)})
-	responseRows = append(responseRows, []string{"Comments", strconv.Itoa(prResponse.Comments)})
+	responseRows = append(responseRows, []string{"Merged By", mergedByName})
 	responseRows = append(responseRows, []string{"Commits", strconv.Itoa(prResponse.Commits)})
-	responseRows = append(responseRows, []string{"Total files #", strconv.Itoa(prResponse.ChangedFiles)})
+	responseRows = append(responseRows, []string{"Comments", strconv.Itoa(prResponse.Comments) + " / " + strconv.Itoa(prResponse.ReviewComments) + " review"})
+	responseRows = append(responseRows, []string{"Changes", changesValue + "  " + strconv.Itoa(prResponse.ChangedFiles) + " files"})
 	responseRows = append(responseRows, []string{"Files changed", strings.Join(modifiedFiles, "\n")})
-	responseRows = append(responseRows, []string{"Changes", changesValue})
-	responseRows = append(responseRows, []string{"Review link", fmt.Sprintf(ui.HyperLinkFormat, prResponse.HTMLUrl, "Open")})
+	responseRows = append(responseRows, []string{"Open", fmt.Sprintf(ui.HyperLinkFormat, prResponse.HTMLUrl, "Open in browser")})
 
 	responseTable := ltable.New().
 		Border(lipgloss.HiddenBorder()).
@@ -572,12 +602,23 @@ func getPRTableStyle(col int, responseRows [][]string, row int) lipgloss.Style {
 	switch {
 	case label == "State":
 		style = style.Foreground(ui.StatusColor(value))
+	case label == "Review Decision":
+		switch value {
+		case "APPROVED":
+			style = style.Foreground(ui.Green)
+		case "CHANGES_REQUESTED":
+			style = style.Foreground(ui.Red)
+		case "REVIEW_REQUIRED":
+			style = style.Foreground(ui.Yellow)
+		}
 	case label == mergeableTitle && value == "MERGEABLE":
 		style = style.Foreground(ui.Green)
 	case label == mergeableTitle && (value == "CONFLICTING" || value == "UNKNOWN"):
 		style = style.Foreground(ui.Red)
 	case label == mergeableStateTitle:
 		style = style.Foreground(ui.StatusColor(value))
+	case label == "Labels":
+		style = style.Foreground(ui.Cyan)
 	}
 	return style
 }
