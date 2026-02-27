@@ -63,7 +63,7 @@ Supports filtering by branch name using partial match or regex pattern.`,
 				ui.PrintJSON(responses)
 				return
 			}
-			ui.PrintBranches(responses, ctx.Compact)
+			ui.PrintBranches(responses, orgName, ctx.Compact)
 		},
 	}
 
