@@ -60,8 +60,7 @@ func ListWorkflowRuns(ctx *context.Context, req WorkflowListRequest) []model.Wor
 }
 
 func RerunWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRun {
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
-	repoName := actualRepoNames[0]
+	repoName := req.RepoName
 
 	_, err := service.RerunWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
 	if err != nil {
@@ -80,22 +79,18 @@ func RerunWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.Workfl
 }
 
 func GetLatestRunID(ctx *context.Context, orgName, repoName string) (int, error) {
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
-	repo := actualRepoNames[0]
-
-	runs, err := service.ListWorkflowRuns(ctx, orgName, repo, "", "", 1)
+	runs, err := service.ListWorkflowRuns(ctx, orgName, repoName, "", "", 1)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch workflow runs: %w", err)
 	}
 	if len(runs) == 0 {
-		return 0, fmt.Errorf("no workflow runs found for %s/%s", orgName, repo)
+		return 0, fmt.Errorf("no workflow runs found for %s/%s", orgName, repoName)
 	}
 	return runs[0].ID, nil
 }
 
 func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRunDetail {
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
-	repoName := actualRepoNames[0]
+	repoName := req.RepoName
 
 	run, err := service.GetWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
 	if err != nil {
@@ -123,8 +118,7 @@ func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.Wo
 }
 
 func CancelWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.WorkflowRun {
-	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
-	repoName := actualRepoNames[0]
+	repoName := req.RepoName
 
 	_, err := service.CancelWorkflowRun(ctx, req.OrgName, repoName, req.RunID)
 	if err != nil {

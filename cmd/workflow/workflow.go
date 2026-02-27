@@ -179,10 +179,12 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			resolvedRepo := resolvedNames[0]
 
 			effectiveRunID := runID
 			if effectiveRunID == 0 {
-				resolved, err := workflow.GetLatestRunID(ctx, orgName, repoName)
+				resolved, err := workflow.GetLatestRunID(ctx, orgName, resolvedRepo)
 				if err != nil {
 					logger.Glog.Error().Err(err).Msg("Could not resolve latest workflow run")
 					return
@@ -193,7 +195,7 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
-				RepoName: repoName,
+				RepoName: resolvedRepo,
 				RunID:    effectiveRunID,
 			}
 
@@ -311,16 +313,18 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			resolvedRepo := resolvedNames[0]
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
-				ui.PrintDryRunActions("Rerun Workflow", orgName, []string{repoName}, map[string]string{
+				ui.PrintDryRunActions("Rerun Workflow", orgName, []string{resolvedRepo}, map[string]string{
 					"Run ID": fmt.Sprintf("%d", runID),
 				})
 				return
 			}
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
-				RepoName: repoName,
+				RepoName: resolvedRepo,
 				RunID:    runID,
 			}
 			response := workflow.RerunWorkflowRun(ctx, req)
@@ -352,16 +356,18 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			resolvedRepo := resolvedNames[0]
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
-				ui.PrintDryRunActions("Cancel Workflow", orgName, []string{repoName}, map[string]string{
+				ui.PrintDryRunActions("Cancel Workflow", orgName, []string{resolvedRepo}, map[string]string{
 					"Run ID": fmt.Sprintf("%d", runID),
 				})
 				return
 			}
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
-				RepoName: repoName,
+				RepoName: resolvedRepo,
 				RunID:    runID,
 			}
 			response := workflow.CancelWorkflowRun(ctx, req)
