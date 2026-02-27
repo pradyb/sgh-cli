@@ -59,7 +59,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 
 			🎯 Quick Start:
 			    1. Set your GitHub token: export GITHUB_TOKEN=your_token_here
-			    2. List repositories: sgh repo list your-org
+			    2. List repositories: sgh repo list --org your-org
 			    3. Create branches: sgh branch create --org your-org --new feature-branch --ref main
 			    4. Bulk PR creation: sgh pr create --org your-org --title "Feature update" --head feature-branch --base main
 
@@ -76,13 +76,13 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
 
 			Protected Branch Management:
-			  $ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+			  $ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
 
 			Post-Release Workflows:
 			  $ sgh post-release --org my-org --base main --head Release-1.0 --create-tag --title "Release 1.0"
 
 			Repository Operations:
-			  $ sgh repo list my-org
+			  $ sgh repo list --org my-org
 			  $ sgh clone --org my-org --branch develop
 			  $ sgh commit list --org my-org --days 7 --details
 
@@ -105,12 +105,24 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	rootCmd.CompletionOptions.DisableNoDescFlag = true
-	rootCmd.PersistentFlags().StringP("org", "o", "", "organization name")
+
+	defaultOrg := os.Getenv("SGH_ORG")
+	defaultWorkers := 5
+	if envW := os.Getenv("SGH_WORKERS"); envW != "" {
+		if w, err := fmt.Sscanf(envW, "%d", &defaultWorkers); w != 1 || err != nil {
+			defaultWorkers = 5
+		}
+	}
+
+	rootCmd.PersistentFlags().StringP("org", "o", defaultOrg, "organization name (env: SGH_ORG)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
-	rootCmd.PersistentFlags().IntP("workers", "w", 5, "number of workers")
-	rootCmd.PersistentFlags().BoolP("compact", "C", false, "minimal tab-separated output, suitable for piping")
-	rootCmd.PersistentFlags().BoolP("json", "J", false, "output results as JSON for scripting")
+	rootCmd.PersistentFlags().IntP("workers", "w", defaultWorkers, "number of workers (env: SGH_WORKERS)")
+	rootCmd.PersistentFlags().StringP("output", "O", "table", "output format: table, compact, json")
+	rootCmd.PersistentFlags().BoolP("compact", "C", false, "shorthand for --output compact")
+	rootCmd.PersistentFlags().BoolP("json", "J", false, "shorthand for --output json")
+	rootCmd.PersistentFlags().Bool("dry-run", false, "preview what would be changed without executing")
+	rootCmd.MarkFlagsMutuallyExclusive("output", "compact", "json")
 
 	// Command groups for organized help output
 	rootCmd.AddGroup(
@@ -207,14 +219,19 @@ func validateWorkerCount(workers int) error {
 
 func validateCommandRequirements(cmd *cobra.Command) {
 	cmdName := cmd.Name()
-	parentName := ""
-	if cmd.HasParent() {
-		parentName = cmd.Parent().Name()
-	}
 
-	// Commands that don't require org parameter
-	noOrgRequired := cmdName == "health" || cmdName == "version" ||
-		parentName == "config" || parentName == "repo"
+	// Walk the command tree to check if any ancestor is exempt
+	skipOrg := map[string]bool{
+		"help": true, "completion": true, "health": true,
+		"version": true, "config": true, "repo": true,
+	}
+	noOrgRequired := !cmd.HasParent() || (cmd.Run == nil && cmd.RunE == nil)
+	for c := cmd; c != nil; c = c.Parent() {
+		if skipOrg[c.Name()] {
+			noOrgRequired = true
+			break
+		}
+	}
 
 	// Validate org flag for commands that require it
 	if !noOrgRequired {
@@ -268,11 +285,26 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 	workers, _ := cmd.Flags().GetInt("workers")
 	ctx.SetWorkerCount(workers)
 
-	compact, _ := cmd.Flags().GetBool("compact")
-	ctx.Compact = compact
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	ctx.DryRun = dryRun
 
+	output, _ := cmd.Flags().GetString("output")
+	compact, _ := cmd.Flags().GetBool("compact")
 	jsonOutput, _ := cmd.Flags().GetBool("json")
-	ctx.JSON = jsonOutput
+
+	switch {
+	case compact:
+		ctx.Compact = true
+	case jsonOutput:
+		ctx.JSON = true
+	default:
+		switch strings.ToLower(output) {
+		case "compact":
+			ctx.Compact = true
+		case "json":
+			ctx.JSON = true
+		}
+	}
 }
 
 func printCLIError(msg string, hint string) {

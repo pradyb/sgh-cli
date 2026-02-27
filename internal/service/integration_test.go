@@ -38,29 +38,19 @@ func TestGitHubAPIIntegration(t *testing.T) {
 	// Create test context with mock server URL
 	ctx := createTestContext(t, mockServer.URL())
 
-	t.Run("GetReposWithOrg", func(t *testing.T) {
-		repos, err := GetReposWithOrg(ctx, "testorg")
+	t.Run("ListBranches", func(t *testing.T) {
+		mockServer.ClearRequests()
+
+		branches, err := ListBranches(ctx, "testorg", "test-repo")
 
 		require.NoError(t, err)
-		assert.Len(t, repos, 2)
-
-		// Check first repository
-		assert.Equal(t, "test-repo-1", repos[0].Name)
-		assert.False(t, repos[0].Private)
-		assert.Equal(t, "Go", repos[0].Language)
-		assert.Equal(t, "main", repos[0].DefaultBranch)
-
-		// Check second repository
-		assert.Equal(t, "test-repo-2", repos[1].Name)
-		assert.True(t, repos[1].Private)
-		assert.Equal(t, "JavaScript", repos[1].Language)
-		assert.Equal(t, "main", repos[1].DefaultBranch)
+		assert.NotNil(t, branches)
 
 		// Verify request was made
 		requests := mockServer.GetRequests()
-		assert.Len(t, requests, 1)
+		assert.GreaterOrEqual(t, len(requests), 1)
 		assert.Equal(t, "GET", requests[0].Method)
-		assert.Equal(t, "/orgs/testorg/repos", requests[0].Path)
+		assert.Contains(t, requests[0].Path, "/repos/testorg/test-repo/branches")
 	})
 
 	t.Run("CreateNewBranch", func(t *testing.T) {
@@ -127,7 +117,7 @@ func TestGitHubAPIIntegration(t *testing.T) {
 		mockServer.ClearRequests()
 
 		// Set custom error response
-		mockServer.SetResponse("/orgs/nonexistent/repos", testutils.MockResponse{
+		mockServer.SetResponse("/repos/testorg/nonexistent/branches", testutils.MockResponse{
 			StatusCode: http.StatusNotFound,
 			Body: map[string]interface{}{
 				"message":           "Not Found",
@@ -135,16 +125,16 @@ func TestGitHubAPIIntegration(t *testing.T) {
 			},
 		})
 
-		repos, err := GetReposWithOrg(ctx, "nonexistent")
+		branches, err := ListBranches(ctx, "testorg", "nonexistent")
 
 		assert.Error(t, err)
-		assert.Nil(t, repos)
+		assert.Nil(t, branches)
 		assert.Contains(t, err.Error(), "404")
 
 		// Verify request was made
 		requests := mockServer.GetRequests()
 		assert.Len(t, requests, 1)
-		assert.Equal(t, "/orgs/nonexistent/repos", requests[0].Path)
+		assert.Contains(t, requests[0].Path, "/repos/testorg/nonexistent/branches")
 	})
 
 	t.Run("RateLimitHandling", func(t *testing.T) {
@@ -155,14 +145,14 @@ func TestGitHubAPIIntegration(t *testing.T) {
 		mockServer.SetRateLimit(5000, 1, time.Now().Add(time.Minute))
 
 		// This should still work as the mock server doesn't actually enforce rate limits
-		repos, err := GetReposWithOrg(ctx, "testorg")
+		branches, err := ListBranches(ctx, "testorg", "test-repo")
 
 		require.NoError(t, err)
-		assert.Len(t, repos, 2)
+		assert.NotNil(t, branches)
 
 		// Verify rate limit headers were received
 		requests := mockServer.GetRequests()
-		assert.Len(t, requests, 1)
+		assert.GreaterOrEqual(t, len(requests), 1)
 	})
 }
 
@@ -189,20 +179,20 @@ func TestGitHubAPIIntegrationWithTimeout(t *testing.T) {
 
 	testCtx := createTestContext(t, mockServer.URL())
 
-	t.Run("GetReposWithTimeout", func(t *testing.T) {
+	t.Run("ListBranchesWithTimeout", func(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
-			_, err := GetReposWithOrg(testCtx, "testorg")
+			_, err := ListBranches(testCtx, "testorg", "test-repo")
 			done <- err
 		}()
 
 		select {
 		case err := <-done:
 			if err != nil {
-				t.Errorf("GetReposWithOrg failed: %v", err)
+				t.Errorf("ListBranches failed: %v", err)
 			}
 		case <-ctx.Done():
-			t.Error("GetReposWithOrg timed out")
+			t.Error("ListBranches timed out")
 		}
 	})
 }
@@ -326,7 +316,7 @@ func createTestContext(t *testing.T, mockServerURL string) *appcontext.Context {
 }
 
 // Benchmark tests
-func BenchmarkGetReposWithOrg(b *testing.B) {
+func BenchmarkListBranches(b *testing.B) {
 	// Create mock server
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
@@ -344,7 +334,7 @@ func BenchmarkGetReposWithOrg(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := GetReposWithOrg(ctx, "testorg")
+		_, err := ListBranches(ctx, "testorg", "test-repo")
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -84,8 +84,11 @@ func runHealthCheck(ctx *context.Context) {
 }
 
 func checkGitHubAPIConnectivity(ctx *context.Context) error {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("https://api.github.com/zen")
+	req, err := http.NewRequest("GET", "https://api.github.com/zen", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := ctx.HttpClient.Send(req)
 	if err != nil {
 		return fmt.Errorf("cannot reach GitHub API: %w", err)
 	}
@@ -99,22 +102,17 @@ func checkGitHubAPIConnectivity(ctx *context.Context) error {
 }
 
 func checkAuthentication(ctx *context.Context) error {
-	// Test authentication by making a simple API call
-	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Get token from environment
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return fmt.Errorf("GITHUB_TOKEN environment variable not set")
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
+	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := ctx.HttpClient.Send(req)
 	if err != nil {
 		return fmt.Errorf("authentication request failed: %w", err)
 	}

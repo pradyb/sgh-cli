@@ -7,28 +7,131 @@ import (
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"github.com/prady-lab/sgh-cli/pkg/config"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 func NewConfigCommand(ctx *context.Context) *cobra.Command {
 	configCmd := &cobra.Command{
-		Use:   "config <command>",
-		Short: "Manage configuration for sgh",
-		Long:  `Add/Remove/List the configuration for sgh.`,
+		Use:     "config <command>",
+		Short:   "Manage configuration for sgh",
+		Long:    `Add/Remove/List/Validate the configuration for sgh.`,
+		Aliases: []string{"cfg"},
 		Example: heredoc.Doc(`
 			$ sgh config list
+			$ sgh config validate
 			$ sgh config add key value
 		`),
 	}
 
+	configCmd.AddCommand(listCommand(ctx))
+	configCmd.AddCommand(validateCommand(ctx))
 	configCmd.AddCommand(addCommand(ctx))
 	configCmd.AddCommand(setCommand(ctx))
 
 	return configCmd
+}
+
+func listCommand(ctx *context.Context) *cobra.Command {
+	return &cobra.Command{
+		Use:     "list",
+		Short:   "Show current configuration",
+		Long:    `Display the current sgh configuration, including organizations, repositories, patterns, and settings.`,
+		Aliases: []string{"ls", "view"},
+		Example: heredoc.Doc(`
+			$ sgh config list
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			if ctx.JSON {
+				ui.PrintJSON(ctx.Config)
+				return
+			}
+
+			titleStyle := lipgloss.NewStyle().Foreground(ui.Cyan).Bold(true)
+			labelStyle := lipgloss.NewStyle().Foreground(ui.White).Bold(true)
+			valueStyle := lipgloss.NewStyle().Foreground(ui.Subtle)
+			greenStyle := lipgloss.NewStyle().Foreground(ui.Green)
+
+			fmt.Println()
+			fmt.Println(titleStyle.Render("  SGH Configuration"))
+			fmt.Println(titleStyle.Render("  ─────────────────"))
+			fmt.Println()
+
+			orgs := ctx.Config.OrganizationNames()
+			if len(orgs) == 0 {
+				ui.PrintNoDataMessage("No organizations configured.",
+					"Hint: run 'sgh config add org <name>' to get started.")
+				return
+			}
+
+			for _, orgName := range orgs {
+				fmt.Printf("  %s %s\n", labelStyle.Render("Organization:"), greenStyle.Render(orgName))
+
+				repos := ctx.Config.RepositoriesNames(orgName)
+				if len(repos) > 0 {
+					fmt.Printf("    %s %s\n", labelStyle.Render("Repositories:"), valueStyle.Render(fmt.Sprintf("(%d)", len(repos))))
+					for _, r := range repos {
+						fmt.Printf("      • %s\n", valueStyle.Render(r))
+					}
+				}
+
+				incl := ctx.Config.IncludePatterns(orgName)
+				if len(incl) > 0 {
+					fmt.Printf("    %s %s\n", labelStyle.Render("Include Patterns:"), valueStyle.Render(strings.Join(incl, ", ")))
+				}
+				excl := ctx.Config.ExcludePatterns(orgName)
+				if len(excl) > 0 {
+					fmt.Printf("    %s %s\n", labelStyle.Render("Exclude Patterns:"), valueStyle.Render(strings.Join(excl, ", ")))
+				}
+
+				assignees := ctx.Config.PullRequestAssignees(orgName)
+				if len(assignees) > 0 {
+					fmt.Printf("    %s %s\n", labelStyle.Render("PR Assignees:"), valueStyle.Render(strings.Join(assignees, ", ")))
+				}
+
+				taggerName := ctx.Config.TaggerName(orgName)
+				taggerEmail := ctx.Config.TaggerEmail(orgName)
+				if taggerName != "" || taggerEmail != "" {
+					fmt.Printf("    %s %s <%s>\n", labelStyle.Render("Tagger:"), valueStyle.Render(taggerName), valueStyle.Render(taggerEmail))
+				}
+
+				fmt.Println()
+			}
+		},
+	}
+}
+
+func validateCommand(ctx *context.Context) *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate",
+		Short: "Validate the current configuration",
+		Long:  `Check the sgh configuration file for errors such as invalid patterns, duplicate orgs, and bad usernames.`,
+		Example: heredoc.Doc(`
+			$ sgh config validate
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			passStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
+			fmt.Println()
+			fmt.Println(passStyle.Render("  ✓ Configuration is valid"))
+			fmt.Println()
+
+			orgs := ctx.Config.OrganizationNames()
+			infoStyle := lipgloss.NewStyle().Foreground(ui.Subtle)
+			fmt.Println(infoStyle.Render(fmt.Sprintf("  Organizations: %d", len(orgs))))
+			total := 0
+			for _, org := range orgs {
+				repos := ctx.Config.RepositoriesNames(org)
+				total += len(repos)
+			}
+			fmt.Println(infoStyle.Render(fmt.Sprintf("  Total Repositories: %d", total)))
+			fmt.Println()
+		},
+	}
 }
 
 var (

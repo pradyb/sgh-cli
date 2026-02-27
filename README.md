@@ -2,7 +2,7 @@
 
 A powerful command-line tool for managing GitHub repositories at scale. Perform bulk operations on branches, tags, pull requests, protected branches, and more across your entire GitHub organization with a single command.
 
-[![Go Version](https://img.shields.io/badge/Go-1.23.0+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.24.0+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 📋 Table of Contents
@@ -35,7 +35,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - **Flexible Filtering**: Use include/exclude patterns to target specific repositories
 - **Concurrent Processing**: Configurable worker threads for fast bulk operations
 - **Interactive PR Management**: Interactive terminal UI for pull request operations
-- **Compact & JSON Output**: Pipe-friendly tab-separated (`--compact`) and JSON (`--json`) output modes
+- **Flexible Output Modes**: Unified `--output table|compact|json` flag (plus `--compact` / `--json` shorthands)
 - **Adaptive Terminal UI**: Tables auto-size to terminal width with colored status indicators
 - **Shell Completion**: Built-in completion for Bash, Zsh, Fish, and PowerShell
 - **Graceful Error Handling**: Comprehensive error handling with helpful guidance
@@ -48,17 +48,23 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
    export GITHUB_TOKEN=your_token_here
    ```
 
-2. **List repositories in your organization:**
+2. **Optionally set default org and worker count:**
    ```bash
-   sgh repo list your-org
+   export SGH_ORG=your-org        # avoids repeating --org on every command
+   export SGH_WORKERS=10          # override the default 5 workers
    ```
 
-3. **Create branches across repositories:**
+3. **List repositories in your organization:**
+   ```bash
+   sgh repo list --org your-org
+   ```
+
+4. **Create branches across repositories:**
    ```bash
    sgh branch create --org your-org --new feature-branch --ref main
    ```
 
-4. **Bulk PR creation:**
+5. **Bulk PR creation:**
    ```bash
    sgh pr create --org your-org --title "Feature update" --head feature-branch --base main
    ```
@@ -66,7 +72,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 ## 📦 Installation
 
 ### Prerequisites
-- **Go 1.23.0 or higher** (for building from source)
+- **Go 1.24.0 or higher** (for building from source)
 - **GitHub Personal Access Token** with appropriate permissions:
   - `repo` - Full repository access
   - `admin:org` - Organization administration (for team operations)
@@ -142,6 +148,9 @@ set GITHUB_TOKEN=your_token_here
 # View current configuration
 sgh config list
 
+# Validate configuration for errors
+sgh config validate
+
 # Add organization
 sgh config add org my-organization
 
@@ -176,59 +185,65 @@ Commands are organized into groups:
 
 ### Repository Management
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `repo` | `list` | List repositories for an organization |
-| `clone` | - | Clone multiple repositories at once |
-| `commit` | `list` | Track and list commits across repositories |
+| Command | Alias | Subcommands | Description |
+|---------|-------|-------------|-------------|
+| `repo` | | `list`, `search` | List and search repositories for an organization |
+| `clone` | | - | Clone multiple repositories at once |
+| `commit` | `ci` | `list` | Track and list commits across repositories |
 
 ### Git Operations
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `branch` | `create`, `delete` | Create and delete branches across repositories |
-| `tag` | `create`, `delete` | Create and delete tags across repositories |
-| `pr` | `create`, `list`, `update`, `merge` | Create, list, update, and merge pull requests |
-| `pb` | `list`, `update`, `delete` | Manage protected branch settings |
+| Command | Alias | Subcommands | Description |
+|---------|-------|-------------|-------------|
+| `branch` | `br` | `list`, `create`, `delete` | List, create, and delete branches across repositories |
+| `tag` | `tg` | `list`, `create`, `delete` | List, create, and delete tags across repositories |
+| `pr` | | `create`, `list`, `view`, `review`, `update`, `merge` | Create, list, view, review, update, and merge pull requests |
+| `pb` | | `list`, `update`, `delete` | Manage protected branch settings |
 
 ### CI/CD & Release
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `workflow` | `list`, `view`, `rerun`, `cancel` | Manage GitHub Actions workflow runs |
-| `post-release` | - | Automate post-release workflows |
+| Command | Alias | Subcommands | Description |
+|---------|-------|-------------|-------------|
+| `workflow` | `wf` | `list`, `view`, `rerun`, `cancel` | Manage GitHub Actions workflow runs |
+| `post-release` | | - | Automate post-release workflows |
 
 ### Organization
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `team` | `list` | List teams and members |
+| Command | Alias | Subcommands | Description |
+|---------|-------|-------------|-------------|
+| `team` | | `list` | List teams and members |
 
 ### Utilities
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `config` | `add`, `list` | Manage CLI configuration |
-| `health` | - | Check system health and connectivity |
-| `version` | - | Display version information |
-| `completion` | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
+| Command | Alias | Subcommands | Description |
+|---------|-------|-------------|-------------|
+| `config` | `cfg` | `list`, `validate`, `add`, `set` | Manage and validate CLI configuration |
+| `health` | | - | Check system health and connectivity |
+| `version` | | - | Display version information |
+| `completion` | | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
 
 ### Command Details
 
 **Repository Management:**
-- `repo list <owner>` - List repositories for an organization
+- `repo list --org <org> [--all]` - List repositories for an organization
+- `repo search --org <org> --query <text> [--language <lang>] [--topic <topic>]` - Search repositories
 - `clone --org <org> [--branch <branch>]` - Clone multiple repositories
 - `commit list --org <org> [--days <n>]` - Track commits across repositories
 
 **Branch & Tag Operations:**
+- `branch list --org <org> [--filter <pattern>]` - List branches across repos with optional name filter (regex)
 - `branch create --org <org> --new <name> --ref <ref>` - Create branches across repos
 - `branch delete --org <org> --branch <name>` - Delete branches across repos
+- `tag list --org <org>` - List tags across repos
 - `tag create --org <org> --tag <name> --head <ref> --message <msg>` - Create tags
 - `tag delete --org <org> --tag <name>` - Delete tags
 
 **Pull Request Workflows:**
 - `pr create --org <org> --title <title> --head <branch> --base <branch>` - Create PRs
 - `pr list --org <org> [--all-status] [--sort repo|title|author|status]` - List pull requests
+- `pr list --org <org> --label <name> --since 2024-01-01` - Filter by label and date
+- `pr view --org <org> --repo <repo> --pr <num>` - View PR details, files, checks, reviews
+- `pr review --org <org> --repo <repo> --pr <num> --event approve` - Review a PR
 - `pr update --org <org> --repo <repo> --pr <number> --action <close|open>` - Update PRs
 - `pr list --interactive` - Interactive PR management with Bubble Tea UI
 
@@ -236,6 +251,7 @@ Commands are organized into groups:
 - `workflow list --org <org>` - List workflow runs across repositories
 - `workflow list --org <org> --running` - Show only in-progress runs
 - `workflow list --org <org> --failed --branch main` - Show failed runs on a branch
+- `workflow list --org <org> --workflow "CI Build"` - Filter by workflow name
 - `workflow view --org <org> --repo <repo> --run <id>` - View run details with jobs & steps
 - `workflow view --org <org> --repo <repo> --run <id> --watch` - Live monitor until completion
 - `workflow rerun --org <org> --repo <repo> --run <id>` - Re-trigger a workflow run
@@ -248,13 +264,21 @@ Commands are organized into groups:
 
 **Organization & Configuration:**
 - `team list --org <org>` - List teams and members
-- `config add <key> <value>` - Add configuration
 - `config list` - Show current configuration
+- `config validate` - Check configuration for errors
+- `config add <key> <value>` - Add configuration
 
 ## 🌟 Usage Examples
 
 ### Branch Management
 ```bash
+# List branches across all repos
+sgh branch list --org my-org
+
+# List branches matching a pattern (regex)
+sgh branch list --org my-org --filter "Release-"
+sgh branch list --org my-org --filter "feature/" --repo my-app
+
 # Create a new release branch across all repos
 sgh branch create --org my-org --new Release-1.1 --ref Release-1.0
 
@@ -267,6 +291,12 @@ sgh branch delete --org my-org --branch old-feature --repo legacy-app
 
 ### Tag Operations
 ```bash
+# List tags across all repos
+sgh tag list --org my-org
+
+# List tags for specific repos
+sgh tag list --org my-org --repo app1 --repo app2
+
 # Create release tags across repositories
 sgh tag create --org my-org --tag v1.0.0 --head Release-1.0 --message 'Release v1.0.0'
 
@@ -287,6 +317,17 @@ sgh pr list --org my-org --repo app1 --repo app2 --base main --all-status
 
 # List PRs with filters
 sgh pr list --org my-org --author john-doe --assignee jane-doe --last 10
+
+# Filter by label and creation date
+sgh pr list --org my-org --label bug --since 2024-01-01
+
+# View detailed PR information (files, checks, reviews)
+sgh pr view --org my-org --repo my-app --pr 42
+
+# Review a pull request
+sgh pr review --org my-org --repo my-app --pr 42 --event approve
+sgh pr review --org my-org --repo my-app --pr 42 --event request_changes --body "Please fix the tests"
+sgh pr review --org my-org --repo my-app --pr 42 --event comment --body "Looks good overall"
 
 # Update PR status
 sgh pr update --org my-org --repo my-app --pr 123 --action close
@@ -322,7 +363,13 @@ sgh post-release --org my-org --base main --head Release-1.0 --exclude-repos leg
 ### Repository Operations
 ```bash
 # List all repositories
-sgh repo list my-org
+sgh repo list --org my-org
+
+# Search repositories by name or description
+sgh repo search --org my-org --query "api"
+
+# Search by language and topic
+sgh repo search --org my-org --language go --topic microservice
 
 # Clone repositories with specific branch
 sgh clone --org my-org --branch develop
@@ -341,6 +388,9 @@ sgh workflow list --org my-org --running
 
 # Show only failed workflows on a specific branch
 sgh workflow list --org my-org --failed --branch main
+
+# Filter by workflow name (partial match)
+sgh workflow list --org my-org --workflow "CI Build"
 
 # Sort by status
 sgh workflow list --org my-org --sort status
@@ -375,32 +425,41 @@ sgh team list --org my-org --members 100
 
 ### Configuration Management
 ```bash
+# View current configuration
+sgh config list
+
+# Validate config file for errors
+sgh config validate
+
 # Add organization to config
 sgh config add org my-org
 
 # Add repository patterns
 sgh config add pattern api-* --org my-org --include
 sgh config add pattern legacy-* --org my-org --exclude
-
-# List current configuration
-sgh config list
 ```
 
 ## 🏷️ Global Flags
 
 - `-h, --help` - Show help information
-- `-o, --org string` - Organization name (required for most commands)
+- `-o, --org string` - Organization name (env: `SGH_ORG`, required for most commands)
 - `-v, --verbose` - Enable verbose output
 - `-L, --log-response` - Log HTTP responses for debugging
-- `-w, --workers int` - Number of concurrent workers (default: 5)
-- `-C, --compact` - Minimal tab-separated output, suitable for piping to `grep`/`awk`/`cut`
-- `-J, --json` - Output results as JSON for scripting and automation
+- `-w, --workers int` - Number of concurrent workers (default: 5, env: `SGH_WORKERS`)
+- `-O, --output string` - Output format: `table` (default), `compact`, or `json`
+- `-C, --compact` - Shorthand for `--output compact` (tab-separated, pipe-friendly)
+- `-J, --json` - Shorthand for `--output json` (structured JSON for scripting)
+
+> **Tip:** Set `SGH_ORG` and `SGH_WORKERS` environment variables to avoid repeating common flags.
 
 ### Per-Command Flags
 
 Some list commands support additional flags:
 
 - `--sort <field>` - Sort table output (available on `pr list` and `workflow list`)
+- `--filter <pattern>` - Branch name filter with regex support (on `branch list`)
+- `--workflow <name>` - Workflow name filter with partial match (on `workflow list`)
+- `--label <name>`, `--since <YYYY-MM-DD>` - PR filters (on `pr list`)
 - `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
 - `--watch`, `--interval` - Live monitoring (on `workflow view`)
 
@@ -418,16 +477,17 @@ sgh pr create --org my-org --title "Update" --head feature --base main --exclude
 ```
 
 ### Output Modes
-Use `--compact` or `--json` for scripting:
+Use `--output`, `--compact`, or `--json` for scripting:
 
 ```bash
-# Tab-separated output — pipe to grep, awk, cut, etc.
+# Unified --output flag
+sgh pr list --org my-org --output compact | grep "open"
+sgh repo list --org my-org --output json | jq '.[].name'
+
+# Shorthand flags (equivalent to --output compact / --output json)
 sgh pr list --org my-org -C | grep "open"
 sgh workflow list --org my-org --running -C | awk '{print $1, $4}'
-
-# JSON output — pipe to jq for structured processing
-sgh repo list my-org --json | jq '.[].name'
-sgh workflow list --org my-org --json | jq '.[] | select(.status == "failure")'
+sgh workflow list --org my-org -J | jq '.[] | select(.status == "failure")'
 ```
 
 ### Shell Completion
@@ -457,6 +517,17 @@ sgh clone --org large-org --workers 10
 # Use fewer workers to avoid rate limiting
 sgh pr create --org my-org --title "Update" --head feature --base main --workers 2
 ```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token (**required**) | - |
+| `SGH_ORG` | Default organization name | - |
+| `SGH_WORKERS` | Default number of concurrent workers | `5` |
+| `SGH_TIMEOUT` | HTTP client timeout (e.g. `60s`) | `30s` |
+| `SGH_VERBOSE` | Enable verbose output (`true`/`false`) | `false` |
+| `SGH_LOG_RESPONSE` | Log HTTP responses (`true`/`false`) | `false` |
 
 ### Configuration Patterns
 Set up organization-specific configurations:
@@ -515,13 +586,16 @@ sgh pr create --org my-org --workers 2 --title "Update"
 **Network Issues:**
 ```bash
 # Enable response logging for debugging
-sgh repo list my-org --log-response --verbose
+sgh repo list --org my-org --log-response --verbose
 ```
 
 **Configuration Issues:**
 ```bash
 # Check current configuration
 sgh config list
+
+# Validate configuration for errors
+sgh config validate
 
 # Reset configuration
 rm ~/.config/sgh/sgh.json  # Linux/Mac
@@ -631,9 +705,13 @@ sgh-cli/
 │   └── service/           # GitHub REST & GraphQL API services
 ├── pkg/                   # Public packages
 │   ├── apperrors/         # Application error types
+│   ├── branch/            # Branch business logic (list, create, delete)
+│   ├── config/            # Config helpers (add, set, save)
 │   ├── context/           # Global application context
 │   ├── logger/            # Structured logging (zerolog)
 │   ├── pr/prompt/         # Interactive PR selection (Bubble Tea)
+│   ├── repo/              # Repository operations
+│   ├── tag/               # Tag business logic (list, create, delete)
 │   ├── ui/                # Table rendering, colors, progress bars
 │   └── workflow/          # Workflow business logic
 └── utils/                 # Utility functions

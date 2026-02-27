@@ -4,6 +4,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
+	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	postrelease "github.com/prady-lab/sgh-cli/pkg/postrelease"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -28,13 +29,25 @@ func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 		Long:  `Perform Post release activities like merging to main/develop and tagging`,
 		Example: heredoc.Doc(`
 			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --repo sample-repo1 --repo sample-repo2
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --repo sample-repo1 --repo sample-repo2 
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --repo sample-repo1 --repo sample-repo2 --exclude-repos sample-repo1
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" -r sample-repo1 -r sample-repo2
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag -r sample-repo1 -r sample-repo2 
+			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag -r sample-repo1 -r sample-repo2 -e sample-repo1
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepos)
+				details := map[string]string{
+					"Base Branch": baseRef, "Head Branch": headRef, "Title": title,
+				}
+				if createTag {
+					details["Create Tag"] = tagName
+				}
+				ui.PrintDryRunActions("Post Release", orgName, repos, details)
+				return
+			}
 			postReleaseResponses := postrelease.ProcessPostRelease(ctx, postrelease.PostReleaseRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepos: excludeRepos, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body, CreateTag: createTag, TagName: tagName})
 			ui.PrintPostReleaseResponses(postReleaseResponses)
 		},

@@ -77,6 +77,60 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 	return make([]model.Repository, 0), nil
 }
 
+// SearchRepos searches repositories within an organization using GitHub's search qualifiers.
+func SearchRepos(ctx *context.Context, orgName, query, language, topic string) ([]model.Repository, error) {
+	queryString := "org:" + orgName
+
+	if query != "" {
+		queryString += " " + query + " in:name,description"
+	}
+	if language != "" {
+		queryString += " language:" + language
+	}
+	if topic != "" {
+		queryString += " topic:" + topic
+	}
+
+	variables := map[string]interface{}{
+		"queryString": githubv4.String(queryString),
+		"repoCursor":  (*githubv4.String)(nil),
+	}
+
+	repositories := make([]model.Repository, 0)
+	for {
+		var searchRepositoriesQuery model.SearchRepositoriesQuery
+		err := service.Query(ctx, &searchRepositoriesQuery, variables)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, edge := range searchRepositoriesQuery.Search.Edges {
+			repo := edge.Node.Repository
+			repositories = append(repositories, model.Repository{
+				Name:                  repo.Name,
+				HTMLUrl:               repo.Url,
+				SSHUrl:                repo.SSHUrl,
+				Description:           repo.Description,
+				DefaultBranch:         repo.DefaultBranchRef.Name,
+				Language:              repo.PrimaryLanguage.Name,
+				Private:               repo.IsPrivate,
+				OpenPullRequestsCount: repo.PullRequests.TotalCount,
+			})
+		}
+		variables["repoCursor"] = githubv4.String(searchRepositoriesQuery.Search.PageInfo.EndCursor)
+
+		if !searchRepositoriesQuery.Search.PageInfo.HasNextPage {
+			break
+		}
+	}
+
+	sort.Slice(repositories, func(i, j int) bool {
+		return repositories[i].Name < repositories[j].Name
+	})
+
+	return repositories, nil
+}
+
 // GetSelectedRepoNames returns the names of selected repositories for the given organization.
 func GetSelectedRepoNames(ctx *context.Context, orgName string) ([]string, error) {
 	repos, err := GetReposForOrg(ctx, orgName, false)

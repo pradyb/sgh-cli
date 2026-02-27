@@ -44,31 +44,34 @@ func NewAsyncJobQueue[T, R any](jobQueueSize int) *AsyncJobQueue[T, R] {
 }
 
 func (q *AsyncJobQueue[T, R]) Start(jobHandler AsyncJobHandler[T, R], resultHandler AsyncJobResultHandler[T, R], errorHandler AsyncJobErrorHandler[T], noOfWorkers int) {
-	// Start goroutines to handle results and errors concurrently
+	var consumeWg sync.WaitGroup
+	consumeWg.Add(2)
+
 	go func() {
+		defer consumeWg.Done()
 		for result := range q.Results {
 			resultHandler(result)
 		}
 	}()
 
 	go func() {
+		defer consumeWg.Done()
 		for err := range q.Errors {
 			errorHandler(err)
 		}
 	}()
 
-	// Start workers
 	for range make([]int, noOfWorkers) {
 		q.wg.Add(1)
 		go q.worker(jobHandler)
 	}
 
-	// Wait for all workers to complete
 	q.wg.Wait()
 
-	// Close channels to signal completion
 	close(q.Results)
 	close(q.Errors)
+
+	consumeWg.Wait()
 }
 
 func (q *AsyncJobQueue[T, R]) worker(jobHandler AsyncJobHandler[T, R]) {

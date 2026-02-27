@@ -23,11 +23,28 @@ const (
 	PROTECTED_BRANCH_URI = "%s/repos/%s/%s/branches/%s/protection"
 )
 
+type apiResponse struct {
+	Body       []byte
+	LinkHeader string
+}
+
 func invokeAPI(ctx *appcontext.Context, method, url string, reqBody io.Reader) ([]byte, error) {
-	return invokeAPIWithContext(context.Background(), ctx, method, url, reqBody)
+	resp, err := invokeAPIFull(context.Background(), ctx, method, url, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
 }
 
 func invokeAPIWithContext(reqCtx context.Context, ctx *appcontext.Context, method, url string, reqBody io.Reader) ([]byte, error) {
+	resp, err := invokeAPIFull(reqCtx, ctx, method, url, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func invokeAPIFull(reqCtx context.Context, ctx *appcontext.Context, method, url string, reqBody io.Reader) (*apiResponse, error) {
 	req, err := http.NewRequestWithContext(reqCtx, method, url, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -52,20 +69,24 @@ func invokeAPIWithContext(reqCtx context.Context, ctx *appcontext.Context, metho
 		}
 	}
 
-	return body, nil
+	return &apiResponse{Body: body, LinkHeader: res.Header.Get("Link")}, nil
 }
 
-func GetReposWithOrg(ctx *appcontext.Context, orgName string) ([]model.Repository, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/orgs/%s/repos?per_page=100", GITHUB_BASE_URL, orgName), nil)
-	if err != nil {
-		return nil, err
+func parseLinkNext(linkHeader string) string {
+	if linkHeader == "" {
+		return ""
 	}
-	var repositories []model.Repository
-	if err := json.Unmarshal(response, &repositories); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the org response body")
-		return nil, err
+	for _, part := range strings.Split(linkHeader, ",") {
+		part = strings.TrimSpace(part)
+		if strings.Contains(part, `rel="next"`) {
+			start := strings.Index(part, "<")
+			end := strings.Index(part, ">")
+			if start >= 0 && end > start {
+				return part[start+1 : end]
+			}
+		}
 	}
-	return repositories, nil
+	return ""
 }
 
 type refResponse struct {
@@ -128,6 +149,26 @@ func DeleteBranch(ctx *appcontext.Context, orgName, repoName, branchName string)
 	return true, nil
 }
 
+func ListBranches(ctx *appcontext.Context, orgName, repoName string) ([]model.BranchResponse, error) {
+	var allBranches []model.BranchResponse
+	url := fmt.Sprintf("%s/repos/%s/%s/branches?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+
+	for url != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.BranchResponse
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in unmarshal the branches response body")
+			return nil, err
+		}
+		allBranches = append(allBranches, page...)
+		url = parseLinkNext(resp.LinkHeader)
+	}
+	return allBranches, nil
+}
+
 type refTagResponse struct {
 	SHA string `json:"sha"`
 }
@@ -174,6 +215,26 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	}
 
 	return tagResponse, nil
+}
+
+func ListTags(ctx *appcontext.Context, orgName, repoName string) ([]model.TagResponse, error) {
+	var allTags []model.TagResponse
+	url := fmt.Sprintf("%s/repos/%s/%s/tags?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+
+	for url != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.TagResponse
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in unmarshal the tags response body")
+			return nil, err
+		}
+		allTags = append(allTags, page...)
+		url = parseLinkNext(resp.LinkHeader)
+	}
+	return allTags, nil
 }
 
 func DeleteTag(ctx *appcontext.Context, orgName, repoName, tagName string) (bool, error) {
@@ -251,26 +312,32 @@ func AddReviewers(ctx *appcontext.Context, orgName, repoName string, prNumber in
 }
 
 func ListPullRequests(ctx *appcontext.Context, orgName, repoName string, baseRef, headRef string, all bool) ([]model.PullRequestResponse, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=50", GITHUB_BASE_URL, orgName, repoName)
+	apiURL := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=100", GITHUB_BASE_URL, orgName, repoName)
 	if baseRef != "" {
-		url = fmt.Sprintf("%s&base=%s", url, baseRef)
+		apiURL = fmt.Sprintf("%s&base=%s", apiURL, baseRef)
 	}
 	if headRef != "" {
-		url = fmt.Sprintf("%s&head=%s:%s", url, orgName, headRef)
+		apiURL = fmt.Sprintf("%s&head=%s:%s", apiURL, orgName, headRef)
 	}
 	if all {
-		url = fmt.Sprintf("%s&state=all", url)
+		apiURL = fmt.Sprintf("%s&state=all", apiURL)
 	}
-	response, err := invokeAPI(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
+
+	var allPRs []model.PullRequestResponse
+	for apiURL != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", apiURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.PullRequestResponse
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
+			return nil, err
+		}
+		allPRs = append(allPRs, page...)
+		apiURL = parseLinkNext(resp.LinkHeader)
 	}
-	var prResponses []model.PullRequestResponse
-	if err := json.Unmarshal(response, &prResponses); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the PR response body")
-		return nil, err
-	}
-	return prResponses, nil
+	return allPRs, nil
 }
 
 func UpdatePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumber int, state string) (model.PullRequestResponse, error) {
@@ -344,9 +411,12 @@ func ReviewPullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 }
 
 func MergePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumber int, title, body string) (model.MergeResponse, error) {
-	mergeRequest := map[string]interface{}{
-		"commit_title":   title,
-		"commit_message": body,
+	mergeRequest := map[string]interface{}{}
+	if title != "" {
+		mergeRequest["commit_title"] = title
+	}
+	if body != "" {
+		mergeRequest["commit_message"] = body
 	}
 	jsonBody, err := json.Marshal(mergeRequest)
 	if err != nil {
@@ -393,16 +463,24 @@ func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, 
 	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.Local)
 	midnight = midnight.AddDate(0, 0, -noOfDays)
 	since := midnight.Format("2006-01-02T15:04:05Z")
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits?since=%s&sha=%s", GITHUB_BASE_URL, orgName, repoName, since, branchName), nil)
-	if err != nil {
-		return nil, err
+
+	var allCommits []model.CommitResponse
+	url := fmt.Sprintf("%s/repos/%s/%s/commits?per_page=100&since=%s&sha=%s", GITHUB_BASE_URL, orgName, repoName, since, branchName)
+
+	for url != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.CommitResponse
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in unmarshal the commits response body")
+			return nil, err
+		}
+		allCommits = append(allCommits, page...)
+		url = parseLinkNext(resp.LinkHeader)
 	}
-	var commits []model.CommitResponse
-	if err := json.Unmarshal(response, &commits); err != nil {
-		logger.Glog.Error().Err(err).Msg("Error in unmarshal the commits response body")
-		return nil, err
-	}
-	return commits, nil
+	return allCommits, nil
 }
 
 func GetCommitInfo(ctx *appcontext.Context, orgName, repoName, commitSha string) (model.CommitResponse, error) {
