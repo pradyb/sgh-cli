@@ -20,21 +20,29 @@ import (
 type shortcut struct {
 	name    string
 	expands string
+	group   string
 	builder func(*context.Context) *cobra.Command
+}
+
+// shortcutGroups controls the display order in `sgh shortcuts`.
+var shortcutGroups = []string{
+	"Repository", "Pull Request", "Branch", "Tag",
+	"Protected Branch", "Workflow", "Commit", "Team",
 }
 
 var shortcutDefs = func(ctx *context.Context) []shortcut {
 	return []shortcut{
-		{"prl", "pr list", pr.ListCommand},
-		{"prv", "pr view", pr.ViewCommand},
-		{"wfl", "workflow list", workflow.ListCommand},
-		{"wfv", "workflow view", workflow.ViewCommand},
-		{"brl", "branch list", branch.ListCommand},
-		{"tgl", "tag list", tag.ListCommand},
-		{"pbl", "pb list", protectedbranch.ListCommand},
-		{"rpl", "repo list", repo.ListCommand},
-		{"cil", "commit list", commit.ListCommand},
-		{"tml", "team list", team.ListCommand},
+		{"rpl", "repo list", "Repository", repo.ListCommand},
+		{"rps", "repo search", "Repository", repo.SearchCommand},
+		{"prl", "pr list", "Pull Request", pr.ListCommand},
+		{"prv", "pr view", "Pull Request", pr.ViewCommand},
+		{"brl", "branch list", "Branch", branch.ListCommand},
+		{"tgl", "tag list", "Tag", tag.ListCommand},
+		{"pbl", "pb list", "Protected Branch", protectedbranch.ListCommand},
+		{"wfl", "workflow list", "Workflow", workflow.ListCommand},
+		{"wfv", "workflow view", "Workflow", workflow.ViewCommand},
+		{"cil", "commit list", "Commit", commit.ListCommand},
+		{"tml", "team list", "Team", team.ListCommand},
 	}
 }
 
@@ -48,7 +56,7 @@ func registerShortcuts(rootCmd *cobra.Command, ctx *context.Context) {
 	}
 }
 
-func newShortcutsHelpCommand() *cobra.Command {
+func newShortcutsHelpCommand(ctx *context.Context) *cobra.Command {
 	return &cobra.Command{
 		Use:   "shortcuts",
 		Short: "List available command shortcuts",
@@ -58,53 +66,37 @@ func newShortcutsHelpCommand() *cobra.Command {
 			shortcutStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Green).Width(8)
 			arrowStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
 			expandStyle := lipgloss.NewStyle().Foreground(ui.White)
+			groupStyle := lipgloss.NewStyle().Foreground(ui.Subtle).Italic(true)
 
 			fmt.Println()
 			fmt.Println(headerStyle.Render("  Available Shortcuts"))
 			fmt.Println(headerStyle.Render("  ───────────────────"))
 			fmt.Println()
 
-			groups := []struct {
-				label string
-				names []string
-			}{
-				{"Repository", []string{"rpl"}},
-				{"Pull Request", []string{"prl", "prv"}},
-				{"Branch", []string{"brl"}},
-				{"Tag", []string{"tgl"}},
-				{"Protected Branch", []string{"pbl"}},
-				{"Workflow", []string{"wfl", "wfv"}},
-				{"Commit", []string{"cil"}},
-				{"Team", []string{"tml"}},
+			grouped := make(map[string][]shortcut)
+			for _, s := range shortcutDefs(ctx) {
+				grouped[s.group] = append(grouped[s.group], s)
 			}
 
-			expansions := map[string]string{
-				"prl": "pr list", "prv": "pr view",
-				"wfl": "workflow list", "wfv": "workflow view",
-				"brl": "branch list", "tgl": "tag list",
-				"pbl": "pb list", "rpl": "repo list",
-				"cil": "commit list", "tml": "team list",
-			}
-
-			groupStyle := lipgloss.NewStyle().Foreground(ui.Subtle).Italic(true)
-			for _, g := range groups {
-				fmt.Printf("  %s\n", groupStyle.Render(g.label))
-				for _, name := range g.names {
+			for _, g := range shortcutGroups {
+				items := grouped[g]
+				if len(items) == 0 {
+					continue
+				}
+				fmt.Printf("  %s\n", groupStyle.Render(g))
+				for _, s := range items {
 					fmt.Printf("    %s %s %s\n",
-						shortcutStyle.Render(name),
+						shortcutStyle.Render(s.name),
 						arrowStyle.Render("→"),
-						expandStyle.Render(expansions[name]),
+						expandStyle.Render(s.expands),
 					)
 				}
 			}
 			fmt.Println()
 			fmt.Println(arrowStyle.Render("  Usage: sgh <shortcut> [flags]"))
 			fmt.Println(arrowStyle.Render("  Example: sgh prl --org my-org"))
-
-			// Show any extra flags by referencing the full command
 			fmt.Println(arrowStyle.Render("  Help: sgh <shortcut> --help"))
 			fmt.Println()
 		},
 	}
 }
-

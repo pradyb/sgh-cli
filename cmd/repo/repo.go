@@ -29,7 +29,7 @@ func NewRepoCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	repoCmd.AddCommand(ListCommand(ctx))
-	repoCmd.AddCommand(searchCommand(ctx))
+	repoCmd.AddCommand(SearchCommand(ctx))
 	return repoCmd
 }
 
@@ -80,7 +80,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	return listCmd
 }
 
-func searchCommand(ctx *context.Context) *cobra.Command {
+func SearchCommand(ctx *context.Context) *cobra.Command {
 	searchCmd := &cobra.Command{
 		Use:   "search",
 		Short: "Search repositories by name, topic, or language",

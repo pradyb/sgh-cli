@@ -35,28 +35,28 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 		Long: heredoc.Doc(`
 			🚀 Simple GitHub CLI (sgh) - A powerful tool for managing GitHub repositories at scale
 
-			Manage multiple repositories across your GitHub organization with ease. Perform bulk operations 
+			Manage multiple repositories across your GitHub organization with ease. Perform bulk operations
 			on branches, tags, pull requests, protected branches, and more with a single command.
 
 			✨ Key Features:
 			  • Bulk repository operations across entire organizations
 			  • Advanced branch and tag management
-			  • Pull request automation and management  
+			  • Pull request automation and management
 			  • Protected branch configuration and updates
 			  • Post-release workflow automation
 			  • Team and member management
 			  • Repository cloning and commit tracking
 			  • Flexible filtering with include/exclude patterns
 
-		🔧 Configuration:
-		  Environment Variables:
-		    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
-		    SGH_ORG         Default organization name (optional)
-		    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
+			🔧 Configuration:
+			  Environment Variables:
+			    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
+			    SGH_ORG         Default organization name (optional)
+			    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
 
-		  Config Files:
+			  Config Files:
 			    Windows: ~/sgh.json
-			    Linux:   ~/.config/sgh/sgh.json  
+			    Linux:   ~/.config/sgh/sgh.json
 			    Mac:     ~/.config/sgh/sgh.json
 
 			🎯 Quick Start:
@@ -182,7 +182,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(teamCmd)
 	rootCmd.AddCommand(configCmd, healthCmd, versionCmd)
 
-	shortcutsCmd := newShortcutsHelpCommand()
+	shortcutsCmd := newShortcutsHelpCommand(ctx)
 	shortcutsCmd.GroupID = "util"
 	rootCmd.AddCommand(shortcutsCmd)
 
