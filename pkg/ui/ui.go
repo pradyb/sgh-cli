@@ -186,6 +186,40 @@ func PrintJSON(data any) {
 	enc.Encode(data)
 }
 
+// PrintDryRunBanner prints a styled banner indicating dry-run mode.
+func PrintDryRunBanner() {
+	bannerStyle := lipgloss.NewStyle().Bold(true).Foreground(Yellow).
+		Border(lipgloss.RoundedBorder()).BorderForeground(Yellow).
+		Padding(0, 1).MarginLeft(1).MarginTop(1)
+	fmt.Println(bannerStyle.Render("DRY RUN — no changes will be made"))
+}
+
+// PrintDryRunActions prints a preview of operations that would be executed.
+func PrintDryRunActions(operation string, org string, repos []string, details map[string]string) {
+	labelStyle := lipgloss.NewStyle().Foreground(Cyan).Bold(true)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	repoStyle := lipgloss.NewStyle().Foreground(Green)
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed)
+
+	fmt.Println()
+	fmt.Printf("  %s %s\n", labelStyle.Render("Operation:"), valueStyle.Render(operation))
+	fmt.Printf("  %s %s\n", labelStyle.Render("Organization:"), valueStyle.Render(org))
+
+	for k, v := range details {
+		fmt.Printf("  %s %s\n", labelStyle.Render(k+":"), valueStyle.Render(v))
+	}
+
+	if len(repos) > 0 {
+		fmt.Printf("  %s\n", labelStyle.Render("Repositories:"))
+		for _, r := range repos {
+			fmt.Printf("    %s %s\n", dimStyle.Render("•"), repoStyle.Render(r))
+		}
+	} else {
+		fmt.Printf("  %s %s\n", labelStyle.Render("Repositories:"), dimStyle.Render("all configured repositories"))
+	}
+	fmt.Println()
+}
+
 const defaultTermWidth = 200
 
 // TerminalWidth returns the current terminal width by trying multiple
@@ -204,4 +238,3 @@ func TerminalWidth() int {
 	}
 	return defaultTermWidth
 }
-

@@ -400,6 +400,45 @@ func (m *MockGitHubServer) handleRepositories(w http.ResponseWriter, r *http.Req
 
 	path := r.URL.Path
 
+	// Check if we have a custom response for this path
+	m.mu.RLock()
+	if response, exists := m.responses[r.URL.Path]; exists {
+		m.mu.RUnlock()
+		if response.Delay > 0 {
+			time.Sleep(response.Delay)
+		}
+		for key, value := range response.Headers {
+			w.Header().Set(key, value)
+		}
+		m.writeJSONResponse(w, response.StatusCode, response.Body)
+		return
+	}
+	m.mu.RUnlock()
+
+	// Handle list branches
+	if r.Method == "GET" && strings.Contains(path, "/branches") && !strings.Contains(path, "/protection") {
+		branches := []map[string]interface{}{
+			{
+				"name":      "main",
+				"protected": true,
+				"commit": map[string]interface{}{
+					"sha": "abc123",
+					"url": "https://api.github.com/repos/testorg/test-repo/commits/abc123",
+				},
+			},
+			{
+				"name":      "develop",
+				"protected": false,
+				"commit": map[string]interface{}{
+					"sha": "def456",
+					"url": "https://api.github.com/repos/testorg/test-repo/commits/def456",
+				},
+			},
+		}
+		m.writeJSONResponse(w, http.StatusOK, branches)
+		return
+	}
+
 	// Handle branch creation
 	if r.Method == "POST" && strings.Contains(path, "/git/refs") {
 		response := map[string]interface{}{

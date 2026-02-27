@@ -35,7 +35,7 @@ type CommitCheckRunsRequest struct {
 func ListCommits(ctx *context.Context, req CommitListRequest) []model.CommitResponse {
 	responses := make([]model.CommitResponse, 0)
 
-	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepos, processor.OperationListPullRequest,
+	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepos, processor.OperationListCommits,
 		func(ctx *context.Context, orgName, repoName string) ([]model.CommitResponse, error) {
 			return service.ListCommits(ctx, orgName, repoName, req.BranchName, req.NoOfDays)
 		},

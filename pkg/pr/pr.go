@@ -107,6 +107,8 @@ type PRRequest struct {
 	Author           string
 	Assignee         string
 	Reviewer         string
+	Label            string
+	Since            string
 	All              bool
 	IsInteractive    bool
 	Title            string
@@ -208,6 +210,12 @@ func getSearchQuery(ctx *context.Context, prRequest PRRequest) string {
 	}
 	if prRequest.Reviewer != "" {
 		queryString = queryString + " review-requested:" + prRequest.Reviewer
+	}
+	if prRequest.Label != "" {
+		queryString = queryString + " label:" + prRequest.Label
+	}
+	if prRequest.Since != "" {
+		queryString = queryString + " created:>=" + prRequest.Since
 	}
 	return queryString
 }
@@ -344,8 +352,8 @@ func GetPRDetailsGraphQL(ctx *context.Context, req PRDetailsRequest) (model.Pull
 		MergeStateStatus: prQueryReponse.MergeStateStatus,
 		MergeAt:          prQueryReponse.MergedAt,
 		MergedBy: model.User{
-			Login: prQueryReponse.MergedBy.User.Name,
-			Name:  prQueryReponse.MergedBy.User.Login,
+			Login: prQueryReponse.MergedBy.User.Login,
+			Name:  prQueryReponse.MergedBy.User.Name,
 		},
 		ReviewComments: prQueryReponse.TotalCommentsCount,
 		Comments:       prQueryReponse.Comments.TotalCount,

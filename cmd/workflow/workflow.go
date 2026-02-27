@@ -19,8 +19,9 @@ import (
 
 func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 	workflowCmd := &cobra.Command{
-		Use:   "workflow <command>",
-		Short: "Manage GitHub Actions workflow runs across repositories",
+		Use:     "workflow <command>",
+		Aliases: []string{"wf"},
+		Short:   "Manage GitHub Actions workflow runs across repositories",
 		Long: heredoc.Doc(`
 			Manage GitHub Actions workflow runs across repositories in your organization.
 
@@ -51,16 +52,16 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh workflow list --org my-org --failed --branch main
 
 			View run details with jobs and steps:
-			  $ sgh workflow view --org my-org --repo my-app --run 123456789
+			  $ sgh workflow view --org my-org -r my-app --run 123456789
 
 			Watch a run until it completes:
-			  $ sgh workflow view --org my-org --repo my-app --run 123456789 --watch
+			  $ sgh workflow view --org my-org -r my-app --run 123456789 --watch
 
 			Rerun a failed workflow:
-			  $ sgh workflow rerun --org my-org --repo my-app --run 123456789
+			  $ sgh workflow rerun --org my-org -r my-app --run 123456789
 
 			Cancel a running workflow:
-			  $ sgh workflow cancel --org my-org --repo my-app --run 123456789
+			  $ sgh workflow cancel --org my-org -r my-app --run 123456789
 		`),
 	}
 
@@ -81,6 +82,7 @@ var (
 	queued           bool
 	failed           bool
 	sortBy           string
+	workflowName     string
 )
 
 func listCommand(ctx *context.Context) *cobra.Command {
@@ -100,7 +102,8 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 			$ sgh workflow list --org sample-org --failed
 			$ sgh workflow list --org sample-org --status failure
 			$ sgh workflow list --org sample-org --branch main --last 5
-			$ sgh workflow list --org sample-org --repo sample-repo1 --repo sample-repo2 --status in_progress
+			$ sgh workflow list --org sample-org --workflow "CI Build"
+			$ sgh workflow list --org sample-org -r sample-repo1 -r sample-repo2 --status in_progress
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -122,6 +125,7 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 				Branch:           branch,
 				Status:           effectiveStatus,
 				Count:            lastCount,
+				WorkflowName:     workflowName,
 			}
 			responses := workflow.ListWorkflowRuns(ctx, req)
 			if ctx.JSON {
@@ -139,6 +143,7 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 	listCmd.Flags().BoolVar(&queued, "queued", false, "show only queued workflow runs")
 	listCmd.Flags().BoolVar(&failed, "failed", false, "show only failed workflow runs")
 	listCmd.Flags().StringVarP(&branch, "branch", "B", "", "filter by `branch` name")
+	listCmd.Flags().StringVarP(&workflowName, "workflow", "n", "", "filter by `workflow` name (partial match)")
 	listCmd.Flags().IntVarP(&lastCount, "last", "l", 10, "number of workflow runs to fetch per repository")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, status, created")
 	listCmd.MarkFlagsMutuallyExclusive("status", "running", "queued", "failed")
@@ -165,9 +170,9 @@ func viewCommand(ctx *context.Context) *cobra.Command {
 Use --watch to poll for updates until the run completes.`,
 		Aliases: []string{"detail", "info"},
 		Example: heredoc.Doc(`
-			$ sgh workflow view --org sample-org --repo sample-repo1 --run 123456789
-			$ sgh workflow view --org sample-org --repo sample-repo1 --run 123456789 --watch
-			$ sgh workflow view --org sample-org --repo sample-repo1 --run 123456789 --watch --interval 5
+			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789
+			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789 --watch
+			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789 --watch --interval 5
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -282,11 +287,18 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 		Short: "Rerun a workflow run",
 		Long:  `Rerun a specific GitHub Actions workflow run in a repository.`,
 		Example: heredoc.Doc(`
-			$ sgh workflow rerun --org sample-org --repo sample-repo1 --run 123456789
+			$ sgh workflow rerun --org sample-org -r sample-repo1 --run 123456789
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				ui.PrintDryRunActions("Rerun Workflow", orgName, []string{repoName}, map[string]string{
+					"Run ID": fmt.Sprintf("%d", runID),
+				})
+				return
+			}
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
 				RepoName: repoName,
@@ -316,11 +328,18 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 		Short: "Cancel a workflow run",
 		Long:  `Cancel a specific GitHub Actions workflow run in a repository.`,
 		Example: heredoc.Doc(`
-			$ sgh workflow cancel --org sample-org --repo sample-repo1 --run 123456789
+			$ sgh workflow cancel --org sample-org -r sample-repo1 --run 123456789
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				ui.PrintDryRunActions("Cancel Workflow", orgName, []string{repoName}, map[string]string{
+					"Run ID": fmt.Sprintf("%d", runID),
+				})
+				return
+			}
 			req := workflow.WorkflowRunRequest{
 				OrgName:  orgName,
 				RepoName: repoName,

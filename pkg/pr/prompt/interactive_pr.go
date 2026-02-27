@@ -342,29 +342,28 @@ func processEventMsg(ctx *context.Context, orgName, repoName string, prNumber in
 	}
 	pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews := pr.GetPRDetailsGraphQL(ctx, req)
 
+	needsRefresh := false
 	switch eventType {
 	case "APPROVE":
 		actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
-		if actionSuccess {
-			pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
-		}
+		needsRefresh = actionSuccess
 	case "MERGE", "APPROVE_MERGE":
 		if eventType == "APPROVE_MERGE" {
 			actionMessage, actionSuccess = approvePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
 		}
-
 		if actionSuccess {
 			actionMessage, actionSuccess = mergePR(ctx, orgName, repoName, prNumber, pullRequestResponse, prReviews, eventType)
-			if actionSuccess {
-				pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
-			}
 		}
+		needsRefresh = actionSuccess
 	case "CLOSE":
 		actionMessage, actionSuccess = closePR(ctx, orgName, repoName, prNumber, pullRequestResponse)
-		if actionSuccess {
-			pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
-		}
+		needsRefresh = actionSuccess
 	}
+
+	if needsRefresh {
+		pullRequestResponse, pullRequestFilesResponse, checkRunResponse, prReviews = pr.GetPRDetailsGraphQL(ctx, req)
+	}
+
 	return eventStatusResponse{eventType: eventType, pullRequestResponse: pullRequestResponse, pullRequestFilesResponse: pullRequestFilesResponse, checkRunResponse: checkRunResponse, prReviews: prReviews, actionMessage: actionMessage, actionSuccess: actionSuccess}
 }
 

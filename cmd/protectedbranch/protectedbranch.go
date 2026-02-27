@@ -2,10 +2,12 @@ package protectedbranch
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
+	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	pb "github.com/prady-lab/sgh-cli/pkg/protectedbranch"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -39,7 +41,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pb list --org sample-org --branch sample-branch
-			$ sgh pb list --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
+			$ sgh pb list --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -74,13 +76,38 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
 			$ sgh pb update --org sample-org --branch sample-branch 
-			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
-			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d
-			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
-			$ sgh pb update --org sample-org --branch sample-branch --repo sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				details := map[string]string{"Branch": branchName}
+				if lock {
+					details["Lock"] = "true"
+				}
+				if removeStatus {
+					details["Remove Status Checks"] = "true"
+				}
+				if len(addBypassUsers) > 0 {
+					details["Add Bypass Users"] = strings.Join(addBypassUsers, ", ")
+				}
+				if len(removeBypassUsers) > 0 {
+					details["Remove Bypass Users"] = strings.Join(removeBypassUsers, ", ")
+				}
+				if len(addPushUsers) > 0 {
+					details["Add Push Users"] = strings.Join(addPushUsers, ", ")
+				}
+				if len(removePushUsers) > 0 {
+					details["Remove Push Users"] = strings.Join(removePushUsers, ", ")
+				}
+				ui.PrintDryRunActions("Update Protected Branch", orgName, repos, details)
+				return
+			}
 			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
 			fmt.Println()
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
@@ -111,10 +138,16 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh pb delete --org sample-org --branch sample-branch
-			$ sgh pb delete --org sample-org --branch sample-branch --repo sample-repo1 --repo sample-repo2
+			$ sgh pb delete --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				ui.PrintDryRunActions("Delete Protected Branch", orgName, repos, map[string]string{"Branch": branchName})
+				return
+			}
 			branchResponses := pb.DeleteProtectedBranch(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintResponses(branchResponses)
 		},

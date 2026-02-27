@@ -84,7 +84,13 @@ func (pr PullRequestResponse) AuthorName() string {
 func (pr PullRequestResponse) AssigneesName() string {
 	assignees := make([]string, 0)
 	for _, assignee := range pr.Assignees {
-		assignees = append(assignees, assignee.Name)
+		name := assignee.Name
+		if name == "" {
+			name = assignee.Login
+		}
+		if name != "" {
+			assignees = append(assignees, name)
+		}
 	}
 	return strings.Join(assignees, "\n")
 }
@@ -92,7 +98,13 @@ func (pr PullRequestResponse) AssigneesName() string {
 func (pr PullRequestResponse) ReviewersName() string {
 	reviewers := make([]string, 0)
 	for _, reviewer := range pr.Reviewers {
-		reviewers = append(reviewers, reviewer.Name())
+		name := reviewer.Name()
+		if name == "" {
+			name = reviewer.Login()
+		}
+		if name != "" {
+			reviewers = append(reviewers, name)
+		}
 	}
 	return strings.Join(reviewers, "\n")
 }
@@ -101,11 +113,14 @@ func (pr PullRequestResponse) FirstReviewerName() string {
 	if len(pr.Reviewers) == 0 {
 		return ""
 	}
-	if len(pr.Reviewers) > 1 {
-		return pr.Reviewers[0].Name() + "..."
-	} else {
-		return pr.Reviewers[0].Name()
+	name := pr.Reviewers[0].Name()
+	if name == "" {
+		name = pr.Reviewers[0].Login()
 	}
+	if len(pr.Reviewers) > 1 {
+		return name + "..."
+	}
+	return name
 }
 
 func (pr PullRequestResponse) stateIcon() string {
@@ -147,6 +162,13 @@ type Actor struct {
 func (a Actor) Name() string {
 	if a.Type == "User" {
 		return a.User.Name
+	}
+	return a.Team.Name
+}
+
+func (a Actor) Login() string {
+	if a.Type == "User" {
+		return a.User.Login
 	}
 	return a.Team.Name
 }
@@ -212,6 +234,27 @@ type RefResponse struct {
 		Type string `json:"type"`
 		Url  string `json:"url"`
 	} `json:"object"`
+}
+
+type BranchResponse struct {
+	Name      string `json:"name"`
+	Protected bool   `json:"protected"`
+	Commit    struct {
+		SHA string `json:"sha"`
+		URL string `json:"url"`
+	} `json:"commit"`
+	RepositoryName string
+}
+
+type TagResponse struct {
+	Name   string `json:"name"`
+	Commit struct {
+		SHA string `json:"sha"`
+		URL string `json:"url"`
+	} `json:"commit"`
+	ZipballURL     string `json:"zipball_url"`
+	TarballURL     string `json:"tarball_url"`
+	RepositoryName string
 }
 
 type RefUIResponse struct {

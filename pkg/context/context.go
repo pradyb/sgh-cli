@@ -25,6 +25,7 @@ type Context struct {
 	LogResponse bool
 	Compact     bool
 	JSON        bool
+	DryRun      bool
 }
 
 func Init() (*Context, error) {

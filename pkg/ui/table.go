@@ -31,7 +31,7 @@ var (
 )
 
 type TableRowType interface {
-	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.OrgTeam | model.WorkflowRun
+	model.Repository | model.RefUIResponse | model.ProtectedBranch | model.OrgTeam | model.WorkflowRun | model.BranchResponse | model.TagResponse
 }
 
 type rowsConvertHandler[T TableRowType] func(data T) []string
@@ -246,6 +246,108 @@ func PrintResponses(responses []model.RefUIResponse) {
 	}
 }
 
+func PrintBranches(branches []model.BranchResponse, compact bool) {
+	if len(branches) == 0 {
+		PrintNoDataMessage("No branches found.",
+			"Hint: verify the org and repo flags are correct.")
+		return
+	}
+
+	if compact {
+		headers := []string{"Repository", "Branch", "SHA", "Protected"}
+		rows := make([][]string, 0, len(branches))
+		for _, b := range branches {
+			prot := "no"
+			if b.Protected {
+				prot = "yes"
+			}
+			rows = append(rows, []string{b.RepositoryName, b.Name, b.Commit.SHA[:7], prot})
+		}
+		PrintCompactTable(headers, rows)
+		return
+	}
+
+	rows := make([][]string, 0, len(branches))
+	for _, b := range branches {
+		prot := "no"
+		if b.Protected {
+			prot = "yes"
+		}
+		sha := b.Commit.SHA
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
+		rows = append(rows, []string{b.RepositoryName, b.Name, sha, prot})
+	}
+	rows = append(rows, []string{"Total", strconv.Itoa(len(branches)), "", ""})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		Width(TerminalWidth()).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			style := defaultTableStyle(row, col, len(rows), 0, true)
+			if col == 3 && row >= 0 && row < len(rows)-1 {
+				if rows[row][3] == "yes" {
+					style = style.Foreground(Yellow)
+				}
+			}
+			return style
+		}).
+		Headers(repositoryNameDisplayName, "Branch", "SHA", "Protected").
+		Rows(rows...)
+
+	fmt.Println(t)
+}
+
+func PrintTags(tags []model.TagResponse, compact bool) {
+	if len(tags) == 0 {
+		PrintNoDataMessage("No tags found.",
+			"Hint: verify the org and repo flags are correct.")
+		return
+	}
+
+	if compact {
+		headers := []string{"Repository", "Tag", "SHA"}
+		rows := make([][]string, 0, len(tags))
+		for _, t := range tags {
+			sha := t.Commit.SHA
+			if len(sha) > 7 {
+				sha = sha[:7]
+			}
+			rows = append(rows, []string{t.RepositoryName, t.Name, sha})
+		}
+		PrintCompactTable(headers, rows)
+		return
+	}
+
+	rows := make([][]string, 0, len(tags))
+	for _, tg := range tags {
+		sha := tg.Commit.SHA
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
+		rows = append(rows, []string{tg.RepositoryName, tg.Name, sha})
+	}
+	rows = append(rows, []string{"Total", strconv.Itoa(len(tags)), ""})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		Width(TerminalWidth()).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			return defaultTableStyle(row, col, len(rows), 0, true)
+		}).
+		Headers(repositoryNameDisplayName, "Tag", "SHA").
+		Rows(rows...)
+
+	fmt.Println(t)
+}
+
 func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy string, compact bool) {
 	if len(prResponses) == 0 {
 		PrintNoDataMessage("No Pull Requests found.",
@@ -374,6 +476,177 @@ func PrintMergeResponses(mergeResponses []model.MergeResponse) {
 		Rows(rows...)
 
 	fmt.Println(t)
+}
+
+func PrintPRDetail(prResponse model.PullRequestResponse, filesResponse model.PullRequestFilesResponse, checkRunResponse model.CheckRunResponse, reviews []model.ReviewPullRequestResponse) {
+	if prResponse.ErrorMessage != "" {
+		errStyle := lipgloss.NewStyle().Foreground(Red).Bold(true)
+		fmt.Println()
+		fmt.Println(errStyle.Render("  ✗ " + prResponse.ErrorMessage))
+		fmt.Println()
+		return
+	}
+
+	titleStyle := lipgloss.NewStyle().Foreground(Cyan).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(Dimmed)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	greenStyle := lipgloss.NewStyle().Foreground(Green)
+	redStyle := lipgloss.NewStyle().Foreground(Red)
+
+	stateIcon := StatusIcon(prResponse.State)
+	stateColor := StatusColor(prResponse.State)
+	stateStyle := lipgloss.NewStyle().Foreground(stateColor).Bold(true)
+
+	fmt.Println()
+	fmt.Printf("  %s %s\n", titleStyle.Render(fmt.Sprintf("#%d %s", prResponse.PRNumber, prResponse.TitleName)),
+		stateStyle.Render(stateIcon+" "+prResponse.State))
+	fmt.Printf("  %s\n", lipgloss.NewStyle().Foreground(Subtle).Render(
+		prResponse.Head.Ref+" → "+prResponse.Base.Ref+"  ("+prResponse.RepositoryName()+")"))
+	fmt.Println()
+
+	printField := func(label, value string) {
+		if value != "" && value != "-" && value != "0" {
+			fmt.Printf("  %s  %s\n", labelStyle.Width(18).Align(lipgloss.Right).Render(label), valueStyle.Render(value))
+		}
+	}
+
+	printField("Author", prResponse.AuthorName())
+	if prResponse.AssigneesName() != "" {
+		printField("Assignees", strings.ReplaceAll(prResponse.AssigneesName(), "\n", ", "))
+	}
+	if prResponse.ReviewersName() != "" {
+		printField("Reviewers", strings.ReplaceAll(prResponse.ReviewersName(), "\n", ", "))
+	}
+	printField("Mergeable", prResponse.MergeStateStatus)
+	if prResponse.MergeAt != "" {
+		printField("Merged At", RelativeTime(prResponse.MergeAt))
+	}
+	if prResponse.MergedBy.Login != "" {
+		mergedByName := prResponse.MergedBy.Name
+		if mergedByName == "" {
+			mergedByName = prResponse.MergedBy.Login
+		}
+		printField("Merged By", mergedByName)
+	}
+
+	changes := greenStyle.Render(fmt.Sprintf("+%d", prResponse.Additions)) + "  " +
+		redStyle.Render(fmt.Sprintf("-%d", prResponse.Deletions))
+	fmt.Printf("  %s  %s  %s\n",
+		labelStyle.Width(18).Align(lipgloss.Right).Render("Changes"),
+		changes,
+		lipgloss.NewStyle().Foreground(Subtle).Render(fmt.Sprintf("(%d files, %d commits)", prResponse.ChangedFiles, prResponse.Commits)))
+
+	if prResponse.Comments > 0 || prResponse.ReviewComments > 0 {
+		printField("Comments", fmt.Sprintf("%d comments, %d review comments", prResponse.Comments, prResponse.ReviewComments))
+	}
+
+	printField("URL", prResponse.HTMLUrl)
+
+	if prResponse.Body != "" {
+		body := prResponse.Body
+		if len(body) > 300 {
+			body = body[:300] + "..."
+		}
+		fmt.Println()
+		fmt.Println(lipgloss.NewStyle().Foreground(Subtle).Padding(0, 2).Render(body))
+	}
+
+	// Files changed
+	if len(filesResponse.Files) > 0 {
+		fmt.Println()
+		fmt.Println(titleStyle.Render("  Files Changed"))
+		for i, file := range filesResponse.Files {
+			if i >= 10 {
+				fmt.Printf("  %s\n", lipgloss.NewStyle().Foreground(Subtle).Render(
+					fmt.Sprintf("  ... and %d more files", len(filesResponse.Files)-10)))
+				break
+			}
+			changeIcon := "M"
+			changeColor := Yellow
+			switch file.ChangeType {
+			case "added":
+				changeIcon = "A"
+				changeColor = Green
+			case "removed":
+				changeIcon = "D"
+				changeColor = Red
+			case "renamed":
+				changeIcon = "R"
+				changeColor = Cyan
+			}
+			fmt.Printf("  %s %s %s\n",
+				lipgloss.NewStyle().Foreground(changeColor).Bold(true).Render("  "+changeIcon),
+				valueStyle.Render(file.Filename),
+				lipgloss.NewStyle().Foreground(Subtle).Render(
+					fmt.Sprintf("(+%d -%d)", file.Additions, file.Deletions)))
+		}
+	}
+
+	// Check runs
+	if len(checkRunResponse.CheckRuns) > 0 {
+		fmt.Println()
+		fmt.Println(titleStyle.Render("  Check Runs"))
+		for _, cr := range checkRunResponse.CheckRuns {
+			icon := StatusIcon(cr.Conclusion)
+			color := StatusColor(cr.Conclusion)
+			fmt.Printf("  %s %s  %s\n",
+				lipgloss.NewStyle().Foreground(color).Render("  "+icon),
+				valueStyle.Render(cr.Name),
+				lipgloss.NewStyle().Foreground(Subtle).Render(cr.Status))
+		}
+	}
+
+	// Reviews
+	if len(reviews) > 0 {
+		fmt.Println()
+		fmt.Println(titleStyle.Render("  Reviews"))
+		for _, review := range reviews {
+			reviewer := review.User.Name
+			if reviewer == "" {
+				reviewer = review.User.Login
+			}
+			icon := StatusIcon(review.State)
+			color := StatusColor(review.State)
+			submitted := RelativeTime(review.SubmittedAt)
+			fmt.Printf("  %s %s  %s  %s\n",
+				lipgloss.NewStyle().Foreground(color).Render("  "+icon),
+				valueStyle.Render(reviewer),
+				lipgloss.NewStyle().Foreground(color).Render(review.State),
+				lipgloss.NewStyle().Foreground(Subtle).Render(submitted))
+		}
+	}
+
+	fmt.Println()
+}
+
+func PrintReviewResponse(response model.ReviewPullRequestResponse) {
+	if response.ErrorMessage != "" {
+		fmt.Println()
+		errStyle := lipgloss.NewStyle().Foreground(Red).Bold(true)
+		fmt.Println(errStyle.Render("  ✗ " + response.ErrorMessage))
+		fmt.Println()
+		return
+	}
+
+	stateColor := StatusColor(response.State)
+	stateStyle := lipgloss.NewStyle().Foreground(stateColor).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(White).Bold(true)
+	valueStyle := lipgloss.NewStyle().Foreground(Subtle)
+
+	fmt.Println()
+	fmt.Printf("  %s Review submitted for %s#%d\n",
+		stateStyle.Render(StatusIcon(response.State)),
+		lipgloss.NewStyle().Foreground(Green).Render(response.RepositoryName),
+		response.PRNumber,
+	)
+	fmt.Printf("    %s %s\n", labelStyle.Render("State:"), stateStyle.Render(response.State))
+	if response.Body != "" {
+		fmt.Printf("    %s %s\n", labelStyle.Render("Body:"), valueStyle.Render(response.Body))
+	}
+	if response.SubmittedAt != "" {
+		fmt.Printf("    %s %s\n", labelStyle.Render("Submitted:"), valueStyle.Render(RelativeTime(response.SubmittedAt)))
+	}
+	fmt.Println()
 }
 
 func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
@@ -587,19 +860,19 @@ func getCommitResponses(commitResponses []model.CommitResponse, includeMergeComm
 			if commit.ErrorMessage != "" {
 				failedRows = append(failedRows, []string{commit.RepositoryName, commit.ErrorMessage})
 			} else {
-			// Commit messages can contain newlines; take only the first line
-			msg := commit.Commit.Message
-			if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
-				msg = msg[:idx]
-			}
-			rows = append(rows, []string{
-				commit.RepoName(),
-				commit.Commit.Author.Name,
-				RelativeTime(commit.Commit.Author.Date),
-				msg,
-				strconv.Itoa(commit.Commit.CommentCount),
-				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
-			})
+				// Commit messages can contain newlines; take only the first line
+				msg := commit.Commit.Message
+				if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
+					msg = msg[:idx]
+				}
+				rows = append(rows, []string{
+					commit.RepoName(),
+					commit.Commit.Author.Name,
+					RelativeTime(commit.Commit.Author.Date),
+					msg,
+					strconv.Itoa(commit.Commit.CommentCount),
+					fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
+				})
 			}
 		}
 	}
@@ -879,8 +1152,8 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 		hintStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
 		wrapStyle := lipgloss.NewStyle().PaddingTop(1).PaddingLeft(2).PaddingBottom(1)
 		b.WriteString(wrapStyle.Render(
-			iconStyle.Render("⚠ ")+msgStyle.Render("No jobs found for this workflow run.")+
-				"\n"+hintStyle.Render("  The run may still be queuing or was skipped.")))
+			iconStyle.Render("⚠ ") + msgStyle.Render("No jobs found for this workflow run.") +
+				"\n" + hintStyle.Render("  The run may still be queuing or was skipped.")))
 		b.WriteString("\n")
 		return b.String()
 	}

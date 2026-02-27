@@ -35,6 +35,8 @@ const (
 	OperationListWorkflowRuns
 	OperationRerunWorkflow
 	OperationCancelWorkflow
+	OperationListBranches
+	OperationListTags
 )
 
 var RepoOperationConfig = map[OperationEnum]map[string]string{
@@ -89,10 +91,16 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationCancelWorkflow: {
 		"message": "Cancelling Workflow",
 	},
+	OperationListBranches: {
+		"message": "Listing Branches",
+	},
+	OperationListTags: {
+		"message": "Listing Tags",
+	},
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun | []model.BranchResponse | []model.TagResponse
 }
 
 type RepoOperationResult[R OperationResultType] struct {
@@ -148,9 +156,37 @@ func (o OperationEnum) String() string {
 		return "RerunWorkflow"
 	case OperationCancelWorkflow:
 		return "CancelWorkflow"
+	case OperationListBranches:
+		return "ListBranches"
+	case OperationListTags:
+		return "ListTags"
 	default:
 		return fmt.Sprintf("UnknownOperation(%d)", o)
 	}
+}
+
+// ResolveRepositoryNames resolves the target repositories without executing any operation.
+// Used by dry-run mode to preview which repos would be affected.
+func ResolveRepositoryNames(ctx *context.Context, orgName string, repos, excludeRepos []string) ([]string, error) {
+	repoNames := make([]string, 0)
+	if len(repos) == 0 {
+		orgRepoNames, err := repo.GetSelectedRepoNames(ctx, orgName)
+		if err != nil {
+			return nil, err
+		}
+		repoNames = append(repoNames, orgRepoNames...)
+	} else {
+		repoNames = append(repoNames, ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)...)
+	}
+
+	filteredRepoNames := make([]string, 0)
+	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
+	for _, repoName := range repoNames {
+		if !slices.Contains(actualExcludeRepoNames, repoName) {
+			filteredRepoNames = append(filteredRepoNames, repoName)
+		}
+	}
+	return filteredRepoNames, nil
 }
 
 func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, orgName string, repos, excludeRepos []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {

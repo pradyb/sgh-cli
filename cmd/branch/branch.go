@@ -6,6 +6,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
+	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/pkg/branch"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
@@ -15,11 +16,13 @@ import (
 
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	branchCmd := &cobra.Command{
-		Use:   "branch <command>",
-		Short: "Create and delete branches",
-		Long:  `Perform branch operations like create/delete`,
+		Use:     "branch <command>",
+		Short:   "List, create, and delete branches",
+		Long:    `Perform branch operations like list/create/delete across repositories.`,
+		Aliases: []string{"br"},
 	}
 
+	branchCmd.AddCommand(ListCommand(ctx))
 	branchCmd.AddCommand(CreateCommand(ctx))
 	branchCmd.AddCommand(DeleteCommand(ctx))
 	return branchCmd
@@ -31,7 +34,46 @@ var (
 	commitSHA        string
 	repoNames        []string
 	excludeRepoNames []string
+	filter           string
 )
+
+func ListCommand(ctx *context.Context) *cobra.Command {
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List branches across repositories",
+		Long: `List branches for given repos or all the selected repos in the given org/owner.
+Supports filtering by branch name using partial match or regex pattern.`,
+		Aliases: []string{"ls"},
+		Example: heredoc.Doc(`
+			$ sgh branch list --org sample-org
+			$ sgh branch list --org sample-org --filter "Release-*"
+			$ sgh branch list --org sample-org --filter "feature/" -r sample-repo1
+		`),
+
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			req := branch.BranchListRequest{
+				OrgName:          orgName,
+				RepoNames:        repoNames,
+				ExcludeRepoNames: excludeRepoNames,
+				Filter:           filter,
+			}
+			responses := branch.ListBranches(ctx, req)
+			if ctx.JSON {
+				ui.PrintJSON(responses)
+				return
+			}
+			ui.PrintBranches(responses, ctx.Compact)
+		},
+	}
+
+	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
+	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter branches by `name` (partial match or regex)")
+
+	listCmd.MarkPersistentFlagRequired("org")
+	return listCmd
+}
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd := &cobra.Command{
@@ -41,8 +83,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
 			$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0
-			$ sgh branch create --org sample-org --new Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 --repo sample-repo1
-			$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 --repo sample-repo1 --repo sample-repo2
+			$ sgh branch create --org sample-org --new Release-1.1 --commit da500aa4f54cbf8f3eb47a1dc2c136715c9197b9 -r sample-repo1
+			$ sgh branch create --org sample-org --new Release-1.1 --ref Release-1.0 -r sample-repo1 -r sample-repo2
 		`),
 
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -56,6 +98,19 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 			if orgName == "" {
 				logger.Glog.Error().Msgf("Organization name is required")
 				cmd.Help()
+				return
+			}
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				details := map[string]string{"New Branch": branchName}
+				if commitSHA != "" {
+					details["From Commit"] = commitSHA
+					details["Repository"] = repoNames[0]
+				} else {
+					details["From Branch"] = refBranchName
+				}
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				ui.PrintDryRunActions("Create Branch", orgName, repos, details)
 				return
 			}
 			if commitSHA != "" {
@@ -103,7 +158,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh branch delete --org sample-org --branch Release-1.0 
-			$ sgh branch delete --org sample-org --branch Release-1.0 --repo sample-repo1 --repo sample-repo2
+			$ sgh branch delete --org sample-org --branch Release-1.0 -r sample-repo1 -r sample-repo2
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -112,6 +167,12 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 			if orgName == "" {
 				logger.Glog.Error().Msgf("Organization name is required")
 				cmd.Help()
+				return
+			}
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				resolved, _ := processor.ResolveRepositoryNames(ctx, orgName, repos, excludeRepoNames)
+				ui.PrintDryRunActions("Delete Branch", orgName, resolved, map[string]string{"Branch": branchName})
 				return
 			}
 			req := branch.BranchDeleteRequest{

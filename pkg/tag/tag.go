@@ -9,6 +9,13 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 )
 
+// TagListRequest contains parameters for listing tags.
+type TagListRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+}
+
 // TagCreateRequest contains parameters for creating tags.
 type TagCreateRequest struct {
 	OrgName          string
@@ -55,6 +62,33 @@ func CreateNewTags(ctx *context.Context, req TagCreateRequest) []model.RefUIResp
 
 func CreateNewTag(ctx *context.Context, req TagCreateSingleRequest) (model.RefResponse, error) {
 	return service.CreateNewTag(ctx, req.OrgName, req.RepoName, req.TagName, req.RefBranchName, req.Message)
+}
+
+func ListTags(ctx *context.Context, req TagListRequest) []model.TagResponse {
+	responses := make([]model.TagResponse, 0)
+
+	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListTags,
+		func(ctx *context.Context, orgName, repoName string) ([]model.TagResponse, error) {
+			tags, err := service.ListTags(ctx, orgName, repoName)
+			if err != nil {
+				return nil, err
+			}
+			for i := range tags {
+				tags[i].RepositoryName = repoName
+			}
+			return tags, nil
+		},
+		func(repoName string, result processor.RepoOperationResult[[]model.TagResponse]) {
+			responses = append(responses, result.Result...)
+		},
+		func(repoName string, err error) {
+			responses = append(responses, model.TagResponse{
+				RepositoryName: repoName,
+				Name:           fmt.Sprintf("error: %v", err),
+			})
+		})
+
+	return responses
 }
 
 func DeleteTags(ctx *context.Context, req TagDeleteRequest) []model.RefUIResponse {

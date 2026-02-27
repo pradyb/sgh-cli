@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
@@ -17,6 +18,7 @@ type WorkflowListRequest struct {
 	Branch           string
 	Status           string
 	Count            int
+	WorkflowName     string
 }
 
 type WorkflowRunRequest struct {
@@ -40,7 +42,12 @@ func ListWorkflowRuns(ctx *context.Context, req WorkflowListRequest) []model.Wor
 			return runs, nil
 		},
 		func(repoName string, result processor.RepoOperationResult[[]model.WorkflowRun]) {
-			responses = append(responses, result.Result...)
+			for _, run := range result.Result {
+				if req.WorkflowName != "" && !strings.Contains(strings.ToLower(run.Name), strings.ToLower(req.WorkflowName)) {
+					continue
+				}
+				responses = append(responses, run)
+			}
 		},
 		func(repoName string, err error) {
 			responses = append(responses, model.WorkflowRun{
