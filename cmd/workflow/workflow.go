@@ -183,13 +183,14 @@ Use --watch to poll for updates until the run completes.`,
 				RunID:    runID,
 			}
 
-			if !watch {
-				detail := workflow.GetWorkflowRunDetail(ctx, req)
+			detail := workflow.GetWorkflowRunDetail(ctx, req)
+
+			if !watch || !detail.IsInProgress() {
 				ui.PrintWorkflowRunDetail(detail)
 				return
 			}
 
-			runWatchLoop(ctx, req)
+			runWatchLoop(ctx, req, detail)
 		},
 	}
 
@@ -218,12 +219,12 @@ type watchModel struct {
 	done     bool
 }
 
-func newWatchModel(ctx *context.Context, req workflow.WorkflowRunRequest, interval time.Duration) watchModel {
-	return watchModel{ctx: ctx, req: req, interval: interval, loading: true}
+func newWatchModel(ctx *context.Context, req workflow.WorkflowRunRequest, interval time.Duration, initial model.WorkflowRunDetail) watchModel {
+	return watchModel{ctx: ctx, req: req, interval: interval, detail: initial, loading: false}
 }
 
 func (m watchModel) Init() tea.Cmd {
-	return m.fetchDetail
+	return tea.Tick(m.interval, func(time.Time) tea.Msg { return watchTickMsg{} })
 }
 
 func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -272,12 +273,17 @@ func (m watchModel) fetchDetail() tea.Msg {
 	return watchDataMsg{detail: detail}
 }
 
-func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest) {
+func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail) {
 	interval := time.Duration(watchInterval) * time.Second
-	m := newWatchModel(ctx, req, interval)
+	m := newWatchModel(ctx, req, interval, initial)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Watch mode error")
+		return
+	}
+	if wm, ok := finalModel.(watchModel); ok && wm.detail.Run.ID != 0 {
+		ui.PrintWorkflowRunDetail(wm.detail)
 	}
 }
 
