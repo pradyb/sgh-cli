@@ -13,6 +13,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - [🔐 Authentication](#-authentication)
 - [⚙️ Configuration](#️-configuration)
 - [📚 Available Commands](#-available-commands)
+- [⚡ Command Shortcuts](#-command-shortcuts)
 - [🌟 Usage Examples](#-usage-examples)
 - [🏷️ Global Flags](#️-global-flags)
 - [🔍 Advanced Usage](#-advanced-usage)
@@ -219,6 +220,7 @@ Commands are organized into groups:
 |---------|-------|-------------|-------------|
 | `config` | `cfg` | `list`, `validate`, `add`, `set` | Manage and validate CLI configuration |
 | `health` | | - | Check system health and connectivity |
+| `shortcuts` | | - | List available command shortcuts |
 | `version` | | - | Display version information |
 | `completion` | | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
 
@@ -267,6 +269,28 @@ Commands are organized into groups:
 - `config list` - Show current configuration
 - `config validate` - Check configuration for errors
 - `config add <key> <value>` - Add configuration
+
+### ⚡ Command Shortcuts
+
+For faster typing, single-word shortcuts are available for common `list` and `view` subcommands. Run `sgh shortcuts` to see them all.
+
+| Shortcut | Expands To | Shortcut | Expands To |
+|----------|------------|----------|------------|
+| `rpl` | `repo list` | `rps` | `repo search` |
+| `prl` | `pr list` | `prv` | `pr view` |
+| `brl` | `branch list` | `tgl` | `tag list` |
+| `wfl` | `workflow list` | `wfv` | `workflow view` |
+| `pbl` | `pb list` | `cil` | `commit list` |
+| `tml` | `team list` | | |
+
+Each shortcut supports the same flags as the full command:
+
+```bash
+sgh prl --org my-org --author john-doe        # same as: sgh pr list --org my-org --author john-doe
+sgh wfl --org my-org --running                # same as: sgh workflow list --org my-org --running
+sgh brl --org my-org --filter "Release-"      # same as: sgh branch list --org my-org --filter "Release-"
+sgh rps --org my-org --query "api"            # same as: sgh repo search --org my-org --query "api"
+```
 
 ## 🌟 Usage Examples
 
