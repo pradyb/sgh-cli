@@ -246,7 +246,7 @@ func PrintResponses(responses []model.RefUIResponse) {
 	}
 }
 
-func PrintBranches(branches []model.BranchResponse, compact bool) {
+func PrintBranches(branches []model.BranchResponse, orgName string, compact bool) {
 	if len(branches) == 0 {
 		PrintNoDataMessage("No branches found.",
 			"Hint: verify the org and repo flags are correct.")
@@ -254,14 +254,15 @@ func PrintBranches(branches []model.BranchResponse, compact bool) {
 	}
 
 	if compact {
-		headers := []string{"Repository", "Branch", "SHA", "Protected"}
+		headers := []string{"Repository", "Branch", "SHA", "Protected", "Open"}
 		rows := make([][]string, 0, len(branches))
 		for _, b := range branches {
 			prot := "no"
 			if b.Protected {
 				prot = "yes"
 			}
-			rows = append(rows, []string{b.RepositoryName, b.Name, b.Commit.SHA[:7], prot})
+			branchURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s", orgName, b.RepositoryName, b.Name)
+			rows = append(rows, []string{b.RepositoryName, b.Name, b.Commit.SHA[:7], prot, branchURL})
 		}
 		PrintCompactTable(headers, rows)
 		return
@@ -277,9 +278,10 @@ func PrintBranches(branches []model.BranchResponse, compact bool) {
 		if len(sha) > 7 {
 			sha = sha[:7]
 		}
-		rows = append(rows, []string{b.RepositoryName, b.Name, sha, prot})
+		branchURL := fmt.Sprintf("https://github.com/%s/%s/tree/%s", orgName, b.RepositoryName, b.Name)
+		rows = append(rows, []string{b.RepositoryName, b.Name, sha, prot, fmt.Sprintf(HyperLinkFormat, branchURL, "Open")})
 	}
-	rows = append(rows, []string{"Total", strconv.Itoa(len(branches)), "", ""})
+	rows = append(rows, []string{"Total", strconv.Itoa(len(branches)), "", "", ""})
 
 	fmt.Println()
 	t := table.New().
@@ -296,7 +298,7 @@ func PrintBranches(branches []model.BranchResponse, compact bool) {
 			}
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Branch", "SHA", "Protected").
+		Headers(repositoryNameDisplayName, "Branch", "SHA", "Protected", "Open").
 		Rows(rows...)
 
 	fmt.Println(t)
