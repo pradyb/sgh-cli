@@ -19,6 +19,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/repo"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
+	"github.com/prady-lab/sgh-cli/cmd/tui"
 	"github.com/prady-lab/sgh-cli/cmd/version"
 	"github.com/prady-lab/sgh-cli/cmd/workflow"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -180,7 +181,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(branchCmd, tagCmd, prCmd, pbCmd)
 	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
 	rootCmd.AddCommand(teamCmd)
-	rootCmd.AddCommand(configCmd, healthCmd, versionCmd)
+	tuiCmd := tui.NewTUICommand(ctx)
+	tuiCmd.GroupID = "util"
+	rootCmd.AddCommand(configCmd, healthCmd, versionCmd, tuiCmd)
 
 	shortcutsCmd := newShortcutsHelpCommand(ctx)
 	shortcutsCmd.GroupID = "util"
@@ -242,7 +245,7 @@ func validateCommandRequirements(cmd *cobra.Command) {
 	skipOrg := map[string]bool{
 		"help": true, "completion": true, "health": true,
 		"version": true, "config": true, "repo": true,
-		"shortcuts": true,
+		"shortcuts": true, "tui": true,
 	}
 	noOrgRequired := !cmd.HasParent() || (cmd.Run == nil && cmd.RunE == nil)
 	for c := cmd; c != nil; c = c.Parent() {

@@ -201,7 +201,9 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 			return err
 		}
 		repoNames = append(repoNames, orgRepoNames...)
-		ui.PrintSelectedRepos(message, orgName, nil)
+		if !ctx.Silent {
+			ui.PrintSelectedRepos(message, orgName, nil)
+		}
 	} else {
 		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)
 		logger.Flog.Info().Str("repos", strings.Join(actualRepoNames, ",")).Msgf("%s for selected repositories in %s", message, orgName)
@@ -230,7 +232,12 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	jobQueue := async.NewAsyncJobQueue[any, any](len(repoNames))
 	message := RepoOperationConfig[operation]["message"]
 
-	bar := ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
+	var bar *ui.ProgressBar
+	if ctx.Silent {
+		bar = ui.NewSilentProgressBar(len(repoNames))
+	} else {
+		bar = ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
+	}
 
 	// Pre-allocate slices for better performance
 	successCount := 0
@@ -287,8 +294,10 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 
 	totalDuration := time.Since(startTime)
 
-	fmt.Println()
-	ui.PrintSummaryBanner(len(repoNames), successCount, errorCount, totalDuration)
+	if !ctx.Silent {
+		fmt.Println()
+		ui.PrintSummaryBanner(len(repoNames), successCount, errorCount, totalDuration)
+	}
 
 	logger.Flog.Info().
 		Str("org", orgName).

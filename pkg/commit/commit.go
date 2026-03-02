@@ -40,6 +40,9 @@ func ListCommits(ctx *context.Context, req CommitListRequest) []model.CommitResp
 			return service.ListCommits(ctx, orgName, repoName, req.BranchName, req.NoOfDays)
 		},
 		func(repoName string, result processor.RepoOperationResult[[]model.CommitResponse]) {
+			for i := range result.Result {
+				result.Result[i].RepositoryName = repoName
+			}
 			responses = append(responses, result.Result...)
 		},
 		func(repoName string, err error) {

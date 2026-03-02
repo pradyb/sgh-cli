@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"io"
+
 	"github.com/k0kubun/go-ansi"
 	"github.com/schollz/progressbar/v3"
 )
+
+type ProgressBar = progressbar.ProgressBar
 
 func NewProgressBar(maxSize int, description string) *progressbar.ProgressBar {
 	bar := progressbar.NewOptions(maxSize,
@@ -24,4 +28,11 @@ func NewProgressBar(maxSize int, description string) *progressbar.ProgressBar {
 		}))
 
 	return bar
+}
+
+func NewSilentProgressBar(maxSize int) *progressbar.ProgressBar {
+	return progressbar.NewOptions(maxSize,
+		progressbar.OptionSetWriter(io.Discard),
+		progressbar.OptionSetVisibility(false),
+	)
 }
