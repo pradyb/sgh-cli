@@ -195,7 +195,11 @@ func getSearchQuery(ctx *context.Context, prRequest PRRequest) string {
 	} else {
 		queryString = "org:" + prRequest.OrgName
 	}
-	queryString = queryString + " type:pr state:open sort:created-desc"
+	if prRequest.All {
+		queryString = queryString + " type:pr sort:created-desc"
+	} else {
+		queryString = queryString + " type:pr state:open sort:created-desc"
+	}
 	if prRequest.BaseRef != "" {
 		queryString = queryString + " base:" + prRequest.BaseRef
 	}

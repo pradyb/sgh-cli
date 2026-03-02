@@ -26,6 +26,7 @@ type Context struct {
 	Compact     bool
 	JSON        bool
 	DryRun      bool
+	Silent      bool
 }
 
 func Init() (*Context, error) {
