@@ -12,13 +12,13 @@ type commandDef struct {
 }
 
 var commands = []commandDef{
-	{"Pull Requests", "pr", []string{"Repo", "Title", "Author", "Status", "Updated"}},
-	{"Branches", "branch", []string{"Repo", "Branch", "SHA", "Protected"}},
-	{"Tags", "tag", []string{"Repo", "Tag", "SHA"}},
+	{"Pull Requests", "pr", []string{"Repo", "#", "Title", "Author", "Status", "Updated"}},
 	{"Workflows", "wf", []string{"Repo", "Workflow", "Status", "Conclusion", "Branch", "Updated"}},
 	{"Commits", "commit", []string{"Repo", "Message", "Author", "Date"}},
 	{"Teams", "team", []string{"Team", "Members", "Repos"}},
 	{"Prot. Branches", "pb", []string{"Repo", "Branch", "Approvals", "Enforce"}},
+	{"Branches", "branch", []string{"Repo", "Branch", "SHA", "Protected"}},
+	{"Tags", "tag", []string{"Repo", "Tag", "SHA"}},
 }
 
 type commandFilter struct {

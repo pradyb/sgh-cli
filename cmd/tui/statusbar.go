@@ -17,6 +17,7 @@ type statusBarModel struct {
 	loading      bool
 	spinner      spinner.Model
 	lastErr      string
+	errExpiry    time.Time
 	cacheAge     time.Duration
 	width        int
 	focusHint    string
@@ -49,8 +50,10 @@ func (m statusBarModel) view() string {
 		parts = append(parts, cachedStyle.Render(formatAge(m.cacheAge)))
 	}
 
-	if m.lastErr != "" {
+	if m.lastErr != "" && time.Now().Before(m.errExpiry) {
 		parts = append(parts, errorStyle.Render("err: "+truncate(m.lastErr, 40)))
+	} else if m.lastErr != "" {
+		m.lastErr = ""
 	}
 
 	if m.focusHint != "" {

@@ -62,6 +62,22 @@ func (m *detailModel) scrollDown() {
 	}
 }
 
+func (m *detailModel) goTop() {
+	m.scroll = 0
+}
+
+func (m *detailModel) goBottom() {
+	visible := m.height - 1
+	if visible < 1 {
+		visible = 1
+	}
+	maxScroll := len(m.fields) - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	m.scroll = maxScroll
+}
+
 func (m detailModel) view() string {
 	if !m.visible || m.width < 6 {
 		return ""

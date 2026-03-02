@@ -48,8 +48,11 @@ type dataLoadedMsg struct {
 	raw     any
 }
 type detailLoadedMsg struct {
-	title  string
-	fields []detailField
+	title         string
+	fields        []detailField
+	autoWatch     bool
+	watchRunID    int
+	watchRepoName string
 }
 type actionResultMsg struct {
 	success bool
@@ -169,11 +172,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.content.noRepos = len(m.selectedRepos) == 0 && msg.command != "team"
 		m.statusBar.loading = false
 		m.statusBar.command = msg.command
-		age := m.cache.age(msg.command)
-		m.statusBar.cacheAge = age
-		if m.ctx.HttpClient != nil {
-			m.statusBar.apiCalls = int(m.ctx.HttpClient.APICallCount())
-		}
+		m.statusBar.cacheAge = m.cache.age(msg.command)
 
 	case detailLoadedMsg:
 		m.detail.setData(msg.title, msg.fields)
@@ -187,7 +186,16 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if strings.HasSuffix(msg.title, "(watching...)") {
 				cmds = append(cmds, tea.Tick(m.watchInterval, func(time.Time) tea.Msg { return watchTickMsg{} }))
 			}
+		} else if msg.autoWatch {
+			m.watching = true
+			m.watchRunID = msg.watchRunID
+			m.watchRepoName = msg.watchRepoName
+			m.watchInterval = 10 * time.Second
+			m.toastMsg = fmt.Sprintf("Auto-watching in-progress workflow %d", msg.watchRunID)
+			m.toastExpiry = time.Now().Add(3 * time.Second)
+			cmds = append(cmds, tea.Tick(m.watchInterval, func(time.Time) tea.Msg { return watchTickMsg{} }))
 		}
+		m.applyFocus()
 
 	case actionResultMsg:
 		m.statusBar.loading = false
@@ -202,6 +210,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			m.statusBar.lastErr = msg.message
+			m.statusBar.errExpiry = time.Now().Add(10 * time.Second)
 		}
 
 	case watchTickMsg:
@@ -224,6 +233,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case errMsg:
 		m.statusBar.lastErr = msg.err.Error()
+		m.statusBar.errExpiry = time.Now().Add(10 * time.Second)
 		m.statusBar.loading = false
 
 	case tea.KeyMsg:
@@ -354,7 +364,7 @@ func (m *rootModel) applyFocus() {
 	switch m.focus {
 	case focusRepoSelector:
 		m.repoSelector.focused = true
-		m.statusBar.focusHint = "space:toggle a:all n:none /:filter " + panelNav
+		m.statusBar.focusHint = "space:toggle a:all n:none /:filter g/G:top/bottom " + panelNav
 	case focusCommandMenu:
 		m.sidebar.focused = true
 		m.statusBar.focusHint = "enter:load esc:back " + panelNav
@@ -406,6 +416,10 @@ func (m *rootModel) handleRepoSelectorKey(msg tea.KeyMsg) tea.Cmd {
 		m.repoSelector.moveUp()
 	case key.Matches(msg, keys.Down):
 		m.repoSelector.moveDown()
+	case key.Matches(msg, keys.GoTop):
+		m.repoSelector.goTop()
+	case key.Matches(msg, keys.GoBottom):
+		m.repoSelector.goBottom()
 	case key.Matches(msg, keys.Space):
 		if m.repoSelector.toggle() {
 			m.selectedRepos = m.repoSelector.selectedNames()
@@ -476,6 +490,10 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 		m.content.moveUp()
 	case key.Matches(msg, keys.Down):
 		m.content.moveDown()
+	case key.Matches(msg, keys.GoTop):
+		m.content.goTop()
+	case key.Matches(msg, keys.GoBottom):
+		m.content.goBottom()
 	case key.Matches(msg, keys.Enter):
 		return m.loadDetail()
 	case key.Matches(msg, keys.Filter):
@@ -504,11 +522,14 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 			m.toastExpiry = time.Now().Add(3 * time.Second)
 		}
 	case key.Matches(msg, keys.Esc):
-		m.detail.clear()
-		m.relayout()
-		m.clearAllFocus()
-		m.focus = focusCommandMenu
-		m.applyFocus()
+		if m.detail.visible {
+			m.detail.clear()
+			m.relayout()
+		} else {
+			m.clearAllFocus()
+			m.focus = focusCommandMenu
+			m.applyFocus()
+		}
 
 	case key.Matches(msg, prKeys.Approve):
 		if cmd != nil && cmd.key == "pr" {
@@ -639,6 +660,10 @@ func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 		m.detail.scrollUp()
 	case key.Matches(msg, keys.Down):
 		m.detail.scrollDown()
+	case key.Matches(msg, keys.GoTop):
+		m.detail.goTop()
+	case key.Matches(msg, keys.GoBottom):
+		m.detail.goBottom()
 	case key.Matches(msg, keys.Esc):
 		m.watching = false
 		m.detail.clear()
@@ -648,6 +673,13 @@ func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 		m.applyFocus()
 	case key.Matches(msg, wfKeys.Watch):
 		if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == "wf" {
+			if m.watching {
+				m.watching = false
+				m.toastMsg = "Watch mode stopped"
+				m.toastExpiry = time.Now().Add(3 * time.Second)
+				m.applyFocus()
+				return nil
+			}
 			return m.startWatch()
 		}
 	case key.Matches(msg, keys.Refresh):
@@ -843,12 +875,13 @@ func (m *rootModel) loadPRs(ctx *context.Context, org string, repos []string, co
 			valid = append(valid, p)
 			rows = append(rows, []string{
 				p.RepositoryName(),
+				fmt.Sprintf("#%d", p.PRNumber),
 				p.TitleName,
 				p.AuthorName(),
 				p.State,
 				ui.RelativeTime(p.UpdatedAt),
 			})
-			colors = append(colors, []lipgloss.Color{"", "", "", statusColor(p.State), ""})
+			colors = append(colors, []lipgloss.Color{"", "", "", "", statusColor(p.State), ""})
 		}
 		msg := &dataLoadedMsg{command: "pr", columns: cols, rows: rows, colors: colors, raw: valid}
 		m.cache.set("pr", repos, msg)
@@ -1137,7 +1170,13 @@ func (m *rootModel) loadWorkflowDetail(rowIdx int) tea.Cmd {
 			RunID:    w.ID,
 		})
 		fields := buildWorkflowDetailFields(detail)
-		return detailLoadedMsg{title: detail.Run.Name, fields: fields}
+		msg := detailLoadedMsg{title: detail.Run.Name, fields: fields}
+		if detail.IsInProgress() {
+			msg.autoWatch = true
+			msg.watchRunID = w.ID
+			msg.watchRepoName = w.RepositoryName
+		}
+		return msg
 	}
 }
 
@@ -1201,6 +1240,10 @@ func (m rootModel) View() string {
 		return m.fullHelpView()
 	}
 
+	if m.ctx.HttpClient != nil {
+		m.statusBar.apiCalls = int(m.ctx.HttpClient.APICallCount())
+	}
+
 	sidebar := m.renderSidebar()
 	mainContent := m.renderMain()
 
@@ -1253,6 +1296,15 @@ func (m rootModel) renderMain() string {
 			if f, ok := m.cmdFilters[cmd.key]; ok {
 				contentTitle += " [" + f.label() + "]"
 			}
+			total := len(m.content.rows)
+			filtered := len(m.content.filteredRows())
+			if total > 0 {
+				if m.content.filter != "" {
+					contentTitle += fmt.Sprintf(" (%d/%d)", filtered, total)
+				} else {
+					contentTitle += fmt.Sprintf(" (%d)", total)
+				}
+			}
 		}
 	}
 
@@ -1302,6 +1354,7 @@ func (m rootModel) fullHelpView() string {
 		}},
 		{"Repo Selector", []struct{ key, desc string }{
 			{"j/k, Up/Down", "Navigate repos"},
+			{"g / G", "Jump to top / bottom"},
 			{"Space", "Toggle repo"},
 			{"a", "Select all"},
 			{"n", "Deselect all"},
@@ -1315,12 +1368,13 @@ func (m rootModel) fullHelpView() string {
 		}},
 		{"Content Panel", []struct{ key, desc string }{
 			{"j/k, Up/Down", "Navigate rows"},
+			{"g / G", "Jump to top / bottom"},
 			{"Enter", "Open detail"},
 			{"o", "Open in browser"},
 			{"/", "Filter rows"},
 			{"s", "Cycle status filter (PR/WF)"},
 			{"r", "Refresh data"},
-			{"Esc", "Back to commands"},
+			{"Esc", "Close detail / back to commands"},
 		}},
 		{"PR Actions", []struct{ key, desc string }{
 			{"A", "Approve PR"},
@@ -1335,6 +1389,7 @@ func (m rootModel) fullHelpView() string {
 		}},
 		{"Detail Panel", []struct{ key, desc string }{
 			{"j/k, Up/Down", "Scroll detail"},
+			{"g / G", "Jump to top / bottom"},
 			{"o", "Open in browser"},
 			{"r", "Refresh detail"},
 			{"Esc", "Close detail"},

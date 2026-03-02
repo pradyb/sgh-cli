@@ -81,6 +81,26 @@ func (m *contentModel) moveDown() {
 	}
 }
 
+func (m *contentModel) goTop() {
+	m.cursor = 0
+	m.offset = 0
+}
+
+func (m *contentModel) goBottom() {
+	filtered := m.filteredRows()
+	if len(filtered) == 0 {
+		return
+	}
+	m.cursor = len(filtered) - 1
+	visible := m.height - 4
+	if visible < 1 {
+		visible = 1
+	}
+	if m.cursor >= visible {
+		m.offset = m.cursor - visible + 1
+	}
+}
+
 func (m *contentModel) handleFilterKey(keyStr string) {
 	if keyStr == "backspace" {
 		if len(m.filter) > 0 {
@@ -90,7 +110,14 @@ func (m *contentModel) handleFilterKey(keyStr string) {
 		}
 		return
 	}
-	if keyStr == "esc" || keyStr == "enter" {
+	if keyStr == "esc" {
+		m.filtering = false
+		m.filter = ""
+		m.cursor = 0
+		m.offset = 0
+		return
+	}
+	if keyStr == "enter" {
 		m.filtering = false
 		return
 	}

@@ -29,9 +29,10 @@ var (
 		Foreground(ui.Subtle).
 		Padding(0, 1)
 
-	repoSelectedStyle = lipgloss.NewStyle().Foreground(ui.Green)
-	repoNormalStyle   = lipgloss.NewStyle().Foreground(ui.Subtle)
-	repoCursorStyle   = lipgloss.NewStyle().Foreground(ui.White).Bold(true)
+	repoSelectedStyle      = lipgloss.NewStyle().Foreground(ui.Green)
+	repoNormalStyle        = lipgloss.NewStyle().Foreground(ui.Subtle)
+	repoCursorStyle        = lipgloss.NewStyle().Foreground(ui.White).Bold(true)
+	repoSelectedCursorStyle = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 
 	commandActiveStyle = lipgloss.NewStyle().
 		Foreground(ui.CrayolaGreen).
@@ -49,7 +50,8 @@ var (
 	contentRowStyle    = lipgloss.NewStyle().Foreground(ui.White)
 	contentRowDimStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
 	contentCursorStyle = lipgloss.NewStyle().
-		Foreground(ui.CrayolaGreen).
+		Foreground(ui.White).
+		Background(lipgloss.Color("#2A2A3A")).
 		Bold(true)
 
 	detailLabelStyle = lipgloss.NewStyle().

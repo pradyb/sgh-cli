@@ -110,6 +110,29 @@ func (m *repoSelectorModel) moveDown() {
 	}
 }
 
+func (m *repoSelectorModel) goTop() {
+	m.cursor = 0
+	m.offset = 0
+}
+
+func (m *repoSelectorModel) goBottom() {
+	indices := m.filteredIndices()
+	if len(indices) == 0 {
+		return
+	}
+	m.cursor = len(indices) - 1
+	visible := m.height
+	if m.filtering {
+		visible--
+	}
+	if visible < 1 {
+		visible = 1
+	}
+	if m.cursor >= visible {
+		m.offset = m.cursor - visible + 1
+	}
+}
+
 func (m *repoSelectorModel) handleFilterKey(keyMsg key.Binding, keyStr string) {
 	if keyStr == "backspace" {
 		if len(m.filter) > 0 {
@@ -185,7 +208,11 @@ func (m repoSelectorModel) view() string {
 			nameStyle = repoSelectedStyle
 		}
 		if m.focused && vi == m.cursor {
-			nameStyle = repoCursorStyle
+			if r.selected {
+				nameStyle = repoSelectedCursorStyle
+			} else {
+				nameStyle = repoCursorStyle
+			}
 		}
 
 		line := fmt.Sprintf(" %s %s", checkbox, nameStyle.Render(name))

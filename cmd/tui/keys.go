@@ -3,24 +3,26 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type globalKeyMap struct {
-	Quit      key.Binding
-	Tab       key.Binding
-	ShiftTab  key.Binding
-	Help      key.Binding
-	Up        key.Binding
-	Down      key.Binding
-	Enter     key.Binding
-	Esc       key.Binding
-	Space     key.Binding
-	Filter    key.Binding
-	Refresh   key.Binding
+	Quit        key.Binding
+	Tab         key.Binding
+	ShiftTab    key.Binding
+	Help        key.Binding
+	Up          key.Binding
+	Down        key.Binding
+	Enter       key.Binding
+	Esc         key.Binding
+	Space       key.Binding
+	Filter      key.Binding
+	Refresh     key.Binding
 	CycleFilter key.Binding
-	Open      key.Binding
-	SelectAll key.Binding
-	SelectNon key.Binding
-	JumpRepo  key.Binding
-	JumpCmd   key.Binding
-	JumpCont  key.Binding
+	Open        key.Binding
+	SelectAll   key.Binding
+	SelectNon   key.Binding
+	JumpRepo    key.Binding
+	JumpCmd     key.Binding
+	JumpCont    key.Binding
+	GoTop       key.Binding
+	GoBottom    key.Binding
 }
 
 var keys = globalKeyMap{
@@ -42,6 +44,8 @@ var keys = globalKeyMap{
 	JumpRepo:  key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "repos")),
 	JumpCmd:   key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "commands")),
 	JumpCont:  key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "content")),
+	GoTop:     key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "go to top")),
+	GoBottom:  key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "go to bottom")),
 }
 
 type prKeyMap struct {
