@@ -177,7 +177,12 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 				return service.ListPullRequests(ctx, orgName, repoName, prRequest.BaseRef, prRequest.HeadRef, prRequest.All)
 			},
 			func(repoName string, result processor.RepoOperationResult[[]model.PullRequestResponse]) {
-				responses = append(responses, result.Result...)
+				for _, pr := range result.Result {
+					if !matchesPRFilters(pr, prRequest) {
+						continue
+					}
+					responses = append(responses, pr)
+				}
 			},
 			func(repoName string, err error) {
 				responses = append(responses, model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to list pull requests: %v", err)})
@@ -421,6 +426,52 @@ func GetPRDetailsGraphQL(ctx *context.Context, req PRDetailsRequest) (model.Pull
 	}
 
 	return prResponse, pullRequestFilesResponse, checkRunResponse, prReviews
+}
+
+func matchesPRFilters(pr model.PullRequestResponse, req PRRequest) bool {
+	if req.Author != "" && !strings.EqualFold(pr.Author.Login, req.Author) {
+		return false
+	}
+	if req.Assignee != "" {
+		found := false
+		for _, a := range pr.Assignees {
+			if strings.EqualFold(a.Login, req.Assignee) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if req.Reviewer != "" {
+		found := false
+		for _, r := range pr.Reviewers {
+			if strings.EqualFold(r.User.Login, req.Reviewer) || strings.EqualFold(r.Team.Name, req.Reviewer) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if req.Label != "" {
+		found := false
+		for _, l := range pr.Labels {
+			if strings.EqualFold(l, req.Label) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if req.Since != "" && pr.CreatedAt < req.Since {
+		return false
+	}
+	return true
 }
 
 func populateAssignees(assigness model.AssigneesFragment) []model.User {
