@@ -259,7 +259,7 @@ func validateCommandRequirements(cmd *cobra.Command) {
 	if !noOrgRequired {
 		orgFlag, _ := cmd.Flags().GetString("org")
 		if orgFlag == "" {
-			logger.Glog.Error().Msg("Organization parameter is required for this command")
+			logger.Flog.Error().Msg("Organization parameter is required for this command")
 			printCLIError(
 				fmt.Sprintf("Organization parameter is required for '%s' command.", cmdName),
 				"Use --org or -o flag to specify the organization.",
