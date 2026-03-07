@@ -10,18 +10,21 @@ import (
 )
 
 type statusBarModel struct {
-	orgName      string
-	selectedRepo int
-	totalRepo    int
-	apiCalls     int
-	command      string
-	loading      bool
-	spinner      spinner.Model
-	lastErr      string
-	errExpiry    time.Time
-	cacheAge     time.Duration
-	width        int
-	focusHint    string
+	orgName       string
+	selectedRepo  int
+	totalRepo     int
+	apiCalls      int
+	command       string
+	loading       bool
+	spinner       spinner.Model
+	lastErr       string
+	errExpiry     time.Time
+	cacheAge      time.Duration
+	width         int
+	focusHint     string
+	filteredCount int
+	totalCount    int
+	loadingMsg    string
 }
 
 func newStatusBar(orgName string) statusBarModel {
@@ -39,7 +42,15 @@ func (m statusBarModel) view() string {
 	leftParts = append(leftParts, statusBarCountStyle.Render(fmt.Sprintf("repos: %d/%d", m.selectedRepo, m.totalRepo)))
 
 	if m.command != "" {
-		leftParts = append(leftParts, fmt.Sprintf("cmd: %s", m.command))
+		cmdText := fmt.Sprintf("cmd: %s", m.command)
+		if m.filteredCount > 0 && m.filteredCount < m.totalCount {
+			cmdText += fmt.Sprintf(" (%s%d/%d%s)",
+				statusBarCountStyle.Render(""),
+				m.filteredCount,
+				m.totalCount,
+				statusBarCountStyle.Render(""))
+		}
+		leftParts = append(leftParts, cmdText)
 	}
 
 	if m.apiCalls > 0 {
@@ -47,7 +58,11 @@ func (m statusBarModel) view() string {
 	}
 
 	if m.loading {
-		rightParts = append(rightParts, m.spinner.View()+" loading...")
+		msg := "loading..."
+		if m.loadingMsg != "" {
+			msg = m.loadingMsg
+		}
+		rightParts = append(rightParts, m.spinner.View()+" "+msg)
 	} else if m.cacheAge > 0 {
 		rightParts = append(rightParts, cachedStyle.Render(formatAge(m.cacheAge)))
 	}

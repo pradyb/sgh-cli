@@ -2,11 +2,14 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
+
+var urlRegex = regexp.MustCompile(`https?://[^\s]+`)
 
 type detailModel struct {
 	title   string
@@ -78,6 +81,32 @@ func (m *detailModel) goBottom() {
 	m.scroll = maxScroll
 }
 
+func (m *detailModel) pageUp() {
+	visible := m.height - 1
+	if visible < 1 {
+		visible = 1
+	}
+	m.scroll -= visible
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+}
+
+func (m *detailModel) pageDown() {
+	visible := m.height - 1
+	if visible < 1 {
+		visible = 1
+	}
+	maxScroll := len(m.fields) - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	m.scroll += visible
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+}
+
 func (m detailModel) view() string {
 	if !m.visible || m.width < 6 {
 		return ""
@@ -105,17 +134,38 @@ func (m detailModel) view() string {
 	for i := m.scroll; i < end; i++ {
 		f := m.fields[i]
 
+		// Calculate max value width
+		maxValueWidth := m.width - labelWidth - 6 // account for padding and border
+		if maxValueWidth < 10 {
+			maxValueWidth = 10
+		}
+
 		line := ""
 		if f.label == "" {
-			line = fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), f.value)
+			val := highlightURLs(f.value)
+			// Truncate if too long
+			if lipgloss.Width(f.value) > maxValueWidth {
+				val = highlightURLs(f.value[:maxValueWidth-1]) + "…"
+			}
+			line = fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), val)
 		} else {
 			label := detailLabelStyle.Width(labelWidth).Render(f.label + ":")
 			value := ""
 			if f.color != "" {
 				pillStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(f.color).Padding(0, 1)
-				value = pillStyle.Render(" " + f.value + " ")
+				// Truncate status pills if needed
+				val := f.value
+				if len(val) > maxValueWidth-4 {
+					val = val[:maxValueWidth-5] + "…"
+				}
+				value = pillStyle.Render(" " + val + " ")
 			} else {
-				value = detailValueStyle.Render(f.value)
+				val := f.value
+				// Truncate if too long
+				if len(val) > maxValueWidth {
+					val = val[:maxValueWidth-1] + "…"
+				}
+				value = detailValueStyle.Render(highlightURLs(val))
 			}
 			line = fmt.Sprintf(" %s %s", label, value)
 		}
@@ -158,4 +208,11 @@ func (m detailModel) view() string {
 
 func statusColor(val string) lipgloss.Color {
 	return ui.StatusColor(val)
+}
+
+func highlightURLs(text string) string {
+	urlStyle := lipgloss.NewStyle().Foreground(ui.Cyan).Underline(true)
+	return urlRegex.ReplaceAllStringFunc(text, func(url string) string {
+		return urlStyle.Render(url)
+	})
 }

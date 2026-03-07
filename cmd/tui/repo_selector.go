@@ -13,13 +13,15 @@ type repoItem struct {
 }
 
 type repoSelectorModel struct {
-	repos      []repoItem
-	cursor     int
-	filter     string
-	filtering  bool
-	height     int
-	offset     int
-	focused    bool
+	repos              []repoItem
+	cursor             int
+	filter             string
+	filtering          bool
+	height             int
+	offset             int
+	focused            bool
+	filterHistory      []string
+	filterHistoryIndex int
 }
 
 func newRepoSelector(repoNames []string) repoSelectorModel {
@@ -133,7 +135,63 @@ func (m *repoSelectorModel) goBottom() {
 	}
 }
 
+func (m *repoSelectorModel) pageUp() {
+	visible := m.height
+	if m.filtering {
+		visible--
+	}
+	if visible < 1 {
+		visible = 1
+	}
+	m.cursor -= visible
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	}
+}
+
+func (m *repoSelectorModel) pageDown() {
+	indices := m.filteredIndices()
+	visible := m.height
+	if m.filtering {
+		visible--
+	}
+	if visible < 1 {
+		visible = 1
+	}
+	m.cursor += visible
+	if m.cursor >= len(indices) {
+		m.cursor = len(indices) - 1
+	}
+	if m.cursor >= m.offset+visible {
+		m.offset = m.cursor - visible + 1
+	}
+}
+
 func (m *repoSelectorModel) handleFilterKey(keyMsg key.Binding, keyStr string) {
+	if keyStr == "up" && len(m.filterHistory) > 0 {
+		if m.filterHistoryIndex > 0 {
+			m.filterHistoryIndex--
+			m.filter = m.filterHistory[m.filterHistoryIndex]
+			m.cursor = 0
+			m.offset = 0
+		}
+		return
+	}
+	if keyStr == "down" && len(m.filterHistory) > 0 {
+		if m.filterHistoryIndex < len(m.filterHistory)-1 {
+			m.filterHistoryIndex++
+			m.filter = m.filterHistory[m.filterHistoryIndex]
+		} else {
+			m.filterHistoryIndex = len(m.filterHistory)
+			m.filter = ""
+		}
+		m.cursor = 0
+		m.offset = 0
+		return
+	}
 	if keyStr == "backspace" {
 		if len(m.filter) > 0 {
 			m.filter = m.filter[:len(m.filter)-1]
@@ -147,10 +205,22 @@ func (m *repoSelectorModel) handleFilterKey(keyMsg key.Binding, keyStr string) {
 		m.filter = ""
 		m.cursor = 0
 		m.offset = 0
+		m.filterHistoryIndex = len(m.filterHistory)
 		return
 	}
 	if keyStr == "enter" {
 		m.filtering = false
+		// Add to history if non-empty and not duplicate of last entry
+		if m.filter != "" {
+			if len(m.filterHistory) == 0 || m.filterHistory[len(m.filterHistory)-1] != m.filter {
+				m.filterHistory = append(m.filterHistory, m.filter)
+				// Keep only last 20 entries
+				if len(m.filterHistory) > 20 {
+					m.filterHistory = m.filterHistory[1:]
+				}
+			}
+			m.filterHistoryIndex = len(m.filterHistory)
+		}
 		return
 	}
 	if len(keyStr) == 1 {
@@ -169,7 +239,7 @@ func (m repoSelectorModel) view() string {
 	var b strings.Builder
 
 	if m.filtering {
-		b.WriteString(filterInputStyle.Render("/ "+m.filter+"█"))
+		b.WriteString(filterInputStyle.Render("/ " + m.filter + "█"))
 		b.WriteString("\n")
 	}
 

@@ -8,128 +8,128 @@ import (
 var (
 	sidebarWidth = 34
 
-	panelBorder = lipgloss.RoundedBorder()
+	panelBorder       = lipgloss.RoundedBorder()
 	activePanelBorder = lipgloss.ThickBorder()
 
 	panelFocusedStyle = lipgloss.NewStyle().
-		BorderStyle(activePanelBorder).
-		BorderForeground(ui.Cyan).
-		Padding(0, 1)
+				BorderStyle(activePanelBorder).
+				BorderForeground(ui.Cyan).
+				Padding(0, 1)
 
 	panelUnfocusedStyle = lipgloss.NewStyle().
-		BorderStyle(panelBorder).
-		BorderForeground(ui.Dimmed).
-		Padding(0, 1)
+				BorderStyle(panelBorder).
+				BorderForeground(ui.Dimmed).
+				Padding(0, 1)
 
 	panelTitleFocusedStyle = lipgloss.NewStyle().
-		Bold(true).
-		Background(ui.Cyan).
-		Foreground(lipgloss.Color("#000000")).
-		Padding(0, 1)
+				Bold(true).
+				Background(ui.Cyan).
+				Foreground(lipgloss.Color("#000000")).
+				Padding(0, 1)
 
 	panelTitleUnfocusedStyle = lipgloss.NewStyle().
-		Foreground(ui.Subtle).
-		Padding(0, 1)
+					Foreground(ui.Subtle).
+					Padding(0, 1)
 
-	repoSelectedStyle      = lipgloss.NewStyle().Foreground(ui.Green)
-	repoNormalStyle        = lipgloss.NewStyle().Foreground(ui.Subtle)
-	repoCursorStyle        = lipgloss.NewStyle().Foreground(ui.White).Bold(true)
+	repoSelectedStyle       = lipgloss.NewStyle().Foreground(ui.Green)
+	repoNormalStyle         = lipgloss.NewStyle().Foreground(ui.Subtle)
+	repoCursorStyle         = lipgloss.NewStyle().Foreground(ui.White).Bold(true)
 	repoSelectedCursorStyle = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 
 	commandActiveStyle = lipgloss.NewStyle().
-		Foreground(ui.CrayolaGreen).
-		Bold(true)
+				Foreground(ui.CrayolaGreen).
+				Bold(true)
 	commandNormalStyle = lipgloss.NewStyle().
-		Foreground(ui.White)
+				Foreground(ui.White)
 	commandCursorStyle = lipgloss.NewStyle().
-		Foreground(ui.Cyan).
-		Bold(true)
+				Foreground(ui.Cyan).
+				Bold(true)
 
 	contentHeaderStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(ui.Subtle)
+				Bold(true).
+				Foreground(ui.Subtle)
 
-	contentRowStyle    = lipgloss.NewStyle().Foreground(ui.White)
-	contentRowDimStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
+	contentRowStyle       = lipgloss.NewStyle().Foreground(ui.White)
+	contentRowDimStyle    = lipgloss.NewStyle().Foreground(ui.Dimmed)
 	contentRowAltStyle    = lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color("#1E1E2E"))
 	contentRowDimAltStyle = lipgloss.NewStyle().Foreground(ui.Dimmed).Background(lipgloss.Color("#1E1E2E"))
-	contentCursorStyle = lipgloss.NewStyle().
-		Foreground(ui.White).
-		Background(lipgloss.Color("#2A2A3A")).
-		Bold(true)
+	contentCursorStyle    = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#000000")).
+				Background(ui.Cyan).
+				Bold(true)
 
 	detailLabelStyle = lipgloss.NewStyle().
-		Foreground(ui.Subtle).
-		Bold(true)
+				Foreground(ui.Subtle).
+				Bold(true)
 
 	detailValueStyle = lipgloss.NewStyle().
-		Foreground(ui.White)
+				Foreground(ui.White)
 
 	statusBarStyle = lipgloss.NewStyle().
-		Foreground(ui.Dimmed).
-		Italic(true).
-		Padding(0, 1)
+			Foreground(ui.Dimmed).
+			Italic(true).
+			Padding(0, 1)
 
-	statusHintKeyStyle = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
+	statusHintKeyStyle  = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 	statusHintDescStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
 
 	statusBarOrgStyle = lipgloss.NewStyle().
-		Foreground(ui.Cyan).
-		Bold(true)
+				Foreground(ui.Cyan).
+				Bold(true)
 
 	statusBarCountStyle = lipgloss.NewStyle().
-		Foreground(ui.Green)
+				Foreground(ui.Green)
 
 	separatorStyle = lipgloss.NewStyle().
-		Foreground(ui.Dimmed)
+			Foreground(ui.Dimmed)
 
 	filterInputStyle = lipgloss.NewStyle().
-		Foreground(ui.Yellow).
-		Bold(true)
+				Foreground(ui.Yellow).
+				Bold(true)
 
 	badgeStyle = lipgloss.NewStyle().
-		Foreground(ui.Green).
-		Bold(true)
+			Foreground(ui.Green).
+			Bold(true)
 
 	spinnerStyle = lipgloss.NewStyle().
-		Foreground(ui.Cyan)
+			Foreground(ui.Cyan)
 
 	errorStyle = lipgloss.NewStyle().
-		Foreground(ui.Red).
-		Bold(true)
+			Foreground(ui.Red).
+			Bold(true)
 
 	cachedStyle = lipgloss.NewStyle().
-		Foreground(ui.Dimmed).
-		Italic(true)
+			Foreground(ui.Dimmed).
+			Italic(true)
 
 	confirmStyle = lipgloss.NewStyle().
-		Foreground(ui.Yellow).
-		Bold(true).
-		Padding(0, 1)
+			Foreground(ui.Yellow).
+			Bold(true).
+			Padding(0, 1)
 
 	toastStyle = lipgloss.NewStyle().
-		Foreground(ui.Green).
-		Italic(true).
-		Padding(0, 1)
+			Foreground(ui.Green).
+			Italic(true).
+			Padding(0, 1)
 
 	helpOverlayTitleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(ui.Cyan).
-		Padding(0, 0, 1, 0)
+				Bold(true).
+				Foreground(ui.Cyan).
+				Padding(0, 0, 1, 0)
 
 	helpOverlayKeyStyle = lipgloss.NewStyle().
-		Foreground(ui.Green).
-		Bold(true).
-		Width(16)
+				Foreground(ui.Green).
+				Bold(true).
+				Width(16)
 
 	helpOverlayDescStyle = lipgloss.NewStyle().
-		Foreground(ui.White)
+				Foreground(ui.White)
 
 	helpOverlaySectionStyle = lipgloss.NewStyle().
-		Foreground(ui.Subtle).
-		Bold(true).
-		Italic(true).
-		Padding(1, 0, 0, 0)
+				Foreground(ui.Subtle).
+				Bold(true).
+				Italic(true).
+				Padding(1, 0, 0, 0)
 )
 
 func panelStyle(focused bool) lipgloss.Style {

@@ -23,29 +23,35 @@ type globalKeyMap struct {
 	JumpCont    key.Binding
 	GoTop       key.Binding
 	GoBottom    key.Binding
+	PageUp      key.Binding
+	PageDown    key.Binding
+	Menu        key.Binding
 }
 
 var keys = globalKeyMap{
-	Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-	Tab:       key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next panel")),
-	ShiftTab:  key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev panel")),
-	Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-	Up:        key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("k/↑", "up")),
-	Down:      key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("j/↓", "down")),
-	Enter:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-	Esc:       key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-	Space:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle")),
-	Filter:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-	Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+	Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+	Tab:         key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next panel")),
+	ShiftTab:    key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev panel")),
+	Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("k/↑", "up")),
+	Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("j/↓", "down")),
+	Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+	Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	Space:       key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle")),
+	Filter:      key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+	Refresh:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 	CycleFilter: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "cycle status")),
-	Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
-	SelectAll: key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select all")),
-	SelectNon: key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none")),
-	JumpRepo:  key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "repos")),
-	JumpCmd:   key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "commands")),
-	JumpCont:  key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "content")),
-	GoTop:     key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "go to top")),
-	GoBottom:  key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "go to bottom")),
+	Open:        key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
+	SelectAll:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select all")),
+	SelectNon:   key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none")),
+	JumpRepo:    key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "repos")),
+	JumpCmd:     key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "commands")),
+	JumpCont:    key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "content")),
+	GoTop:       key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "go to top")),
+	GoBottom:    key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "go to bottom")),
+	PageUp:      key.NewBinding(key.WithKeys("ctrl+u", "pgup"), key.WithHelp("ctrl+u", "page up")),
+	PageDown:    key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d", "page down")),
+	Menu:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "action menu")),
 }
 
 type prKeyMap struct {

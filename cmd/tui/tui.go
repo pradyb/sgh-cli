@@ -66,19 +66,19 @@ type errMsg struct{ err error }
 // -- root model --
 
 type rootModel struct {
-	repoSelector  repoSelectorModel
-	sidebar       sidebarModel
-	content       contentModel
-	detail        detailModel
-	statusBar     statusBarModel
-	cache         *dataCache
-	focus         panelFocus
-	ctx           *context.Context
-	orgName       string
-	selectedRepos []string
-	width         int
-	height        int
-	ready         bool
+	repoSelector   repoSelectorModel
+	sidebar        sidebarModel
+	content        contentModel
+	detail         detailModel
+	statusBar      statusBarModel
+	cache          *dataCache
+	focus          panelFocus
+	ctx            *context.Context
+	orgName        string
+	selectedRepos  []string
+	width          int
+	height         int
+	ready          bool
 	confirming     bool
 	confirmPrompt  string
 	confirmAction  func() tea.Msg
@@ -90,27 +90,38 @@ type rootModel struct {
 	watchRepoName  string
 	watchInterval  time.Duration
 	cmdFilters     map[string]*commandFilter
+	contentFilters map[string]string // persisted filters per command
+	showMenu       bool
+	menuItems      []menuItem
+	menuCursor     int
+}
+
+type menuItem struct {
+	label  string
+	action func() tea.Msg
 }
 
 func initialModel(ctx *context.Context, orgName string) rootModel {
 	sb := newStatusBar(orgName)
 	sb.loading = true
+	sb.loadingMsg = "loading repos"
 	sb.command = "loading repos"
 	filters := make(map[string]*commandFilter)
 	for k, f := range defaultFilters {
 		filters[k] = &commandFilter{options: f.options, current: f.current}
 	}
 	return rootModel{
-		repoSelector: newRepoSelector(nil),
-		sidebar:      newSidebar(),
-		content:      newContent(),
-		detail:       newDetail(),
-		statusBar:    sb,
-		cache:        newDataCache(5 * time.Minute),
-		focus:        focusRepoSelector,
-		ctx:          ctx,
-		orgName:      orgName,
-		cmdFilters:   filters,
+		repoSelector:   newRepoSelector(nil),
+		sidebar:        newSidebar(),
+		content:        newContent(),
+		detail:         newDetail(),
+		statusBar:      sb,
+		cache:          newDataCache(5 * time.Minute),
+		focus:          focusRepoSelector,
+		ctx:            ctx,
+		orgName:        orgName,
+		cmdFilters:     filters,
+		contentFilters: make(map[string]string),
 	}
 }
 
@@ -165,6 +176,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.sidebar.activeCommand() != nil {
 			m.content.loading = true
 			m.statusBar.loading = true
+			m.statusBar.loadingMsg = fmt.Sprintf("loading %s", m.sidebar.activeCommand().name)
 			cmds = append(cmds, m.loadCommand(m.sidebar.activeCommand(), false))
 		}
 
@@ -174,6 +186,14 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusBar.loading = false
 		m.statusBar.command = msg.command
 		m.statusBar.cacheAge = m.cache.age(msg.command)
+		m.statusBar.totalCount = len(msg.rows)
+		// Restore saved filter for this command
+		if savedFilter, ok := m.contentFilters[msg.command]; ok {
+			m.content.filter = savedFilter
+		} else {
+			m.content.filter = ""
+		}
+		m.statusBar.filteredCount = len(m.content.filteredRows())
 
 	case detailLoadedMsg:
 		m.detail.setData(msg.title, msg.fields)
@@ -207,6 +227,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == msg.command {
 				m.content.loading = true
 				m.statusBar.loading = true
+				m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
 				cmds = append(cmds, m.loadCommand(cmd, true))
 			}
 		} else {
@@ -259,12 +280,47 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if m.showMenu {
+			switch msg.String() {
+			case "up", "k":
+				if m.menuCursor > 0 {
+					m.menuCursor--
+				}
+			case "down", "j":
+				if m.menuCursor < len(m.menuItems)-1 {
+					m.menuCursor++
+				}
+			case "enter":
+				if m.menuCursor >= 0 && m.menuCursor < len(m.menuItems) {
+					action := m.menuItems[m.menuCursor].action
+					m.showMenu = false
+					m.menuItems = nil
+					m.menuCursor = 0
+					if action != nil {
+						cmds = append(cmds, func() tea.Msg { return action() })
+					}
+				}
+			case "esc", "m":
+				m.showMenu = false
+				m.menuItems = nil
+				m.menuCursor = 0
+			}
+			return m, tea.Batch(cmds...)
+		}
+
 		if m.repoSelector.filtering {
 			m.repoSelector.handleFilterKey(key.Binding{}, msg.String())
 			return m, nil
 		}
 		if m.content.filtering {
 			m.content.handleFilterKey(msg.String())
+			m.statusBar.filteredCount = len(m.content.filteredRows())
+			// Save filter when exiting filter mode
+			if !m.content.filtering && m.content.filter != "" {
+				if cmd := m.sidebar.activeCommand(); cmd != nil {
+					m.contentFilters[cmd.key] = m.content.filter
+				}
+			}
 			return m, nil
 		}
 
@@ -361,39 +417,42 @@ func (m *rootModel) clearAllFocus() {
 }
 
 func (m *rootModel) applyFocus() {
-	panelNav := "1:repos 2:cmds 3:content"
+	panelNav := "tab:next"
 	switch m.focus {
 	case focusRepoSelector:
 		m.repoSelector.focused = true
-		m.statusBar.focusHint = "space:toggle a:all n:none /:filter g/G:top/bottom " + panelNav
+		m.statusBar.focusHint = "space:toggle a:all /:filter " + panelNav
 	case focusCommandMenu:
 		m.sidebar.focused = true
-		m.statusBar.focusHint = "enter:load esc:back " + panelNav
+		m.statusBar.focusHint = "enter:select " + panelNav
 	case focusContent:
 		m.content.focused = true
-		hint := "enter:detail o:open r:refresh /:filter"
+		hint := "enter:details o:browser"
 		if cmd := m.sidebar.activeCommand(); cmd != nil {
+			switch cmd.key {
+			case "pr":
+				hint = "m:merge A:approve " + hint
+			case "wf":
+				hint = "R:rerun " + hint
+			}
 			if _, ok := m.cmdFilters[cmd.key]; ok {
 				hint = "s:status " + hint
 			}
-			switch cmd.key {
-			case "pr":
-				hint = "A:approve m:merge M:both c:close " + hint
-			case "wf":
-				hint = "R:rerun X:cancel " + hint
-			}
 		}
-		m.statusBar.focusHint = hint + " " + panelNav
+		hint += " r:refresh"
+		m.statusBar.focusHint = hint
 	case focusDetail:
 		m.detail.focused = true
-		hint := "j/k:scroll o:open r:refresh esc:close"
+		hint := "o:browser"
 		if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == "wf" {
-			hint = "w:watch " + hint
 			if m.watching {
-				hint = "(watching) " + hint
+				hint = "w:stop " + hint
+			} else {
+				hint = "w:watch " + hint
 			}
 		}
-		m.statusBar.focusHint = hint + " " + panelNav
+		hint += " esc:close"
+		m.statusBar.focusHint = hint
 	}
 }
 
@@ -421,6 +480,10 @@ func (m *rootModel) handleRepoSelectorKey(msg tea.KeyMsg) tea.Cmd {
 		m.repoSelector.goTop()
 	case key.Matches(msg, keys.GoBottom):
 		m.repoSelector.goBottom()
+	case key.Matches(msg, keys.PageUp):
+		m.repoSelector.pageUp()
+	case key.Matches(msg, keys.PageDown):
+		m.repoSelector.pageDown()
 	case key.Matches(msg, keys.Space):
 		if m.repoSelector.toggle() {
 			m.selectedRepos = m.repoSelector.selectedNames()
@@ -468,6 +531,7 @@ func (m *rootModel) handleCommandMenuKey(msg tea.KeyMsg) tea.Cmd {
 		if idx >= 0 && idx < len(commands) {
 			m.content.loading = true
 			m.statusBar.loading = true
+			m.statusBar.loadingMsg = fmt.Sprintf("loading %s", commands[idx].name)
 			m.detail.clear()
 			m.relayout()
 			m.clearAllFocus()
@@ -495,6 +559,10 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 		m.content.goTop()
 	case key.Matches(msg, keys.GoBottom):
 		m.content.goBottom()
+	case key.Matches(msg, keys.PageUp):
+		m.content.pageUp()
+	case key.Matches(msg, keys.PageDown):
+		m.content.pageDown()
 	case key.Matches(msg, keys.Enter):
 		return m.loadDetail()
 	case key.Matches(msg, keys.Filter):
@@ -504,6 +572,7 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 		if cmd != nil {
 			m.content.loading = true
 			m.statusBar.loading = true
+			m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
 			return m.loadCommand(cmd, true)
 		}
 	case key.Matches(msg, keys.CycleFilter):
@@ -513,6 +582,7 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 				m.cache.invalidate(cmd.key)
 				m.content.loading = true
 				m.statusBar.loading = true
+				m.statusBar.loadingMsg = fmt.Sprintf("loading %s (%s)", cmd.name, f.value())
 				return m.loadCommand(cmd, true)
 			}
 		}
@@ -526,6 +596,13 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 		if m.detail.visible {
 			m.detail.clear()
 			m.relayout()
+		} else if m.content.filter != "" {
+			// Save current filter before clearing
+			if cmd := m.sidebar.activeCommand(); cmd != nil {
+				m.contentFilters[cmd.key] = m.content.filter
+			}
+			m.content.filter = ""
+			m.statusBar.filteredCount = len(m.content.filteredRows())
 		} else {
 			m.clearAllFocus()
 			m.focus = focusCommandMenu
@@ -555,6 +632,10 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, wfKeys.Cancel):
 		if cmd != nil && cmd.key == "wf" {
 			return m.wfAction("cancel", "Cancel this workflow?")
+		}
+	case key.Matches(msg, keys.Menu):
+		if cmd != nil {
+			m.buildContextMenu(cmd.key)
 		}
 	}
 	return nil
@@ -655,6 +736,82 @@ func (m *rootModel) wfAction(action, prompt string) tea.Cmd {
 	return nil
 }
 
+func (m *rootModel) buildContextMenu(cmdKey string) {
+	m.menuItems = nil
+	m.menuCursor = 0
+
+	switch cmdKey {
+	case "pr":
+		m.menuItems = []menuItem{
+			{"Approve PR (A)", func() tea.Msg { return m.prAction("APPROVE", "Approve this PR?")(); return nil }},
+			{"Merge PR (m)", func() tea.Msg { return m.prAction("merge", "Merge this PR?")(); return nil }},
+			{"Approve & Merge (M)", func() tea.Msg { return m.prAction("approve+merge", "Approve and merge this PR?")(); return nil }},
+			{"Close PR (c)", func() tea.Msg { return m.prAction("close", "Close this PR?")(); return nil }},
+			{"Open in Browser (o)", func() tea.Msg {
+				if url := m.getSelectedURL(); url != "" {
+					_ = openURL(url)
+					m.toastMsg = "Opened in browser"
+					m.toastExpiry = time.Now().Add(3 * time.Second)
+				}
+				return nil
+			}},
+			{"Refresh (r)", func() tea.Msg {
+				if cmd := m.sidebar.activeCommand(); cmd != nil {
+					m.content.loading = true
+					m.statusBar.loading = true
+					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
+					m.loadCommand(cmd, true)()
+				}
+				return nil
+			}},
+		}
+	case "wf":
+		m.menuItems = []menuItem{
+			{"Rerun Workflow (R)", func() tea.Msg { return m.wfAction("rerun", "Rerun this workflow?")(); return nil }},
+			{"Cancel Workflow (X)", func() tea.Msg { return m.wfAction("cancel", "Cancel this workflow?")(); return nil }},
+			{"Open in Browser (o)", func() tea.Msg {
+				if url := m.getSelectedURL(); url != "" {
+					_ = openURL(url)
+					m.toastMsg = "Opened in browser"
+					m.toastExpiry = time.Now().Add(3 * time.Second)
+				}
+				return nil
+			}},
+			{"Refresh (r)", func() tea.Msg {
+				if cmd := m.sidebar.activeCommand(); cmd != nil {
+					m.content.loading = true
+					m.statusBar.loading = true
+					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
+					m.loadCommand(cmd, true)()
+				}
+				return nil
+			}},
+		}
+	default:
+		m.menuItems = []menuItem{
+			{"Open in Browser (o)", func() tea.Msg {
+				if url := m.getSelectedURL(); url != "" {
+					_ = openURL(url)
+					m.toastMsg = "Opened in browser"
+					m.toastExpiry = time.Now().Add(3 * time.Second)
+				}
+				return nil
+			}},
+			{"Refresh (r)", func() tea.Msg {
+				if cmd := m.sidebar.activeCommand(); cmd != nil {
+					m.content.loading = true
+					m.statusBar.loading = true
+					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
+					m.loadCommand(cmd, true)()
+				}
+				return nil
+			}},
+		}
+	}
+
+	m.showMenu = true
+}
+
 func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 	switch {
 	case key.Matches(msg, keys.Up):
@@ -665,6 +822,10 @@ func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 		m.detail.goTop()
 	case key.Matches(msg, keys.GoBottom):
 		m.detail.goBottom()
+	case key.Matches(msg, keys.PageUp):
+		m.detail.pageUp()
+	case key.Matches(msg, keys.PageDown):
+		m.detail.pageDown()
 	case key.Matches(msg, keys.Esc):
 		m.watching = false
 		m.detail.clear()
@@ -1128,10 +1289,10 @@ func (m *rootModel) loadIssueDetail(rowIdx int) tea.Cmd {
 		fields := []detailField{
 			{"Repository", is.RepositoryName, ""},
 			{"Issue", fmt.Sprintf("#%d", is.Number), ""},
-			{"Title", is.Title, ""},
+			{"Title", truncateField(is.Title, 60), ""},
 			{"Author", is.AuthorName(), ""},
 			{"State", is.State, statusColor(is.State)},
-			{"Labels", is.LabelNames(), ""},
+			{"Labels", truncateField(is.LabelNames(), 60), ""},
 			{"Comments", fmt.Sprintf("%d", is.Comments), ""},
 			{"Created", ui.RelativeTime(is.CreatedAt), ""},
 			{"Updated", ui.RelativeTime(is.UpdatedAt), ""},
@@ -1216,10 +1377,10 @@ func (m *rootModel) loadPRDetail(rowIdx int) tea.Cmd {
 		fields := []detailField{
 			{"Repository", prResp.RepositoryName(), ""},
 			{"PR Number", fmt.Sprintf("#%d", prResp.PRNumber), ""},
-			{"Title", prResp.TitleName, ""},
+			{"Title", truncateField(prResp.TitleName, 60), ""},
 			{"Author", prResp.AuthorName(), ""},
 			{"State", prResp.State, statusColor(prResp.State)},
-			{"Branch", prResp.Base.Ref + " ← " + prResp.Head.Ref, ""},
+			{"Branch", truncateField(prResp.Base.Ref+" ← "+prResp.Head.Ref, 50), ""},
 			{"Mergeable", prResp.Mergeable, ""},
 			{"Review", prResp.ReviewDecision, ""},
 			{"Created", ui.RelativeTime(prResp.CreatedAt), ""},
@@ -1257,9 +1418,13 @@ func (m *rootModel) loadPRDetail(rowIdx int) tea.Cmd {
 				case "COPIED":
 					changeIcon = "C"
 				}
+				filename := f.Filename
+				if len(filename) > 45 {
+					filename = "..." + filename[len(filename)-42:]
+				}
 				fileLine := fmt.Sprintf("%s %s  %s %s",
 					dimStyle.Render(changeIcon),
-					f.Filename,
+					filename,
 					addStyle.Render(fmt.Sprintf("+%d", f.Additions)),
 					delStyle.Render(fmt.Sprintf("-%d", f.Deletions)),
 				)
@@ -1309,14 +1474,23 @@ func (m *rootModel) loadWorkflowDetail(rowIdx int) tea.Cmd {
 	}
 }
 
+// -- helpers --
+
+func truncateField(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
 func buildWorkflowDetailFields(detail model.WorkflowRunDetail) []detailField {
 	fields := []detailField{
 		{"Repository", detail.Run.RepositoryName, ""},
-		{"Workflow", detail.Run.Name, ""},
+		{"Workflow", truncateField(detail.Run.Name, 50), ""},
 		{"Run ID", fmt.Sprintf("%d", detail.Run.ID), ""},
 		{"Status", detail.Run.Status, statusColor(detail.Run.Status)},
 		{"Conclusion", detail.Run.Conclusion, statusColor(detail.Run.Conclusion)},
-		{"Branch", detail.Run.HeadBranch, ""},
+		{"Branch", truncateField(detail.Run.HeadBranch, 40), ""},
 		{"Event", detail.Run.Event, ""},
 		{"Created", ui.RelativeTime(detail.Run.CreatedAt), ""},
 		{"Updated", ui.RelativeTime(detail.Run.UpdatedAt), ""},
@@ -1327,13 +1501,21 @@ func buildWorkflowDetailFields(detail model.WorkflowRunDetail) []detailField {
 		if status == "" {
 			status = j.Status
 		}
-		fields = append(fields, detailField{"Job: " + j.Name, status, statusColor(status)})
+		jobName := j.Name
+		if len(jobName) > 50 {
+			jobName = jobName[:47] + "..."
+		}
+		fields = append(fields, detailField{"Job: " + jobName, status, statusColor(status)})
 		for _, s := range j.Steps {
 			stepStatus := s.Conclusion
 			if stepStatus == "" {
 				stepStatus = s.Status
 			}
-			fields = append(fields, detailField{"  " + s.Name, stepStatus, statusColor(stepStatus)})
+			stepName := s.Name
+			if len(stepName) > 48 {
+				stepName = stepName[:45] + "..."
+			}
+			fields = append(fields, detailField{"  " + stepName, stepStatus, statusColor(stepStatus)})
 		}
 	}
 	return fields
@@ -1386,7 +1568,88 @@ func (m rootModel) View() string {
 	}
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
-	return lipgloss.JoinVertical(lipgloss.Left, body, statusLine)
+	view := lipgloss.JoinVertical(lipgloss.Left, body, statusLine)
+
+	if m.showMenu {
+		view = m.renderMenuOverlay(view)
+	}
+
+	return view
+}
+
+func (m rootModel) renderMenuOverlay(base string) string {
+	if len(m.menuItems) == 0 {
+		return base
+	}
+
+	// Build menu content
+	var menuLines []string
+	menuLines = append(menuLines, panelTitleFocusedStyle.Render(" Actions "))
+	menuLines = append(menuLines, "")
+
+	maxWidth := 0
+	for i, item := range m.menuItems {
+		label := item.label
+		if i == m.menuCursor {
+			label = "▸ " + label
+			label = lipgloss.NewStyle().Foreground(ui.Cyan).Bold(true).Render(label)
+		} else {
+			label = "  " + label
+		}
+		menuLines = append(menuLines, label)
+		if len(item.label)+3 > maxWidth {
+			maxWidth = len(item.label) + 3
+		}
+	}
+
+	menuLines = append(menuLines, "")
+	menuLines = append(menuLines, contentRowDimStyle.Render("  ↑/↓: navigate  Enter: select  Esc: cancel"))
+
+	menuContent := strings.Join(menuLines, "\n")
+	menuBox := panelFocusedStyle.
+		Width(maxWidth + 4).
+		BorderTop(true).BorderBottom(true).BorderLeft(true).BorderRight(true).
+		Render(menuContent)
+
+	// Center the menu overlay
+	baseLines := strings.Split(base, "\n")
+	menuBoxLines := strings.Split(menuBox, "\n")
+
+	startRow := (len(baseLines) - len(menuBoxLines)) / 2
+	if startRow < 0 {
+		startRow = 0
+	}
+
+	menuWidth := lipgloss.Width(menuBoxLines[0])
+	startCol := (m.width - menuWidth) / 2
+	if startCol < 0 {
+		startCol = 0
+	}
+
+	// Overlay the menu
+	for i, menuLine := range menuBoxLines {
+		rowIdx := startRow + i
+		if rowIdx >= len(baseLines) {
+			break
+		}
+
+		baseLine := baseLines[rowIdx]
+		baseRunes := []rune(baseLine)
+		menuRunes := []rune(menuLine)
+
+		// Insert menu line into base line
+		if startCol < len(baseRunes) {
+			endCol := startCol + len(menuRunes)
+			if endCol > len(baseRunes) {
+				baseRunes = append(baseRunes[:startCol], menuRunes...)
+			} else {
+				copy(baseRunes[startCol:], menuRunes)
+			}
+			baseLines[rowIdx] = string(baseRunes)
+		}
+	}
+
+	return strings.Join(baseLines, "\n")
 }
 
 func (m rootModel) renderSidebar() string {
