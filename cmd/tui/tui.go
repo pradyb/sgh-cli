@@ -18,6 +18,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/branch"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/issue"
 	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/protectedbranch"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
@@ -737,6 +738,10 @@ func (m *rootModel) getSelectedURL() string {
 	org := m.orgName
 
 	switch cmd.key {
+	case "issue":
+		if results, ok := m.content.rawData.([]model.IssueResponse); ok && rowIdx < len(results) {
+			return results[rowIdx].HTMLUrl
+		}
 	case "pr":
 		if results, ok := m.content.rawData.([]model.PullRequestResponse); ok && rowIdx < len(results) {
 			return results[rowIdx].HTMLUrl
@@ -836,6 +841,8 @@ func (m *rootModel) loadCommand(cmd *commandDef, forceRefresh bool) tea.Cmd {
 	}
 
 	switch cmd.key {
+	case "issue":
+		return m.loadIssues(ctx, org, repos, cmd.columns)
 	case "pr":
 		return m.loadPRs(ctx, org, repos, cmd.columns)
 	case "branch":
@@ -885,6 +892,44 @@ func (m *rootModel) loadPRs(ctx *context.Context, org string, repos []string, co
 		}
 		msg := &dataLoadedMsg{command: "pr", columns: cols, rows: rows, colors: colors, raw: valid}
 		m.cache.set("pr", repos, msg)
+		return *msg
+	}
+}
+
+func (m *rootModel) loadIssues(ctx *context.Context, org string, repos []string, cols []string) tea.Cmd {
+	stateFilter := "open"
+	if f, ok := m.cmdFilters["issue"]; ok {
+		stateFilter = f.value()
+	}
+	return func() tea.Msg {
+		req := issue.IssueListRequest{OrgName: org, RepoNames: repos, State: stateFilter, LastCount: 30}
+		results := issue.ListIssues(ctx, req)
+		valid := make([]model.IssueResponse, 0, len(results))
+		rows := make([][]string, 0, len(results))
+		colors := make([][]lipgloss.Color, 0, len(results))
+		for _, is := range results {
+			if is.ErrorMessage != "" {
+				continue
+			}
+			valid = append(valid, is)
+			labels := is.LabelNames()
+			if len(labels) > 20 {
+				labels = labels[:17] + "..."
+			}
+			rows = append(rows, []string{
+				is.RepositoryName,
+				fmt.Sprintf("#%d", is.Number),
+				is.Title,
+				is.AuthorName(),
+				is.State,
+				labels,
+				fmt.Sprintf("%d", is.Comments),
+				ui.RelativeTime(is.UpdatedAt),
+			})
+			colors = append(colors, []lipgloss.Color{"", "", "", "", statusColor(is.State), "", "", ""})
+		}
+		msg := &dataLoadedMsg{command: "issue", columns: cols, rows: rows, colors: colors, raw: valid}
+		m.cache.set("issue", repos, msg)
 		return *msg
 	}
 }
@@ -1059,12 +1104,96 @@ func (m *rootModel) loadDetail() tea.Cmd {
 	m.statusBar.loading = true
 
 	switch cmd.key {
+	case "issue":
+		return m.loadIssueDetail(rowIdx)
 	case "pr":
 		return m.loadPRDetail(rowIdx)
 	case "wf":
 		return m.loadWorkflowDetail(rowIdx)
 	default:
 		return m.loadGenericDetail(cmd, rowIdx)
+	}
+}
+
+func (m *rootModel) loadIssueDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.IssueResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	is := results[rowIdx]
+	ctx := m.ctx
+	org := m.orgName
+
+	return func() tea.Msg {
+		fields := []detailField{
+			{"Repository", is.RepositoryName, ""},
+			{"Issue", fmt.Sprintf("#%d", is.Number), ""},
+			{"Title", is.Title, ""},
+			{"Author", is.AuthorName(), ""},
+			{"State", is.State, statusColor(is.State)},
+			{"Labels", is.LabelNames(), ""},
+			{"Comments", fmt.Sprintf("%d", is.Comments), ""},
+			{"Created", ui.RelativeTime(is.CreatedAt), ""},
+			{"Updated", ui.RelativeTime(is.UpdatedAt), ""},
+		}
+
+		if is.ClosedAt != "" {
+			fields = append(fields, detailField{"Closed", ui.RelativeTime(is.ClosedAt), ""})
+			if is.ClosedBy.Login != "" {
+				fields = append(fields, detailField{"Closed By", is.ClosedBy.Login, ""})
+			}
+		}
+
+		if len(is.Assignees) > 0 {
+			names := make([]string, 0, len(is.Assignees))
+			for _, a := range is.Assignees {
+				if a.Login != "" {
+					names = append(names, a.Login)
+				}
+			}
+			if len(names) > 0 {
+				fields = append(fields, detailField{"Assignees", strings.Join(names, ", "), ""})
+			}
+		}
+
+		if is.Milestone != nil {
+			fields = append(fields, detailField{"Milestone", is.Milestone.Title, ""})
+		}
+
+		if is.Body != "" {
+			body := is.Body
+			if len(body) > 300 {
+				body = body[:297] + "..."
+			}
+			body = strings.ReplaceAll(body, "\r\n", "\n")
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Body", body, ""})
+		}
+
+		comments := issue.GetIssueComments(ctx, org, is.RepositoryName, is.Number)
+		if len(comments) > 0 {
+			dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Comments", fmt.Sprintf("%d comments", len(comments)), ""})
+			for i, c := range comments {
+				if i >= 5 {
+					fields = append(fields, detailField{"", dimStyle.Render(fmt.Sprintf("... and %d more", len(comments)-5)), ""})
+					break
+				}
+				author := c.Author.Login
+				if author == "" {
+					author = c.Author.Name
+				}
+				body := c.Body
+				if len(body) > 120 {
+					body = body[:117] + "..."
+				}
+				body = strings.ReplaceAll(body, "\n", " ")
+				fields = append(fields, detailField{author, dimStyle.Render(body), ""})
+			}
+		}
+
+		return detailLoadedMsg{title: is.Title, fields: fields}
 	}
 }
 

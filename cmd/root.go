@@ -13,10 +13,12 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/commit"
 	"github.com/prady-lab/sgh-cli/cmd/config"
 	"github.com/prady-lab/sgh-cli/cmd/health"
+	"github.com/prady-lab/sgh-cli/cmd/issue"
 	postrelease "github.com/prady-lab/sgh-cli/cmd/postrelease"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
 	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protectedbranch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
+	"github.com/prady-lab/sgh-cli/cmd/security"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/cmd/tui"
@@ -54,6 +56,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
 			    SGH_ORG         Default organization name (optional)
 			    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
+			    NO_COLOR        Disable colored output (optional)
 
 			  Config Files:
 			    Windows: ~/sgh.json
@@ -88,10 +91,14 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh repo list --org my-org
 			  $ sgh clone --org my-org --branch develop
 			  $ sgh commit list --org my-org --days 7 --details
+			  $ sgh issue list --org my-org -r sample-repo1
 
 			Team Management:
 			  $ sgh team list --org my-org
 			  $ sgh team list --org my-org --team developers --all-members
+
+			Security:
+			  $ sgh security list --org my-org --state open
 
 			Configuration:
 			  $ sgh config add org my-org
@@ -109,6 +116,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 					style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
 					fmt.Println(style.Render(fmt.Sprintf("  API calls: %d", count)))
 				}
+			}
+			if ctx.HasError {
+				os.Exit(1)
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -134,6 +144,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("compact", "C", false, "shorthand for --output compact")
 	rootCmd.PersistentFlags().BoolP("json", "J", false, "shorthand for --output json")
 	rootCmd.PersistentFlags().Bool("dry-run", false, "preview what would be changed without executing")
+	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output (env: NO_COLOR)")
+	rootCmd.PersistentFlags().Int("limit", 0, "limit the total number of items returned in the global output (0 = no limit, see also: --last)")
 	rootCmd.MarkFlagsMutuallyExclusive("output", "compact", "json")
 
 	// Command groups for organized help output
@@ -169,6 +181,11 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 
 	teamCmd := team.NewTeamCommand(ctx)
 	teamCmd.GroupID = "org"
+	issueCmd := issue.NewIssueCommand(ctx)
+	issueCmd.GroupID = "repo"
+
+	securityCmd := security.NewSecurityCommand(ctx)
+	securityCmd.GroupID = "org"
 
 	configCmd := config.NewConfigCommand(ctx)
 	configCmd.GroupID = "util"
@@ -177,10 +194,10 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	versionCmd := version.NewVersionCommand()
 	versionCmd.GroupID = "util"
 
-	rootCmd.AddCommand(repoCmd, cloneCmd, commitCmd)
+	rootCmd.AddCommand(repoCmd, cloneCmd, commitCmd, issueCmd)
 	rootCmd.AddCommand(branchCmd, tagCmd, prCmd, pbCmd)
 	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
-	rootCmd.AddCommand(teamCmd)
+	rootCmd.AddCommand(teamCmd, securityCmd)
 	tuiCmd := tui.NewTUICommand(ctx)
 	tuiCmd.GroupID = "util"
 	rootCmd.AddCommand(configCmd, healthCmd, versionCmd, tuiCmd)
@@ -309,6 +326,15 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	ctx.DryRun = dryRun
+
+	noColor, _ := cmd.Flags().GetBool("no-color")
+	if noColor || os.Getenv("NO_COLOR") != "" {
+		ctx.NoColor = true
+		os.Setenv("NO_COLOR", "true")
+	}
+
+	limit, _ := cmd.Flags().GetInt("limit")
+	ctx.Limit = limit
 
 	output, _ := cmd.Flags().GetString("output")
 	compact, _ := cmd.Flags().GetBool("compact")

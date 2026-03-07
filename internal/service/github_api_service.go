@@ -561,3 +561,139 @@ func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID
 	}
 	return jobsResponse.Jobs, nil
 }
+
+func ListSecretScanningAlerts(ctx *appcontext.Context, orgName, repoName, state string) ([]model.SecretScanningAlert, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+	if state != "" {
+		url = fmt.Sprintf("%s&state=%s", url, state)
+	}
+
+	var allAlerts []model.SecretScanningAlert
+	for url != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.SecretScanningAlert
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Flog.Error().Err(err).Msg("Error in unmarshal the secret scanning alerts response body")
+			return nil, err
+		}
+		for i := range page {
+			page[i].RepositoryName = repoName
+		}
+		allAlerts = append(allAlerts, page...)
+		url = parseLinkNext(resp.LinkHeader)
+	}
+	return allAlerts, nil
+}
+
+func GetSecretScanningAlert(ctx *appcontext.Context, orgName, repoName string, alertNumber int) (model.SecretScanningAlert, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", GITHUB_BASE_URL, orgName, repoName, alertNumber), nil)
+	if err != nil {
+		return model.SecretScanningAlert{}, err
+	}
+	var alert model.SecretScanningAlert
+	if err := json.Unmarshal(response, &alert); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the secret scanning alert response body")
+		return model.SecretScanningAlert{}, err
+	}
+	alert.RepositoryName = repoName
+	return alert, nil
+}
+
+func UpdateSecretScanningAlert(ctx *appcontext.Context, orgName, repoName string, alertNumber int, state, resolution, resolutionComment string) (model.SecretScanningAlert, error) {
+	updatePayload := map[string]interface{}{
+		"state": state,
+	}
+	
+	if state == "resolved" && resolution != "" {
+		updatePayload["resolution"] = resolution
+		if resolutionComment != "" {
+			updatePayload["resolution_comment"] = resolutionComment
+		}
+	}
+	
+	payloadBytes, err := json.Marshal(updatePayload)
+	if err != nil {
+		return model.SecretScanningAlert{}, fmt.Errorf("failed to marshal update payload: %w", err)
+	}
+	
+	response, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", GITHUB_BASE_URL, orgName, repoName, alertNumber), bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return model.SecretScanningAlert{}, err
+	}
+	
+	var alert model.SecretScanningAlert
+	if err := json.Unmarshal(response, &alert); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the secret scanning alert response body")
+		return model.SecretScanningAlert{}, err
+	}
+	alert.RepositoryName = repoName
+	return alert, nil
+}
+
+func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assignee, creator string, perPage int) ([]model.IssueResponse, error) {
+	if perPage <= 0 {
+		perPage = 100
+	}
+	url := fmt.Sprintf("%s/repos/%s/%s/issues?per_page=%d&sort=created&direction=desc", GITHUB_BASE_URL, orgName, repoName, perPage)
+	if state != "" {
+		url = fmt.Sprintf("%s&state=%s", url, state)
+	}
+	if labels != "" {
+		url = fmt.Sprintf("%s&labels=%s", url, labels)
+	}
+	if assignee != "" {
+		url = fmt.Sprintf("%s&assignee=%s", url, assignee)
+	}
+	if creator != "" {
+		url = fmt.Sprintf("%s&creator=%s", url, creator)
+	}
+
+	var allIssues []model.IssueResponse
+	for url != "" {
+		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var page []model.IssueResponse
+		if err := json.Unmarshal(resp.Body, &page); err != nil {
+			logger.Flog.Error().Err(err).Msg("Error unmarshalling issues response")
+			return nil, err
+		}
+		for i := range page {
+			page[i].RepositoryName = repoName
+		}
+		allIssues = append(allIssues, page...)
+		url = parseLinkNext(resp.LinkHeader)
+	}
+	return allIssues, nil
+}
+
+func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int) (model.IssueResponse, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d", GITHUB_BASE_URL, orgName, repoName, issueNumber), nil)
+	if err != nil {
+		return model.IssueResponse{}, err
+	}
+	var issue model.IssueResponse
+	if err := json.Unmarshal(response, &issue); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error unmarshalling issue response")
+		return model.IssueResponse{}, err
+	}
+	issue.RepositoryName = repoName
+	return issue, nil
+}
+
+func ListIssueComments(ctx *appcontext.Context, orgName, repoName string, issueNumber int) ([]model.IssueComment, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments?per_page=100", GITHUB_BASE_URL, orgName, repoName, issueNumber), nil)
+	if err != nil {
+		return nil, err
+	}
+	var comments []model.IssueComment
+	if err := json.Unmarshal(response, &comments); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error unmarshalling issue comments response")
+		return nil, err
+	}
+	return comments, nil
+}

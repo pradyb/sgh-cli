@@ -27,6 +27,9 @@ type Context struct {
 	JSON        bool
 	DryRun      bool
 	Silent      bool
+	NoColor     bool
+	Limit       int
+	HasError    bool
 }
 
 func Init() (*Context, error) {

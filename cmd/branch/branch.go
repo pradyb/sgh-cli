@@ -35,6 +35,7 @@ var (
 	repoNames        []string
 	excludeRepoNames []string
 	filter           string
+	sortBy           string
 )
 
 func ListCommand(ctx *context.Context) *cobra.Command {
@@ -59,17 +60,22 @@ Supports filtering by branch name using partial match or regex pattern.`,
 				Filter:           filter,
 			}
 			responses := branch.ListBranches(ctx, req)
+			ui.SortBranches(responses, sortBy)
+			if ctx.Limit > 0 && len(responses) > ctx.Limit {
+				responses = responses[:ctx.Limit]
+			}
 			if ctx.JSON {
 				ui.PrintJSON(responses)
 				return
 			}
-			ui.PrintBranches(responses, orgName, ctx.Compact)
+			ui.PrintBranches(responses, orgName, ctx.Compact, sortBy)
 		},
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter branches by `name` (partial match or regex)")
+	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, protected")
 
 	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd

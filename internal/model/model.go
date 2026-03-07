@@ -523,3 +523,97 @@ func (d WorkflowRunDetail) IsInProgress() bool {
 	return d.ErrorMessage == "" &&
 		(d.Run.Status == "queued" || d.Run.Status == "in_progress" || d.Run.Status == "waiting" || d.Run.Status == "requested" || d.Run.Status == "pending")
 }
+
+type SecretScanningAlert struct {
+	Number            int            `json:"number"`
+	SecretType        string         `json:"secret_type"`
+	SecretTypeDisplay string         `json:"secret_type_display_name"`
+	State             string         `json:"state"`
+	Resolution        string         `json:"resolution"`
+	ResolvedBy        User           `json:"resolved_by"`
+	ResolvedAt        string         `json:"resolved_at"`
+	ResolutionComment string         `json:"resolution_comment"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
+	HTMLUrl           string         `json:"html_url"`
+	Location          SecretLocation `json:"location"`
+	RepositoryName    string
+	ErrorMessage      string
+}
+
+type SecretLocation struct {
+	Path        string `json:"path"`
+	StartLine   int    `json:"start_line"`
+	EndLine     int    `json:"end_line"`
+	StartColumn int    `json:"start_column"`
+	EndColumn   int    `json:"end_column"`
+	BlobURL     string `json:"blob_url"`
+	CommitSHA   string `json:"commit_sha"`
+}
+
+type SecretScanningAlertsResponse struct {
+	TotalCount int                  `json:"total_count"`
+	Alerts     []SecretScanningAlert `json:"alerts"`
+}
+
+type IssueResponse struct {
+	Number    int      `json:"number"`
+	Title     string   `json:"title"`
+	Body      string   `json:"body"`
+	State     string   `json:"state"`
+	HTMLUrl   string   `json:"html_url"`
+	Author    User     `json:"user"`
+	Assignees []User   `json:"assignees"`
+	Labels    []IssueLabel `json:"labels"`
+	Milestone *IssueMilestone `json:"milestone"`
+	Comments  int      `json:"comments"`
+	CreatedAt string   `json:"created_at"`
+	UpdatedAt string   `json:"updated_at"`
+	ClosedAt  string   `json:"closed_at"`
+	ClosedBy  User     `json:"closed_by"`
+	RepositoryName string
+	ErrorMessage   string
+	PullRequest    *IssuePR `json:"pull_request"`
+}
+
+type IssueLabel struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+type IssueMilestone struct {
+	Title string `json:"title"`
+	State string `json:"state"`
+}
+
+type IssuePR struct {
+	URL string `json:"url"`
+}
+
+func (i IssueResponse) AuthorName() string {
+	if i.Author.Name == "" {
+		return i.Author.Login
+	}
+	return i.Author.Name
+}
+
+func (i IssueResponse) LabelNames() string {
+	names := make([]string, 0, len(i.Labels))
+	for _, l := range i.Labels {
+		names = append(names, l.Name)
+	}
+	return strings.Join(names, ", ")
+}
+
+func (i IssueResponse) IsIssue() bool {
+	return i.PullRequest == nil
+}
+
+type IssueComment struct {
+	ID        int    `json:"id"`
+	Body      string `json:"body"`
+	Author    User   `json:"user"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	HTMLUrl   string `json:"html_url"`
+}

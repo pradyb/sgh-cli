@@ -37,6 +37,8 @@ const (
 	OperationCancelWorkflow
 	OperationListBranches
 	OperationListTags
+	OperationListSecretScanningAlerts
+	OperationListIssues
 )
 
 var RepoOperationConfig = map[OperationEnum]map[string]string{
@@ -97,10 +99,16 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 	OperationListTags: {
 		"message": "Listing Tags",
 	},
+	OperationListSecretScanningAlerts: {
+		"message": "Listing Secret Scanning Alerts",
+	},
+	OperationListIssues: {
+		"message": "Listing Issues",
+	},
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun | []model.BranchResponse | []model.TagResponse
+	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun | []model.BranchResponse | []model.TagResponse | []model.SecretScanningAlert | []model.IssueResponse
 }
 
 type RepoOperationResult[R OperationResultType] struct {
@@ -160,6 +168,10 @@ func (o OperationEnum) String() string {
 		return "ListBranches"
 	case OperationListTags:
 		return "ListTags"
+	case OperationListSecretScanningAlerts:
+		return "ListSecretScanningAlerts"
+	case OperationListIssues:
+		return "ListIssues"
 	default:
 		return fmt.Sprintf("UnknownOperation(%d)", o)
 	}
@@ -308,6 +320,11 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 		Float64("avgDurationPerRepo", float64(totalDuration.Milliseconds())/float64(len(repoNames))).
 		Str("operation", operation.String()).
 		Msg("Repository operation completed")
+
+	if errorCount > 0 {
+		ctx.HasError = true
+		return fmt.Errorf("operation completed with %d errors", errorCount)
+	}
 
 	return nil
 }

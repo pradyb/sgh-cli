@@ -18,6 +18,7 @@ var (
 	repoNames        []string
 	excludeRepoNames []string
 	message          string
+	sortBy           string
 )
 
 func NewTagCommand(ctx *context.Context) *cobra.Command {
@@ -53,16 +54,21 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 				ExcludeRepoNames: excludeRepoNames,
 			}
 			responses := tag.ListTags(ctx, req)
+			ui.SortTags(responses, sortBy)
+			if ctx.Limit > 0 && len(responses) > ctx.Limit {
+				responses = responses[:ctx.Limit]
+			}
 			if ctx.JSON {
 				ui.PrintJSON(responses)
 				return
 			}
-			ui.PrintTags(responses, ctx.Compact)
+			ui.PrintTags(responses, ctx.Compact, sortBy)
 		},
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, tag")
 
 	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd

@@ -246,12 +246,14 @@ func PrintResponses(responses []model.RefUIResponse) {
 	}
 }
 
-func PrintBranches(branches []model.BranchResponse, orgName string, compact bool) {
+func PrintBranches(branches []model.BranchResponse, orgName string, compact bool, sortBy string) {
 	if len(branches) == 0 {
 		PrintNoDataMessage("No branches found.",
 			"Hint: verify the org and repo flags are correct.")
 		return
 	}
+
+	SortBranches(branches, sortBy)
 
 	if compact {
 		headers := []string{"Repository", "Branch", "SHA", "Protected", "Open"}
@@ -294,18 +296,37 @@ func PrintBranches(branches []model.BranchResponse, orgName string, compact bool
 			}
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Branch", "SHA", "Protected", "Open").
+		Headers(
+			SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+			SortIndicator("Branch", sortBy, "name"),
+			"SHA",
+			SortIndicator("Protected", sortBy, "protected"),
+			"Open",
+		).
 		Rows(rows...)
 
 	fmt.Println(t)
 }
 
-func PrintTags(tags []model.TagResponse, compact bool) {
+func SortBranches(branches []model.BranchResponse, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(branches, func(i, j int) bool { return branches[i].RepositoryName < branches[j].RepositoryName })
+	case "name":
+		sort.Slice(branches, func(i, j int) bool { return branches[i].Name < branches[j].Name })
+	case "protected":
+		sort.Slice(branches, func(i, j int) bool { return branches[i].Protected && !branches[j].Protected })
+	}
+}
+
+func PrintTags(tags []model.TagResponse, compact bool, sortBy string) {
 	if len(tags) == 0 {
 		PrintNoDataMessage("No tags found.",
 			"Hint: verify the org and repo flags are correct.")
 		return
 	}
+
+	SortTags(tags, sortBy)
 
 	if compact {
 		headers := []string{"Repository", "Tag", "SHA"}
@@ -332,10 +353,23 @@ func PrintTags(tags []model.TagResponse, compact bool) {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			return defaultTableStyle(row, col, len(rows), 0, true)
 		}).
-		Headers(repositoryNameDisplayName, "Tag", "SHA").
+		Headers(
+			SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+			SortIndicator("Tag", sortBy, "tag"),
+			"SHA",
+		).
 		Rows(rows...)
 
 	fmt.Println(t)
+}
+
+func SortTags(tags []model.TagResponse, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(tags, func(i, j int) bool { return tags[i].RepositoryName < tags[j].RepositoryName })
+	case "tag":
+		sort.Slice(tags, func(i, j int) bool { return tags[i].Name < tags[j].Name })
+	}
 }
 
 func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy string, compact bool) {
@@ -345,7 +379,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 		return
 	}
 
-	sortPullRequests(prResponses, sortBy)
+	SortPullRequests(prResponses, sortBy)
 
 	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(prResponses)+1)
@@ -401,7 +435,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 	printErrorMessageMap(errorMessageMap)
 }
 
-func sortPullRequests(prs []model.PullRequestResponse, sortBy string) {
+func SortPullRequests(prs []model.PullRequestResponse, sortBy string) {
 	switch strings.ToLower(sortBy) {
 	case "repo":
 		sort.Slice(prs, func(i, j int) bool { return prs[i].RepositoryName() < prs[j].RepositoryName() })
@@ -1001,7 +1035,7 @@ func PrintWorkflowRuns(runs []model.WorkflowRun, sortBy string, compact bool) {
 		return
 	}
 
-	sortWorkflowRuns(runs, sortBy)
+	SortWorkflowRuns(runs, sortBy)
 
 	errorMessageMap := map[string][]string{}
 	rows := make([][]string, 0, len(runs)+1)
@@ -1065,7 +1099,7 @@ func PrintWorkflowRuns(runs []model.WorkflowRun, sortBy string, compact bool) {
 	printErrorMessageMap(errorMessageMap)
 }
 
-func sortWorkflowRuns(runs []model.WorkflowRun, sortBy string) {
+func SortWorkflowRuns(runs []model.WorkflowRun, sortBy string) {
 	switch strings.ToLower(sortBy) {
 	case "repo":
 		sort.Slice(runs, func(i, j int) bool { return runs[i].RepositoryName < runs[j].RepositoryName })
@@ -1219,4 +1253,363 @@ func workflowRunTableStyle(row, col int, rows [][]string) lipgloss.Style {
 		}
 	}
 	return style
+}
+
+// -- Secret Scanning Alerts --
+
+func PrintSecretScanningAlerts(alerts []model.SecretScanningAlert, sortBy string, compact bool) {
+	if len(alerts) == 0 {
+		PrintNoDataMessage("No secret scanning alerts found.",
+			"Hint: try --state open or remove filters to see all alerts.")
+		return
+	}
+
+	SortSecretAlerts(alerts, sortBy)
+
+	errorMessageMap := map[string][]string{}
+	rows := make([][]string, 0, len(alerts)+1)
+	for _, alert := range alerts {
+		if alert.ErrorMessage != "" {
+			errorMessageMap[alert.ErrorMessage] = append(errorMessageMap[alert.ErrorMessage], alert.RepositoryName)
+			continue
+		}
+		location := alert.Location.Path
+		if alert.Location.StartLine > 0 {
+			location = fmt.Sprintf("%s:%d", location, alert.Location.StartLine)
+		}
+		rows = append(rows, []string{
+			alert.RepositoryName,
+			strconv.Itoa(alert.Number),
+			alert.State,
+			alert.SecretType,
+			truncateText(location, 40),
+			RelativeTime(alert.CreatedAt),
+			fmt.Sprintf(HyperLinkFormat, alert.HTMLUrl, "Open"),
+		})
+	}
+
+	if len(rows) > 0 {
+		headers := []string{"Repository", "Alert #", "State", "Secret Type", "Location", "Created", "URL"}
+		if compact {
+			PrintCompactTable(headers, rows)
+			return
+		}
+		rows = append(rows, []string{"Total Alerts", strconv.Itoa(len(rows))})
+		fmt.Println()
+		t := table.New().
+			Width(TerminalWidth()).
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				return secretAlertTableStyle(row, col, rows)
+			}).
+			Headers(
+				SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+				"Alert #",
+				SortIndicator("State", sortBy, "state"),
+				SortIndicator("Secret Type", sortBy, "type"),
+				"Location",
+				SortIndicator("Created", sortBy, "created"),
+				"URL",
+			).
+			Rows(rows...)
+
+		fmt.Println(t)
+	}
+
+	printErrorMessageMap(errorMessageMap)
+}
+
+func PrintSecretAlertDetail(alert model.SecretScanningAlert) {
+	if alert.ErrorMessage != "" {
+		fmt.Println(lipgloss.NewStyle().Foreground(Red).Bold(true).Render("  Error: " + alert.ErrorMessage))
+		return
+	}
+
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(Blue)
+	repoStyle := lipgloss.NewStyle().Foreground(Cyan)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	secretTypeStyle := lipgloss.NewStyle().Foreground(Yellow)
+
+	stateStyle := lipgloss.NewStyle().Foreground(StatusColor(alert.State)).Bold(true)
+
+	fmt.Println()
+	fmt.Printf("  %s\n", repoStyle.Render(alert.RepositoryName))
+	fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 45)))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Alert #"), valueStyle.Render(strconv.Itoa(alert.Number)))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Secret Type"), secretTypeStyle.Render(alert.SecretType))
+	if alert.SecretTypeDisplay != "" {
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Display Name"), valueStyle.Render(alert.SecretTypeDisplay))
+	}
+	fmt.Printf("  %s: %s\n", headerStyle.Render("State"), stateStyle.Render(alert.State))
+
+	fmt.Println()
+	fmt.Println(headerStyle.Render("  Location:"))
+	fmt.Printf("    %s: %s\n", headerStyle.Render("Path"), valueStyle.Render(alert.Location.Path))
+	if alert.Location.StartLine > 0 {
+		fmt.Printf("    %s: %d\n", headerStyle.Render("Start Line"), alert.Location.StartLine)
+		fmt.Printf("    %s: %d\n", headerStyle.Render("End Line"), alert.Location.EndLine)
+	}
+	if alert.Location.CommitSHA != "" {
+		fmt.Printf("    %s: %s\n", headerStyle.Render("Commit SHA"), valueStyle.Render(ShortSHA(alert.Location.CommitSHA)))
+	}
+	if alert.Location.BlobURL != "" {
+		fmt.Printf("    %s: %s\n", headerStyle.Render("Blob URL"), valueStyle.Render(alert.Location.BlobURL))
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Created At"), valueStyle.Render(RelativeTime(alert.CreatedAt)))
+	if alert.UpdatedAt != "" {
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Updated At"), valueStyle.Render(RelativeTime(alert.UpdatedAt)))
+	}
+
+	if alert.Resolution != "" {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("  Resolution:"))
+		fmt.Printf("    %s: %s\n", headerStyle.Render("Resolution"), valueStyle.Render(alert.Resolution))
+		if alert.ResolvedBy.Login != "" {
+			fmt.Printf("    %s: %s\n", headerStyle.Render("Resolved By"), valueStyle.Render(alert.ResolvedBy.Login))
+		}
+		if alert.ResolvedAt != "" {
+			fmt.Printf("    %s: %s\n", headerStyle.Render("Resolved At"), valueStyle.Render(RelativeTime(alert.ResolvedAt)))
+		}
+		if alert.ResolutionComment != "" {
+			fmt.Printf("    %s: %s\n", headerStyle.Render("Comment"), valueStyle.Render(alert.ResolutionComment))
+		}
+	}
+
+	if alert.HTMLUrl != "" {
+		fmt.Println()
+		fmt.Printf("  %s: %s\n", headerStyle.Render("URL"), valueStyle.Render(alert.HTMLUrl))
+	}
+	fmt.Println()
+}
+
+func secretAlertTableStyle(row, col int, rows [][]string) lipgloss.Style {
+	style := defaultTableStyle(row, col, len(rows), 0, true)
+
+	if row >= 0 {
+		switch col {
+		case 1, 6:
+			style = style.Align(lipgloss.Center)
+		}
+		if row < len(rows)-1 && col == 2 {
+			style = style.Foreground(StatusColor(rows[row][2]))
+		}
+	}
+	return style
+}
+
+func SortSecretAlerts(alerts []model.SecretScanningAlert, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(alerts, func(i, j int) bool { return alerts[i].RepositoryName < alerts[j].RepositoryName })
+	case "state":
+		sort.Slice(alerts, func(i, j int) bool { return alerts[i].State < alerts[j].State })
+	case "type":
+		sort.Slice(alerts, func(i, j int) bool { return alerts[i].SecretType < alerts[j].SecretType })
+	case "created":
+		sort.Slice(alerts, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, alerts[i].CreatedAt)
+			tj, _ := time.Parse(time.RFC3339, alerts[j].CreatedAt)
+			return ti.After(tj)
+		})
+	}
+}
+
+// -- Issues --
+
+func PrintIssues(issues []model.IssueResponse, sortBy string, compact bool) {
+	if len(issues) == 0 {
+		PrintNoDataMessage("No issues found.",
+			"Hint: try --state all or remove filters to see more issues.")
+		return
+	}
+
+	SortIssues(issues, sortBy)
+
+	errorMessageMap := map[string][]string{}
+	rows := make([][]string, 0, len(issues)+1)
+	for _, issue := range issues {
+		if issue.ErrorMessage != "" {
+			errorMessageMap[issue.ErrorMessage] = append(errorMessageMap[issue.ErrorMessage], issue.RepositoryName)
+			continue
+		}
+		labels := issue.LabelNames()
+		if len(labels) > 30 {
+			labels = labels[:27] + "..."
+		}
+		rows = append(rows, []string{
+			issue.RepositoryName,
+			strconv.Itoa(issue.Number),
+			truncateText(issue.Title, 50),
+			issue.AuthorName(),
+			issue.State,
+			labels,
+			strconv.Itoa(issue.Comments),
+			RelativeTime(issue.CreatedAt),
+			fmt.Sprintf(HyperLinkFormat, issue.HTMLUrl, "Open"),
+		})
+	}
+
+	if len(rows) > 0 {
+		headers := []string{"Repository", "#", "Title", "Author", "State", "Labels", "Comments", "Created", "URL"}
+		if compact {
+			PrintCompactTable(headers, rows)
+			return
+		}
+		rows = append(rows, []string{"Total Issues", strconv.Itoa(len(rows))})
+		fmt.Println()
+		t := table.New().
+			Width(TerminalWidth()).
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(BorderStyle).
+			BorderRow(true).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				return issueTableStyle(row, col, rows)
+			}).
+			Headers(
+				SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+				"#",
+				SortIndicator("Title", sortBy, "title"),
+				SortIndicator("Author", sortBy, "author"),
+				SortIndicator("State", sortBy, "state"),
+				"Labels",
+				"Comments",
+				SortIndicator("Created", sortBy, "created"),
+				"URL",
+			).
+			Rows(rows...)
+
+		fmt.Println(t)
+	}
+
+	printErrorMessageMap(errorMessageMap)
+}
+
+func PrintIssueDetail(issue model.IssueResponse, comments []model.IssueComment) {
+	if issue.ErrorMessage != "" {
+		fmt.Println(lipgloss.NewStyle().Foreground(Red).Bold(true).Render("  Error: " + issue.ErrorMessage))
+		return
+	}
+
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(Blue)
+	repoStyle := lipgloss.NewStyle().Foreground(Cyan)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	stateStyle := lipgloss.NewStyle().Foreground(StatusColor(issue.State)).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed)
+
+	fmt.Println()
+	fmt.Printf("  %s #%d\n", repoStyle.Render(issue.RepositoryName), issue.Number)
+	fmt.Println(headerStyle.Render("  " + strings.Repeat("─", 50)))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Title"), valueStyle.Render(issue.Title))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("State"), stateStyle.Render(issue.State))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Author"), valueStyle.Render(issue.AuthorName()))
+
+	if len(issue.Assignees) > 0 {
+		names := make([]string, 0, len(issue.Assignees))
+		for _, a := range issue.Assignees {
+			if a.Login != "" {
+				names = append(names, a.Login)
+			}
+		}
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Assignees"), valueStyle.Render(strings.Join(names, ", ")))
+	}
+
+	if issue.LabelNames() != "" {
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Labels"), valueStyle.Render(issue.LabelNames()))
+	}
+
+	if issue.Milestone != nil {
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Milestone"), valueStyle.Render(issue.Milestone.Title))
+	}
+
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Comments"), valueStyle.Render(strconv.Itoa(issue.Comments)))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Created"), valueStyle.Render(RelativeTime(issue.CreatedAt)))
+	fmt.Printf("  %s: %s\n", headerStyle.Render("Updated"), valueStyle.Render(RelativeTime(issue.UpdatedAt)))
+
+	if issue.ClosedAt != "" {
+		fmt.Printf("  %s: %s\n", headerStyle.Render("Closed"), valueStyle.Render(RelativeTime(issue.ClosedAt)))
+		if issue.ClosedBy.Login != "" {
+			fmt.Printf("  %s: %s\n", headerStyle.Render("Closed By"), valueStyle.Render(issue.ClosedBy.Login))
+		}
+	}
+
+	if issue.Body != "" {
+		fmt.Println()
+		fmt.Println(headerStyle.Render("  Body:"))
+		body := issue.Body
+		if len(body) > 500 {
+			body = body[:497] + "..."
+		}
+		for _, line := range strings.Split(body, "\n") {
+			fmt.Printf("    %s\n", dimStyle.Render(line))
+		}
+	}
+
+	if len(comments) > 0 {
+		fmt.Println()
+		fmt.Println(headerStyle.Render(fmt.Sprintf("  Comments (%d):", len(comments))))
+		for i, c := range comments {
+			if i >= 5 {
+				fmt.Printf("    %s\n", dimStyle.Render(fmt.Sprintf("... and %d more", len(comments)-5)))
+				break
+			}
+			author := c.Author.Login
+			if author == "" {
+				author = c.Author.Name
+			}
+			body := c.Body
+			if len(body) > 120 {
+				body = body[:117] + "..."
+			}
+			body = strings.ReplaceAll(body, "\n", " ")
+			fmt.Printf("    %s (%s): %s\n",
+				valueStyle.Render(author),
+				dimStyle.Render(RelativeTime(c.CreatedAt)),
+				dimStyle.Render(body),
+			)
+		}
+	}
+
+	if issue.HTMLUrl != "" {
+		fmt.Println()
+		fmt.Printf("  %s: %s\n", headerStyle.Render("URL"), valueStyle.Render(issue.HTMLUrl))
+	}
+	fmt.Println()
+}
+
+func issueTableStyle(row, col int, rows [][]string) lipgloss.Style {
+	style := defaultTableStyle(row, col, len(rows), 0, true)
+
+	if row >= 0 {
+		switch col {
+		case 1, 6, 8:
+			style = style.Align(lipgloss.Center)
+		}
+		if row < len(rows)-1 && col == 4 {
+			style = style.Foreground(StatusColor(rows[row][4]))
+		}
+	}
+	return style
+}
+
+func SortIssues(issues []model.IssueResponse, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(issues, func(i, j int) bool { return issues[i].RepositoryName < issues[j].RepositoryName })
+	case "title":
+		sort.Slice(issues, func(i, j int) bool { return issues[i].Title < issues[j].Title })
+	case "author":
+		sort.Slice(issues, func(i, j int) bool { return issues[i].AuthorName() < issues[j].AuthorName() })
+	case "state":
+		sort.Slice(issues, func(i, j int) bool { return issues[i].State < issues[j].State })
+	case "created":
+		sort.Slice(issues, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, issues[i].CreatedAt)
+			tj, _ := time.Parse(time.RFC3339, issues[j].CreatedAt)
+			return ti.After(tj)
+		})
+	}
 }

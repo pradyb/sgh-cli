@@ -435,6 +435,46 @@ sgh workflow rerun --org my-org --repo my-app --run 123456789
 sgh workflow cancel --org my-org --repo my-app --run 123456789
 ```
 
+### Security (Secret Scanning Alerts)
+```bash
+# List all secret scanning alerts across repositories
+sgh security list --org my-org
+
+# List only open alerts
+sgh security list --org my-org --state open
+
+# List resolved alerts
+sgh security list --org my-org --state resolved
+
+# Filter by secret type
+sgh security list --org my-org --secret-type aws_access_key
+sgh security list --org my-org --secret-type github_token
+
+# List alerts for specific repositories
+sgh security list --org my-org -r api-service -r web-app
+
+# View detailed alert information
+sgh security view --org my-org -r my-app --alert 1
+
+# View alert in JSON format
+sgh security view --org my-org -r my-app --alert 5 --json
+
+# Resolve an alert as false positive
+sgh security update --org my-org -r my-app --alert 1 --state resolved --resolution false_positive
+
+# Resolve with a comment
+sgh security update --org my-org -r my-app --alert 2 --state resolved --resolution revoked --comment "Key has been rotated"
+
+# Reopen a resolved alert
+sgh security update --org my-org -r my-app --alert 3 --state open
+
+# Mark as used in tests
+sgh security update --org my-org -r my-app --alert 4 --state resolved --resolution used_in_tests
+
+# Preview changes with dry-run
+sgh security update --org my-org -r my-app --alert 1 --state resolved --resolution false_positive --dry-run
+```
+
 ### Team Management
 ```bash
 # List all teams
@@ -473,14 +513,19 @@ sgh config add pattern legacy-* --org my-org --exclude
 - `-O, --output string` - Output format: `table` (default), `compact`, or `json`
 - `-C, --compact` - Shorthand for `--output compact` (tab-separated, pipe-friendly)
 - `-J, --json` - Shorthand for `--output json` (structured JSON for scripting)
+- `--dry-run` - Preview what would be changed without executing
+- `--no-color` - Disable colored output (env: `NO_COLOR`)
+- `--limit int` - Limit the **total** number of items returned in the global output (0 = no limit)
 
 > **Tip:** Set `SGH_ORG` and `SGH_WORKERS` environment variables to avoid repeating common flags.
+> **Note on Limits:** For multi-repo commands, use `--last` to limit how many items are fetched *per repository* from the API, and `--limit` to truncate the *final combined output*.
 
 ### Per-Command Flags
 
 Some list commands support additional flags:
 
-- `--sort <field>` - Sort table output (available on `pr list` and `workflow list`)
+- `--sort <field>` - Sort table output (available on `pr`, `branch`, `tag`, `issue`, `security`, and `workflow` list commands)
+- `--last <count>` - Number of items to fetch **per repository** from the GitHub API (on `pr`, `workflow`, and `issue` list commands)
 - `--filter <pattern>` - Branch name filter with regex support (on `branch list`)
 - `--workflow <name>` - Workflow name filter with partial match (on `workflow list`)
 - `--label <name>`, `--since <YYYY-MM-DD>` - PR filters (on `pr list`)
@@ -552,6 +597,7 @@ sgh pr create --org my-org --title "Update" --head feature --base main --workers
 | `SGH_TIMEOUT` | HTTP client timeout (e.g. `60s`) | `30s` |
 | `SGH_VERBOSE` | Enable verbose output (`true`/`false`) | `false` |
 | `SGH_LOG_RESPONSE` | Log HTTP responses (`true`/`false`) | `false` |
+| `NO_COLOR` | Disable colored output | - |
 
 ### Configuration Patterns
 Set up organization-specific configurations:

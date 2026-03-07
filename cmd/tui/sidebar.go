@@ -17,6 +17,7 @@ var commands = []commandDef{
 	{"Commits", "commit", []string{"Repo", "Message", "Author", "Date"}},
 	{"Teams", "team", []string{"Team", "Members", "Repos"}},
 	{"Prot. Branches", "pb", []string{"Repo", "Branch", "Approvals", "Enforce"}},
+	{"Issues", "issue", []string{"Repo", "#", "Title", "Author", "State", "Labels", "Comments", "Updated"}},
 	{"Branches", "branch", []string{"Repo", "Branch", "SHA", "Protected"}},
 	{"Tags", "tag", []string{"Repo", "Tag", "SHA"}},
 }
@@ -39,8 +40,9 @@ func (f *commandFilter) label() string {
 }
 
 var defaultFilters = map[string]*commandFilter{
-	"pr": {options: []string{"open", "merged", "closed", "all"}, current: 0},
-	"wf": {options: []string{"all", "completed", "in_progress", "queued"}, current: 0},
+	"issue": {options: []string{"open", "closed", "all"}, current: 0},
+	"pr":    {options: []string{"open", "merged", "closed", "all"}, current: 0},
+	"wf":    {options: []string{"all", "completed", "in_progress", "queued"}, current: 0},
 }
 
 const commandMenuHeight = 10

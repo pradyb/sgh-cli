@@ -129,6 +129,10 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 			}
 			if !interactive {
 				responses := pr.ListPullRequests(ctx, req)
+				ui.SortPullRequests(responses, prSortBy)
+				if ctx.Limit > 0 && len(responses) > ctx.Limit {
+					responses = responses[:ctx.Limit]
+				}
 				if ctx.JSON {
 					ui.PrintJSON(responses)
 					return

@@ -67,6 +67,9 @@ By default, it will list 50 members in each team.`,
 				logger.Glog.Err(err).Msg("Error getting team and members")
 				return
 			}
+			if ctx.Limit > 0 && len(teams) > ctx.Limit {
+				teams = teams[:ctx.Limit]
+			}
 			if ctx.JSON {
 				ui.PrintJSON(teams)
 				return

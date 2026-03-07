@@ -62,6 +62,9 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 				return
 			}
 			if len(repositories) > 0 {
+				if ctx.Limit > 0 && len(repositories) > ctx.Limit {
+					repositories = repositories[:ctx.Limit]
+				}
 				if ctx.JSON {
 					ui.PrintJSON(repositories)
 					return
@@ -111,6 +114,9 @@ The query flag searches in repository name and description.`,
 				return
 			}
 			if len(repositories) > 0 {
+				if ctx.Limit > 0 && len(repositories) > ctx.Limit {
+					repositories = repositories[:ctx.Limit]
+				}
 				if ctx.JSON {
 					ui.PrintJSON(repositories)
 					return

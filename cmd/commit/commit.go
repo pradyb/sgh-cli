@@ -57,6 +57,9 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 				NoOfDays:     noOfDays,
 			}
 			responses := commit.ListCommits(ctx, req)
+			if ctx.Limit > 0 && len(responses) > ctx.Limit {
+				responses = responses[:ctx.Limit]
+			}
 			if ctx.JSON {
 				ui.PrintJSON(responses)
 				return

@@ -128,6 +128,10 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 				WorkflowName:     workflowName,
 			}
 			responses := workflow.ListWorkflowRuns(ctx, req)
+			ui.SortWorkflowRuns(responses, sortBy)
+			if ctx.Limit > 0 && len(responses) > ctx.Limit {
+				responses = responses[:ctx.Limit]
+			}
 			if ctx.JSON {
 				ui.PrintJSON(responses)
 				return
