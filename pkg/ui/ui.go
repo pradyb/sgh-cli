@@ -58,6 +58,12 @@ func StatusColor(status string) lipgloss.Color {
 	}
 }
 
+// ErrorMessage returns a styled error string for display to the user.
+func ErrorMessage(format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
+	return lipgloss.NewStyle().Foreground(Red).Bold(true).Render("Error: " + msg)
+}
+
 // StyledStatus returns the status string rendered with its appropriate color.
 func StyledStatus(status string) string {
 	return lipgloss.NewStyle().Foreground(StatusColor(status)).Render(status)
