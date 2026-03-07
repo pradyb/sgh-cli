@@ -184,9 +184,37 @@ func (m contentModel) view() string {
 		rowIdx := filtered[vi]
 		row := m.rows[rowIdx]
 		isCursor := m.focused && vi == m.cursor
+		isAlt := vi%2 != 0
 
-		line := m.renderRow(rowIdx, row, colWidths, isCursor)
+		line := m.renderRow(rowIdx, row, colWidths, isCursor, isAlt)
+
+		// Scrollbar logic
+		scrollChar := ""
+		if len(filtered) > visible {
+			pct := float64(m.offset) / float64(len(filtered)-visible)
+			if m.offset == 0 {
+				pct = 0
+			} else if end == len(filtered) {
+				pct = 1
+			}
+			scrollPos := int(pct * float64(visible-1))
+			if vi-m.offset == scrollPos {
+				scrollChar = "█"
+			} else {
+				scrollChar = "│"
+			}
+		}
+
 		b.WriteString(line)
+		if scrollChar != "" {
+			lineWidth := lipgloss.Width(line)
+			pad := m.width - 6 - lineWidth
+			if pad > 0 {
+				b.WriteString(strings.Repeat(" ", pad))
+			}
+			b.WriteString(separatorStyle.Render(scrollChar))
+		}
+
 		if vi < end-1 {
 			b.WriteString("\n")
 		}
@@ -243,7 +271,7 @@ func (m contentModel) renderHeader(widths []int) string {
 	return strings.Join(parts, "  ")
 }
 
-func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor bool) string {
+func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor bool, isAlt bool) string {
 	parts := make([]string, len(m.columns))
 	for i := range m.columns {
 		w := 8
@@ -263,6 +291,15 @@ func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor
 			style = contentCursorStyle
 		} else if m.rowColors != nil && rowIdx < len(m.rowColors) && i < len(m.rowColors[rowIdx]) && m.rowColors[rowIdx][i] != "" {
 			style = lipgloss.NewStyle().Foreground(m.rowColors[rowIdx][i])
+			if isAlt {
+				style = style.Background(lipgloss.Color("#1E1E2E"))
+			}
+		} else if isAlt {
+			if i > 0 {
+				style = contentRowDimAltStyle
+			} else {
+				style = contentRowAltStyle
+			}
 		} else if i > 0 {
 			style = contentRowDimStyle
 		}

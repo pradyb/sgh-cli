@@ -9,9 +9,10 @@ var (
 	sidebarWidth = 34
 
 	panelBorder = lipgloss.RoundedBorder()
+	activePanelBorder = lipgloss.ThickBorder()
 
 	panelFocusedStyle = lipgloss.NewStyle().
-		BorderStyle(panelBorder).
+		BorderStyle(activePanelBorder).
 		BorderForeground(ui.Cyan).
 		Padding(0, 1)
 
@@ -22,7 +23,8 @@ var (
 
 	panelTitleFocusedStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(ui.Cyan).
+		Background(ui.Cyan).
+		Foreground(lipgloss.Color("#000000")).
 		Padding(0, 1)
 
 	panelTitleUnfocusedStyle = lipgloss.NewStyle().
@@ -49,6 +51,8 @@ var (
 
 	contentRowStyle    = lipgloss.NewStyle().Foreground(ui.White)
 	contentRowDimStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
+	contentRowAltStyle    = lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color("#1E1E2E"))
+	contentRowDimAltStyle = lipgloss.NewStyle().Foreground(ui.Dimmed).Background(lipgloss.Color("#1E1E2E"))
 	contentCursorStyle = lipgloss.NewStyle().
 		Foreground(ui.White).
 		Background(lipgloss.Color("#2A2A3A")).
@@ -65,6 +69,9 @@ var (
 		Foreground(ui.Dimmed).
 		Italic(true).
 		Padding(0, 1)
+
+	statusHintKeyStyle = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
+	statusHintDescStyle = lipgloss.NewStyle().Foreground(ui.Dimmed)
 
 	statusBarOrgStyle = lipgloss.NewStyle().
 		Foreground(ui.Cyan).

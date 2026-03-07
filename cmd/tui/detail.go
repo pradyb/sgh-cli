@@ -105,20 +105,46 @@ func (m detailModel) view() string {
 	for i := m.scroll; i < end; i++ {
 		f := m.fields[i]
 
+		line := ""
 		if f.label == "" {
-			b.WriteString(fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), f.value))
-			b.WriteString("\n")
-			continue
+			line = fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), f.value)
+		} else {
+			label := detailLabelStyle.Width(labelWidth).Render(f.label + ":")
+			value := ""
+			if f.color != "" {
+				pillStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(f.color).Padding(0, 1)
+				value = pillStyle.Render(" " + f.value + " ")
+			} else {
+				value = detailValueStyle.Render(f.value)
+			}
+			line = fmt.Sprintf(" %s %s", label, value)
 		}
 
-		label := detailLabelStyle.Width(labelWidth).Render(f.label + ":")
-		valStyle := detailValueStyle
-		if f.color != "" {
-			valStyle = valStyle.Foreground(f.color)
+		scrollChar := ""
+		if len(m.fields) > visible {
+			pct := float64(m.scroll) / float64(len(m.fields)-visible)
+			if m.scroll == 0 {
+				pct = 0
+			} else if end == len(m.fields) {
+				pct = 1
+			}
+			scrollPos := int(pct * float64(visible-1))
+			if i-m.scroll == scrollPos {
+				scrollChar = "█"
+			} else {
+				scrollChar = "│"
+			}
 		}
-		value := valStyle.Render(f.value)
 
-		b.WriteString(fmt.Sprintf(" %s %s", label, value))
+		b.WriteString(line)
+		if scrollChar != "" {
+			lineWidth := lipgloss.Width(line)
+			pad := m.width - 2 - lineWidth
+			if pad > 0 {
+				b.WriteString(strings.Repeat(" ", pad))
+			}
+			b.WriteString(separatorStyle.Render(scrollChar))
+		}
 		b.WriteString("\n")
 	}
 
