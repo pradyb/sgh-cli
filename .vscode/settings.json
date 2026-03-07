@@ -7,5 +7,9 @@
         "ltable",
         "Mergeable",
         "Strikethrough"
-    ]
+    ],
+    "chat.tools.terminal.autoApprove": {
+        "go": true,
+        "gofmt": true
+    }
 }
