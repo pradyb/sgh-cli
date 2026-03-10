@@ -1,8 +1,7 @@
 package prompt
 
 import (
-	"os/exec"
-	"runtime"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/pr"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
@@ -21,6 +21,7 @@ type delegateKeyMap struct {
 	approveMerge key.Binding
 	closePR      key.Binding
 	openBrowser  key.Binding
+	diff         key.Binding
 }
 
 type eventMsg struct {
@@ -73,20 +74,15 @@ func newDelegateKeyMap() *delegateKeyMap {
 			key.WithKeys("o"),
 			key.WithHelp("o", "open in browser"),
 		),
+		diff: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "view diff"),
+		),
 	}
 }
 
 func openURL(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Start()
+	return ui.OpenURL(url)
 }
 
 func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap) list.DefaultDelegate {
@@ -169,13 +165,25 @@ func newItemDelegate(ctx *context.Context, orgName string, keys *delegateKeyMap)
 				return func() tea.Msg {
 					return browserOpenMsg{url: selectedPR.HTMLUrl}
 				}
+
+			case key.Matches(msg, keys.diff):
+				p := selectedPR
+				c := ctx
+				o := orgName
+				return func() tea.Msg {
+					filesResp := pr.GetPullRequestFiles(c, o, p.RepositoryName(), p.PRNumber)
+					return diffLoadedMsg{
+						title: fmt.Sprintf("PR #%d · %s", p.PRNumber, p.TitleName),
+						lines: pr.ParsePatchLines(filesResp),
+					}
+				}
 			}
 		}
 
 		return nil
 	}
 
-	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approveMerge, keys.closePR, keys.openBrowser}
+	help := []key.Binding{keys.status, keys.approve, keys.merge, keys.approveMerge, keys.closePR, keys.openBrowser, keys.diff}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help

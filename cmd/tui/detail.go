@@ -143,9 +143,13 @@ func (m detailModel) view() string {
 		line := ""
 		if f.label == "" {
 			val := highlightURLs(f.value)
-			// Truncate if too long
+			// Use lipgloss.Width for display-width-aware truncation, rune slice to avoid breaking multi-byte chars
 			if lipgloss.Width(f.value) > maxValueWidth {
-				val = highlightURLs(f.value[:maxValueWidth-1]) + "…"
+				r := []rune(f.value)
+				if maxValueWidth-1 < len(r) {
+					r = r[:maxValueWidth-1]
+				}
+				val = highlightURLs(string(r)) + "…"
 			}
 			line = fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), val)
 		} else {
@@ -153,17 +157,23 @@ func (m detailModel) view() string {
 			value := ""
 			if f.color != "" {
 				pillStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(f.color).Padding(0, 1)
-				// Truncate status pills if needed
 				val := f.value
-				if len(val) > maxValueWidth-4 {
-					val = val[:maxValueWidth-5] + "…"
+				if lipgloss.Width(val) > maxValueWidth-4 {
+					r := []rune(val)
+					if maxValueWidth-5 > 0 && maxValueWidth-5 < len(r) {
+						r = r[:maxValueWidth-5]
+					}
+					val = string(r) + "…"
 				}
 				value = pillStyle.Render(" " + val + " ")
 			} else {
 				val := f.value
-				// Truncate if too long
-				if len(val) > maxValueWidth {
-					val = val[:maxValueWidth-1] + "…"
+				if lipgloss.Width(val) > maxValueWidth {
+					r := []rune(val)
+					if maxValueWidth-1 < len(r) {
+						r = r[:maxValueWidth-1]
+					}
+					val = string(r) + "…"
 				}
 				value = detailValueStyle.Render(highlightURLs(val))
 			}

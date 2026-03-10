@@ -31,8 +31,10 @@ func makeRepoKey(repos []string) string {
 	return strings.Join(sorted, ",")
 }
 
-func (c *dataCache) get(command string, repos []string) (any, bool, bool) {
-	entry, ok := c.entries[command]
+// get looks up an entry by cacheKey (which embeds the filter state, e.g. "pr:open")
+// and repos. Returns (data, hit, stale).
+func (c *dataCache) get(cacheKey string, repos []string) (any, bool, bool) {
+	entry, ok := c.entries[cacheKey]
 	if !ok {
 		return nil, false, false
 	}
@@ -44,20 +46,25 @@ func (c *dataCache) get(command string, repos []string) (any, bool, bool) {
 	return entry.data, true, stale
 }
 
-func (c *dataCache) set(command string, repos []string, data any) {
-	c.entries[command] = cacheEntry{
+func (c *dataCache) set(cacheKey string, repos []string, data any) {
+	c.entries[cacheKey] = cacheEntry{
 		data:      data,
 		fetchedAt: time.Now(),
 		repoKey:   makeRepoKey(repos),
 	}
 }
 
+// invalidate removes all cache entries whose key matches the command or starts with "command:".
 func (c *dataCache) invalidate(command string) {
-	delete(c.entries, command)
+	for k := range c.entries {
+		if k == command || strings.HasPrefix(k, command+":") {
+			delete(c.entries, k)
+		}
+	}
 }
 
-func (c *dataCache) age(command string) time.Duration {
-	entry, ok := c.entries[command]
+func (c *dataCache) age(cacheKey string) time.Duration {
+	entry, ok := c.entries[cacheKey]
 	if !ok {
 		return 0
 	}

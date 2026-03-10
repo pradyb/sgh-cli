@@ -1595,6 +1595,42 @@ func issueTableStyle(row, col int, rows [][]string) lipgloss.Style {
 	return style
 }
 
+func PrintAuditLog(entries []model.AuditLogEntry, compact bool) {
+	if len(entries) == 0 {
+		PrintNoDataMessage("No audit log entries found.",
+			"Hint: check that your token has the 'admin:org' scope and audit log is enabled for your org.")
+		return
+	}
+	rows := make([][]string, 0, len(entries))
+	for _, e := range entries {
+		repo := e.Repo
+		if repo == "" {
+			repo = "-"
+		}
+		ts := ""
+		if e.CreatedAt > 0 {
+			ts = time.UnixMilli(e.CreatedAt).UTC().Format("2006-01-02 15:04:05")
+		}
+		rows = append(rows, []string{ts, e.Actor, e.Action, repo})
+	}
+	headers := []string{"Time", "Actor", "Action", "Repo"}
+	if compact {
+		PrintCompactTable(headers, rows)
+		return
+	}
+	rows = append(rows, []string{"Total Entries", strconv.Itoa(len(entries))})
+	t := table.New().
+		Width(TerminalWidth()).
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			return defaultTableStyle(row, col, len(rows), -1, true)
+		}).
+		Headers(headers...).
+		Rows(rows...)
+	fmt.Println(t)
+}
+
 func SortIssues(issues []model.IssueResponse, sortBy string) {
 	switch strings.ToLower(sortBy) {
 	case "repo":

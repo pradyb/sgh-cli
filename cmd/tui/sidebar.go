@@ -20,6 +20,7 @@ var commands = []commandDef{
 	{"Issues", "issue", []string{"Repo", "#", "Title", "Author", "State", "Labels", "Comments", "Updated"}},
 	{"Branches", "branch", []string{"Repo", "Branch", "SHA", "Protected"}},
 	{"Tags", "tag", []string{"Repo", "Tag", "SHA"}},
+	{"Audit Log", "audit", []string{"Time", "Actor", "Action", "Repo"}},
 }
 
 type commandFilter struct {
@@ -69,7 +70,7 @@ func (m *sidebarModel) moveDown() {
 	}
 }
 
-func (m *sidebarModel) select_() int {
+func (m *sidebarModel) selectCommand() int {
 	m.active = m.cursor
 	return m.active
 }

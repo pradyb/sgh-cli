@@ -8,6 +8,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/prady-lab/sgh-cli/cmd/audit"
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/clone"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
@@ -183,6 +184,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	teamCmd.GroupID = "org"
 	issueCmd := issue.NewIssueCommand(ctx)
 	issueCmd.GroupID = "repo"
+	auditCmd := audit.NewAuditCommand(ctx)
+	auditCmd.GroupID = "org"
 
 	securityCmd := security.NewSecurityCommand(ctx)
 	securityCmd.GroupID = "org"
@@ -197,7 +200,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(repoCmd, cloneCmd, commitCmd, issueCmd)
 	rootCmd.AddCommand(branchCmd, tagCmd, prCmd, pbCmd)
 	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
-	rootCmd.AddCommand(teamCmd, securityCmd)
+	rootCmd.AddCommand(teamCmd, securityCmd, auditCmd)
 	tuiCmd := tui.NewTUICommand(ctx)
 	tuiCmd.GroupID = "util"
 	rootCmd.AddCommand(configCmd, healthCmd, versionCmd, tuiCmd)

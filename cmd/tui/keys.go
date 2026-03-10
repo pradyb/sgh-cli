@@ -14,8 +14,12 @@ type globalKeyMap struct {
 	Space       key.Binding
 	Filter      key.Binding
 	Refresh     key.Binding
+	HardRefresh key.Binding
 	CycleFilter key.Binding
+	Sort        key.Binding
+	Diff        key.Binding
 	Open        key.Binding
+	Yank        key.Binding
 	SelectAll   key.Binding
 	SelectNon   key.Binding
 	JumpRepo    key.Binding
@@ -40,8 +44,12 @@ var keys = globalKeyMap{
 	Space:       key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle")),
 	Filter:      key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	Refresh:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+	HardRefresh: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "hard refresh")),
 	CycleFilter: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "cycle status")),
+	Sort:        key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "sort column")),
+	Diff:        key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff preview")),
 	Open:        key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open in browser")),
+	Yank:        key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy URL")),
 	SelectAll:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select all")),
 	SelectNon:   key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none")),
 	JumpRepo:    key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "repos")),

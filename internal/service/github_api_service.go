@@ -685,6 +685,16 @@ func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int
 	return issue, nil
 }
 
+// UpdateIssue patches an issue state ("open" or "closed").
+func UpdateIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int, state string) error {
+	body := fmt.Sprintf(`{"state":%q}`, state)
+	_, err := invokeAPI(ctx, "PATCH",
+		fmt.Sprintf("%s/repos/%s/%s/issues/%d", GITHUB_BASE_URL, orgName, repoName, issueNumber),
+		bytes.NewBufferString(body),
+	)
+	return err
+}
+
 func ListIssueComments(ctx *appcontext.Context, orgName, repoName string, issueNumber int) ([]model.IssueComment, error) {
 	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments?per_page=100", GITHUB_BASE_URL, orgName, repoName, issueNumber), nil)
 	if err != nil {
@@ -696,4 +706,29 @@ func ListIssueComments(ctx *appcontext.Context, orgName, repoName string, issueN
 		return nil, err
 	}
 	return comments, nil
+}
+
+// GetAuditLog fetches the organization audit log using the GitHub REST API.
+// phrase, include, order, after and before are optional filters; pass "" to omit.
+func GetAuditLog(ctx *appcontext.Context, orgName string, phrase, include string, perPage int) ([]model.AuditLogEntry, error) {
+	if perPage <= 0 {
+		perPage = 100
+	}
+	url := fmt.Sprintf("%s/orgs/%s/audit-log?per_page=%d", GITHUB_BASE_URL, orgName, perPage)
+	if phrase != "" {
+		url += "&phrase=" + phrase
+	}
+	if include != "" {
+		url += "&include=" + include
+	}
+	response, err := invokeAPI(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var entries []model.AuditLogEntry
+	if err := json.Unmarshal(response, &entries); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error unmarshalling audit log response")
+		return nil, err
+	}
+	return entries, nil
 }

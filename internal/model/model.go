@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 )
@@ -205,6 +206,7 @@ type PullRequestFile struct {
 	Deletions  int    `json:"deletions"`
 	Changes    int    `json:"changes"`
 	ChangeType string `json:"status"`
+	Patch      string `json:"patch"`
 }
 
 type MergeResponse struct {
@@ -607,6 +609,62 @@ func (i IssueResponse) LabelNames() string {
 
 func (i IssueResponse) IsIssue() bool {
 	return i.PullRequest == nil
+}
+
+type AuditLogEntry struct {
+	Action    string         `json:"action"`
+	Actor     string         `json:"actor"`
+	ActorIP   string         `json:"actor_ip"`
+	CreatedAt int64          `json:"created_at"` // milliseconds since epoch
+	OrgName   string         `json:"org"`
+	Repo      string         // extracted via custom UnmarshalJSON
+	User      string         `json:"user"`
+	Data      map[string]any `json:"data"`
+}
+
+// UnmarshalJSON handles the GitHub audit log API quirk where "repo" can be
+// a string, an array, or null depending on the event type.
+func (e *AuditLogEntry) UnmarshalJSON(b []byte) error {
+	type alias struct {
+		Action    string          `json:"action"`
+		Actor     string          `json:"actor"`
+		ActorIP   string          `json:"actor_ip"`
+		CreatedAt int64           `json:"created_at"`
+		OrgName   string          `json:"org"`
+		Repo      json.RawMessage `json:"repo"`
+		User      string          `json:"user"`
+		Data      map[string]any  `json:"data"`
+	}
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	e.Action = a.Action
+	e.Actor = a.Actor
+	e.ActorIP = a.ActorIP
+	e.CreatedAt = a.CreatedAt
+	e.OrgName = a.OrgName
+	e.User = a.User
+	e.Data = a.Data
+
+	// repo may be a plain string, an array of strings, or null
+	if len(a.Repo) > 0 && string(a.Repo) != "null" {
+		if a.Repo[0] == '"' {
+			_ = json.Unmarshal(a.Repo, &e.Repo)
+		} else if a.Repo[0] == '[' {
+			var arr []string
+			if err := json.Unmarshal(a.Repo, &arr); err == nil && len(arr) > 0 {
+				e.Repo = arr[0]
+			}
+		}
+	}
+	return nil
+}
+
+type AuditLogResponse struct {
+	OrgName      string
+	Entries      []AuditLogEntry
+	ErrorMessage string
 }
 
 type IssueComment struct {

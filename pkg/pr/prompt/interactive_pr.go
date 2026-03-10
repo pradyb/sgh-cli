@@ -75,6 +75,10 @@ type prModel struct {
 	termWidth      int
 	termHeight     int
 	confirmPending *confirmMsg
+	showDiff       bool
+	diffLines      []string
+	diffTitle      string
+	diffScroll     int
 }
 
 type eventStatusResponse struct {
@@ -88,8 +92,12 @@ type eventStatusResponse struct {
 }
 
 type (
-	sectionEvent []string
-	refreshEvent []model.PullRequestResponse
+	sectionEvent  []string
+	refreshEvent  []model.PullRequestResponse
+	diffLoadedMsg struct {
+		title string
+		lines []string
+	}
 )
 
 func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
@@ -107,6 +115,9 @@ func newModel(ctx *context.Context, prRequest pr.PRRequest) prModel {
 	prList.Title = "Interactive Pull Request Options"
 	prList.Styles.Title = titleStyle
 	prList.SetShowHelp(false)
+	// Remove "d" from the list's built-in NextPage binding so our delegate's
+	// "d = view diff" handler works without also triggering page navigation.
+	prList.KeyMap.NextPage.SetKeys("right", "l", "pgdown", "f")
 	prList.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			listKeys.refresh,
@@ -157,6 +168,10 @@ func (m prModel) helpView() string {
 }
 
 func (m prModel) View() string {
+	if m.showDiff {
+		return m.renderDiffOverlay()
+	}
+
 	helpBar := m.helpView()
 
 	if m.confirmPending != nil {
@@ -206,6 +221,56 @@ func (m prModel) View() string {
 func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// Handle diff overlay keys first
+	if m.showDiff {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			visible := m.termHeight - 10
+			if visible < 1 {
+				visible = 1
+			}
+			switch keyMsg.String() {
+			case "esc", "q":
+				m.showDiff = false
+				m.diffLines = nil
+				m.diffScroll = 0
+			case "j", "down":
+				if m.diffScroll < len(m.diffLines)-visible {
+					m.diffScroll++
+				}
+			case "k", "up":
+				if m.diffScroll > 0 {
+					m.diffScroll--
+				}
+			case "pgdown", "ctrl+d":
+				m.diffScroll += visible
+				if m.diffScroll > len(m.diffLines)-visible {
+					m.diffScroll = len(m.diffLines) - visible
+				}
+				if m.diffScroll < 0 {
+					m.diffScroll = 0
+				}
+			case "pgup", "ctrl+u":
+				m.diffScroll -= visible
+				if m.diffScroll < 0 {
+					m.diffScroll = 0
+				}
+			case "g":
+				m.diffScroll = 0
+			case "G":
+				m.diffScroll = len(m.diffLines) - visible
+				if m.diffScroll < 0 {
+					m.diffScroll = 0
+				}
+			}
+			return m, nil
+		}
+		if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			m.termWidth = sizeMsg.Width
+			m.termHeight = sizeMsg.Height
+		}
+		return m, nil
+	}
+
 	// Handle confirmation prompt keys first
 	if m.confirmPending != nil {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
@@ -230,6 +295,13 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case diffLoadedMsg:
+		m.showDiff = true
+		m.diffLines = msg.lines
+		m.diffTitle = msg.title
+		m.diffScroll = 0
+		return m, nil
+
 	case confirmMsg:
 		m.confirmPending = &msg
 		return m, nil
@@ -302,6 +374,64 @@ func (m prModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m prModel) renderDiffOverlay() string {
+	addStyle := lipgloss.NewStyle().Foreground(ui.Green)
+	delStyle := lipgloss.NewStyle().Foreground(ui.Red)
+	dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+	fileStyle := lipgloss.NewStyle().Foreground(ui.Cyan).Bold(true)
+
+	overlayWidth := m.termWidth - 8
+	if overlayWidth < 60 {
+		overlayWidth = 60
+	}
+	visible := m.termHeight - 10
+	if visible < 5 {
+		visible = 5
+	}
+	end := m.diffScroll + visible
+	if end > len(m.diffLines) {
+		end = len(m.diffLines)
+	}
+
+	var lines []string
+	for _, l := range m.diffLines[m.diffScroll:end] {
+		switch {
+		case strings.HasPrefix(l, "+"):
+			lines = append(lines, addStyle.Render(l))
+		case strings.HasPrefix(l, "-"):
+			lines = append(lines, delStyle.Render(l))
+		case strings.HasPrefix(l, "@@"):
+			lines = append(lines, dimStyle.Render(l))
+		case strings.HasPrefix(l, "──"):
+			lines = append(lines, fileStyle.Render(l))
+		default:
+			lines = append(lines, l)
+		}
+	}
+	if len(m.diffLines) > visible {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  ─ %d-%d of %d lines  ─", m.diffScroll+1, end, len(m.diffLines))))
+	}
+
+	titleStr := m.diffTitle
+	maxTitle := overlayWidth - 10
+	if len(titleStr) > maxTitle {
+		titleStr = titleStr[:maxTitle-1] + "…"
+	}
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ui.CrayolaGreen).
+		Width(overlayWidth).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.NewStyle().Foreground(ui.CrayolaGreen).Bold(true).Render(" Diff: "+titleStr+" "),
+			strings.Join(lines, "\n"),
+			"",
+			dimStyle.Render("  j/k: scroll  PgUp/PgDn: page  g/G: top/bottom  Esc: close"),
+		))
+
+	return lipgloss.Place(m.termWidth, m.termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
 func RunInteractivePR(ctx *context.Context, prRequest pr.PRRequest) error {

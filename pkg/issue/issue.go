@@ -26,6 +26,31 @@ type IssueViewRequest struct {
 	IssueNumber int
 }
 
+type IssueUpdateRequest struct {
+	OrgName     string
+	RepoName    string
+	IssueNumber int
+	State       string // "open" or "closed"
+}
+
+type IssueUpdateResponse struct {
+	RepositoryName string
+	IssueNumber    int
+	ErrorMessage   string
+}
+
+func UpdateIssue(ctx *context.Context, req IssueUpdateRequest) IssueUpdateResponse {
+	err := service.UpdateIssue(ctx, req.OrgName, req.RepoName, req.IssueNumber, req.State)
+	if err != nil {
+		return IssueUpdateResponse{
+			RepositoryName: req.RepoName,
+			IssueNumber:    req.IssueNumber,
+			ErrorMessage:   fmt.Sprintf("failed to update issue: %v", err),
+		}
+	}
+	return IssueUpdateResponse{RepositoryName: req.RepoName, IssueNumber: req.IssueNumber}
+}
+
 func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueResponse {
 	responses := make([]model.IssueResponse, 0)
 

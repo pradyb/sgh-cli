@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -25,10 +26,12 @@ type contentModel struct {
 	noRepos            bool
 	filterHistory      []string
 	filterHistoryIndex int
+	sortColumn         int  // -1 = unsorted
+	sortAscending      bool
 }
 
 func newContent() contentModel {
-	return contentModel{}
+	return contentModel{sortColumn: -1, sortAscending: true}
 }
 
 func (m *contentModel) setData(command string, columns []string, rows [][]string, colors [][]lipgloss.Color, raw any) {
@@ -41,6 +44,8 @@ func (m *contentModel) setData(command string, columns []string, rows [][]string
 	m.offset = 0
 	m.loading = false
 	m.noData = len(rows) == 0
+	m.sortColumn = -1
+	m.sortAscending = true
 }
 
 func (m *contentModel) filteredRows() []int {
@@ -57,7 +62,40 @@ func (m *contentModel) filteredRows() []int {
 			}
 		}
 	}
+	if m.sortColumn >= 0 && m.sortColumn < len(m.columns) {
+		col := m.sortColumn
+		asc := m.sortAscending
+		sort.SliceStable(indices, func(a, b int) bool {
+			va, vb := "", ""
+			if col < len(m.rows[indices[a]]) {
+				va = m.rows[indices[a]][col]
+			}
+			if col < len(m.rows[indices[b]]) {
+				vb = m.rows[indices[b]][col]
+			}
+			if asc {
+				return va < vb
+			}
+			return va > vb
+		})
+	}
 	return indices
+}
+
+// cycleSort advances the sort column (or flips direction on the current column).
+func (m *contentModel) cycleSort() {
+	if len(m.columns) == 0 {
+		return
+	}
+	if m.sortColumn < 0 {
+		m.sortColumn = 0
+		m.sortAscending = true
+	} else if m.sortAscending {
+		m.sortAscending = false
+	} else {
+		m.sortColumn = (m.sortColumn + 1) % len(m.columns)
+		m.sortAscending = true
+	}
 }
 
 func (m *contentModel) moveUp() {
@@ -400,16 +438,29 @@ func (m contentModel) computeColumnWidths() []int {
 func (m contentModel) renderHeader(widths []int) string {
 	parts := make([]string, len(m.columns))
 	hasOverflow := false
+	sortIndicator := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700")).Bold(true)
 	for i, col := range m.columns {
 		w := 8
 		if i < len(widths) {
 			w = widths[i]
 		}
-		if len(col) > w {
-			hasOverflow = true
-			col = col[:w-1] + "›"
+		label := col
+		if i == m.sortColumn {
+			arrow := "▲"
+			if !m.sortAscending {
+				arrow = "▼"
+			}
+			label = sortIndicator.Render(arrow) + col
 		}
-		parts[i] = contentHeaderStyle.Width(w).Render(col)
+		if lipgloss.Width(label) > w {
+			hasOverflow = true
+			r := []rune(col)
+			if w-1 < len(r) {
+				r = r[:w-1]
+			}
+			label = string(r) + "›"
+		}
+		parts[i] = contentHeaderStyle.Width(w).Render(label)
 	}
 	header := strings.Join(parts, "  ")
 	if hasOverflow {

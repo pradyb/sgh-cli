@@ -245,6 +245,31 @@ func ListPullRequestReviews(ctx *context.Context, orgName string, repoName strin
 	return response
 }
 
+// ParsePatchLines converts a PullRequestFilesResponse into display lines for a
+// diff viewer. Each file gets a "── filename ──" header; hunk context after the
+// closing "@@" marker is trimmed; empty lines are dropped.
+func ParsePatchLines(filesResp model.PullRequestFilesResponse) []string {
+	var lines []string
+	for _, f := range filesResp.Files {
+		if f.Patch == "" {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("── %s ──", f.Filename))
+		for _, l := range strings.Split(f.Patch, "\n") {
+			if l == "" {
+				continue
+			}
+			if strings.HasPrefix(l, "@@") {
+				if idx := strings.Index(l[2:], "@@"); idx >= 0 {
+					l = l[:idx+4]
+				}
+			}
+			lines = append(lines, l)
+		}
+	}
+	return lines
+}
+
 func GetPullRequestFiles(ctx *context.Context, orgName string, repoName string, prNumber int) model.PullRequestFilesResponse {
 	response, err := service.GetPullRequestFiles(ctx, orgName, repoName, prNumber)
 	if err != nil {

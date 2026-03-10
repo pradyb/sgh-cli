@@ -1,9 +1,8 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
-	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
+	pkgaudit "github.com/prady-lab/sgh-cli/pkg/audit"
 	"github.com/prady-lab/sgh-cli/pkg/branch"
 	"github.com/prady-lab/sgh-cli/pkg/commit"
 	"github.com/prady-lab/sgh-cli/pkg/context"
@@ -62,8 +62,22 @@ type actionResultMsg struct {
 }
 type watchTickMsg struct{}
 type errMsg struct{ err error }
+type diffLoadedMsg struct {
+	title string
+	lines []string
+}
 
 // -- root model --
+
+// toastLevel controls the colour of a toast notification.
+type toastLevel int
+
+const (
+	toastSuccess toastLevel = iota
+	toastInfo
+	toastWarning
+	toastError
+)
 
 type rootModel struct {
 	repoSelector   repoSelectorModel
@@ -79,26 +93,41 @@ type rootModel struct {
 	width          int
 	height         int
 	ready          bool
-	confirming     bool
-	confirmPrompt  string
-	confirmAction  func() tea.Msg
-	showHelp       bool
-	toastMsg       string
-	toastExpiry    time.Time
-	watching       bool
-	watchRunID     int
-	watchRepoName  string
-	watchInterval  time.Duration
+	// confirmation dialog
+	confirming    bool
+	confirmPrompt string // short one-liner shown in status bar while confirming
+	confirmTitle  string // longer title shown in modal box
+	confirmDetail string // resource context shown in modal box (e.g. PR title)
+	confirmAction func() tea.Msg
+	showHelp      bool
+	// toast notification
+	toastMsg    string
+	toastLevel  toastLevel
+	toastExpiry time.Time
+	// workflow watch
+	watching      bool
+	watchRunID    int
+	watchRepoName string
+	watchInterval time.Duration
+	// filters
 	cmdFilters     map[string]*commandFilter
 	contentFilters map[string]string // persisted filters per command
-	showMenu       bool
-	menuItems      []menuItem
-	menuCursor     int
+	// action menu
+	showMenu   bool
+	menuItems  []menuItem
+	menuCursor int
+	// diff overlay
+	showDiff  bool
+	diffLines []string
+	diffTitle string
+	diffScroll int
+	// narrow-mode flag (set by relayout)
+	narrowMode bool
 }
 
 type menuItem struct {
 	label  string
-	action func() tea.Msg
+	action func() tea.Cmd
 }
 
 func initialModel(ctx *context.Context, orgName string) rootModel {
@@ -123,6 +152,22 @@ func initialModel(ctx *context.Context, orgName string) rootModel {
 		cmdFilters:     filters,
 		contentFilters: make(map[string]string),
 	}
+}
+
+// showToast sets a timed notification with severity-based styling.
+func (m *rootModel) showToast(msg string, level toastLevel) {
+	m.toastMsg = msg
+	m.toastLevel = level
+	m.toastExpiry = time.Now().Add(5 * time.Second)
+}
+
+// startConfirm displays the framed confirmation modal with resource context.
+func (m *rootModel) startConfirm(title, detail string, action func() tea.Msg) {
+	m.confirming = true
+	m.confirmTitle = title
+	m.confirmDetail = detail
+	m.confirmPrompt = title + " (y/n)"
+	m.confirmAction = action
 }
 
 func (m rootModel) Init() tea.Cmd {
@@ -185,7 +230,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.content.noRepos = len(m.selectedRepos) == 0 && msg.command != "team"
 		m.statusBar.loading = false
 		m.statusBar.command = msg.command
-		m.statusBar.cacheAge = m.cache.age(msg.command)
+		m.statusBar.cacheAge = m.cache.age(m.cacheKeyFor(msg.command))
 		m.statusBar.totalCount = len(msg.rows)
 		// Restore saved filter for this command
 		if savedFilter, ok := m.contentFilters[msg.command]; ok {
@@ -202,8 +247,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.watching {
 			if strings.HasSuffix(msg.title, "(completed)") {
 				m.watching = false
-				m.toastMsg = "Workflow run completed"
-				m.toastExpiry = time.Now().Add(5 * time.Second)
+				m.showToast("Workflow run completed", toastSuccess)
 			} else if strings.HasSuffix(msg.title, "(watching...)") {
 				cmds = append(cmds, tea.Tick(m.watchInterval, func(time.Time) tea.Msg { return watchTickMsg{} }))
 			}
@@ -212,8 +256,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.watchRunID = msg.watchRunID
 			m.watchRepoName = msg.watchRepoName
 			m.watchInterval = 10 * time.Second
-			m.toastMsg = fmt.Sprintf("Auto-watching in-progress workflow %d", msg.watchRunID)
-			m.toastExpiry = time.Now().Add(3 * time.Second)
+			m.showToast(fmt.Sprintf("Auto-watching workflow %d", msg.watchRunID), toastInfo)
 			cmds = append(cmds, tea.Tick(m.watchInterval, func(time.Time) tea.Msg { return watchTickMsg{} }))
 		}
 		m.applyFocus()
@@ -221,8 +264,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case actionResultMsg:
 		m.statusBar.loading = false
 		if msg.success {
-			m.toastMsg = msg.message
-			m.toastExpiry = time.Now().Add(5 * time.Second)
+			m.showToast(msg.message, toastSuccess)
 			m.cache.invalidate(msg.command)
 			if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == msg.command {
 				m.content.loading = true
@@ -252,6 +294,13 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return detailLoadedMsg{title: detail.Run.Name + " (watching...)", fields: fields}
 			})
 		}
+
+	case diffLoadedMsg:
+		m.statusBar.loading = false
+		m.diffTitle = msg.title
+		m.diffLines = msg.lines
+		m.diffScroll = 0
+		m.showDiff = true
 
 	case errMsg:
 		m.statusBar.lastErr = msg.err.Error()
@@ -297,7 +346,9 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.menuItems = nil
 					m.menuCursor = 0
 					if action != nil {
-						cmds = append(cmds, func() tea.Msg { return action() })
+						if cmd := action(); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
 					}
 				}
 			case "esc", "m":
@@ -305,6 +356,11 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.menuItems = nil
 				m.menuCursor = 0
 			}
+			return m, tea.Batch(cmds...)
+		}
+
+		if m.showDiff {
+			m.handleDiffKey(msg.String())
 			return m, tea.Batch(cmds...)
 		}
 
@@ -421,37 +477,39 @@ func (m *rootModel) applyFocus() {
 	switch m.focus {
 	case focusRepoSelector:
 		m.repoSelector.focused = true
-		m.statusBar.focusHint = "space:toggle a:all /:filter " + panelNav
+		m.statusBar.focusHint = "space:toggle a:all n:none /:filter " + panelNav
 	case focusCommandMenu:
 		m.sidebar.focused = true
-		m.statusBar.focusHint = "enter:select " + panelNav
+		m.statusBar.focusHint = "enter:select 1-3:jump " + panelNav
 	case focusContent:
 		m.content.focused = true
-		hint := "enter:details o:browser"
+		hint := "enter:detail o:open y:copy S:sort"
 		if cmd := m.sidebar.activeCommand(); cmd != nil {
 			switch cmd.key {
 			case "pr":
-				hint = "m:merge A:approve " + hint
+				hint += " d:diff m:menu"
 			case "wf":
-				hint = "R:rerun " + hint
+				hint += " m:menu"
+			case "issue", "branch", "tag":
+				hint += " m:menu"
 			}
 			if _, ok := m.cmdFilters[cmd.key]; ok {
-				hint = "s:status " + hint
+				hint += " s:filter"
 			}
 		}
-		hint += " r:refresh"
+		hint += " r:refresh ctrl+r:hard-refresh /:search"
 		m.statusBar.focusHint = hint
 	case focusDetail:
 		m.detail.focused = true
-		hint := "o:browser"
+		hint := "enter/o:open y:copy"
 		if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == "wf" {
 			if m.watching {
-				hint = "w:stop " + hint
+				hint += " w:stop-watch"
 			} else {
-				hint = "w:watch " + hint
+				hint += " w:watch"
 			}
 		}
-		hint += " esc:close"
+		hint += " r:refresh esc:close"
 		m.statusBar.focusHint = hint
 	}
 }
@@ -527,7 +585,7 @@ func (m *rootModel) handleCommandMenuKey(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, keys.Down):
 		m.sidebar.moveDown()
 	case key.Matches(msg, keys.Enter):
-		idx := m.sidebar.select_()
+		idx := m.sidebar.selectCommand()
 		if idx >= 0 && idx < len(commands) {
 			m.content.loading = true
 			m.statusBar.loading = true
@@ -575,6 +633,18 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 			m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
 			return m.loadCommand(cmd, true)
 		}
+	case key.Matches(msg, keys.HardRefresh):
+		if cmd != nil {
+			m.cache.invalidate(cmd.key)
+			m.content.loading = true
+			m.statusBar.loading = true
+			m.statusBar.loadingMsg = fmt.Sprintf("hard refresh %s", cmd.name)
+			m.showToast("Cache cleared", toastInfo)
+			return m.loadCommand(cmd, true)
+		}
+	case key.Matches(msg, keys.Sort):
+		m.content.cycleSort()
+
 	case key.Matches(msg, keys.CycleFilter):
 		if cmd != nil {
 			if f, ok := m.cmdFilters[cmd.key]; ok {
@@ -589,8 +659,15 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, keys.Open):
 		if url := m.getSelectedURL(); url != "" {
 			_ = openURL(url)
-			m.toastMsg = "Opened in browser"
-			m.toastExpiry = time.Now().Add(3 * time.Second)
+			m.showToast("Opened in browser", toastInfo)
+		}
+	case key.Matches(msg, keys.Yank):
+		if url := m.getSelectedURL(); url != "" {
+			if err := ui.CopyToClipboard(url); err == nil {
+				m.showToast("URL copied to clipboard", toastSuccess)
+			} else {
+				m.showToast("Copy failed: "+err.Error(), toastWarning)
+			}
 		}
 	case key.Matches(msg, keys.Esc):
 		if m.detail.visible {
@@ -607,6 +684,11 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 			m.clearAllFocus()
 			m.focus = focusCommandMenu
 			m.applyFocus()
+		}
+
+	case key.Matches(msg, keys.Diff):
+		if cmd != nil && cmd.key == "pr" {
+			return m.loadPRDiff()
 		}
 
 	case key.Matches(msg, prKeys.Approve):
@@ -651,9 +733,7 @@ func (m *rootModel) prAction(action, prompt string) tea.Cmd {
 	ctx := m.ctx
 	org := m.orgName
 
-	m.confirming = true
-	m.confirmPrompt = fmt.Sprintf("%s (y/n)", prompt)
-	m.confirmAction = func() tea.Msg {
+	m.startConfirm(prompt, fmt.Sprintf("PR #%d · %s", p.PRNumber, truncateField(p.TitleName, 50)), func() tea.Msg {
 		repoName := p.RepositoryName()
 		switch action {
 		case "APPROVE":
@@ -699,7 +779,7 @@ func (m *rootModel) prAction(action, prompt string) tea.Cmd {
 			return actionResultMsg{true, fmt.Sprintf("PR #%d closed", p.PRNumber), "pr"}
 		}
 		return nil
-	}
+	})
 	return nil
 }
 
@@ -713,9 +793,7 @@ func (m *rootModel) wfAction(action, prompt string) tea.Cmd {
 	ctx := m.ctx
 	org := m.orgName
 
-	m.confirming = true
-	m.confirmPrompt = fmt.Sprintf("%s (y/n)", prompt)
-	m.confirmAction = func() tea.Msg {
+	m.startConfirm(prompt, fmt.Sprintf("Run #%d · %s @ %s", w.ID, w.Name, w.HeadBranch), func() tea.Msg {
 		req := workflow.WorkflowRunRequest{OrgName: org, RepoName: w.RepositoryName, RunID: w.ID}
 		switch action {
 		case "rerun":
@@ -732,7 +810,91 @@ func (m *rootModel) wfAction(action, prompt string) tea.Cmd {
 			return actionResultMsg{true, fmt.Sprintf("Workflow %d cancelled", w.ID), "wf"}
 		}
 		return nil
+	})
+	return nil
+}
+
+func (m *rootModel) issueAction(action, prompt string) tea.Cmd {
+	rowIdx := m.content.selectedRowIndex()
+	results, ok := m.content.rawData.([]model.IssueResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
 	}
+	is := results[rowIdx]
+	ctx := m.ctx
+	org := m.orgName
+
+	m.startConfirm(prompt, fmt.Sprintf("Issue #%d · %s", is.Number, truncateField(is.Title, 50)), func() tea.Msg {
+		resp := issue.UpdateIssue(ctx, issue.IssueUpdateRequest{
+			OrgName: org, RepoName: is.RepositoryName, IssueNumber: is.Number, State: action,
+		})
+		if resp.ErrorMessage != "" {
+			return actionResultMsg{false, resp.ErrorMessage, "issue"}
+		}
+		verb := "updated"
+		if action == "close" {
+			verb = "closed"
+		} else if action == "open" {
+			verb = "reopened"
+		}
+		return actionResultMsg{true, fmt.Sprintf("Issue #%d %s", is.Number, verb), "issue"}
+	})
+	return nil
+}
+
+func (m *rootModel) branchAction(action, prompt string) tea.Cmd {
+	rowIdx := m.content.selectedRowIndex()
+	results, ok := m.content.rawData.([]model.BranchResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	b := results[rowIdx]
+	ctx := m.ctx
+	org := m.orgName
+
+	m.startConfirm(prompt, fmt.Sprintf("%s / %s", b.RepositoryName, b.Name), func() tea.Msg {
+		switch action {
+		case "delete":
+			resps := branch.DeleteBranches(ctx, branch.BranchDeleteRequest{
+				OrgName: org, RepoNames: []string{b.RepositoryName}, BranchName: b.Name,
+			})
+			for _, r := range resps {
+				if r.ErrorMessage != "" {
+					return actionResultMsg{false, r.ErrorMessage, "branch"}
+				}
+			}
+			return actionResultMsg{true, fmt.Sprintf("Branch %s deleted", b.Name), "branch"}
+		}
+		return nil
+	})
+	return nil
+}
+
+func (m *rootModel) tagAction(action, prompt string) tea.Cmd {
+	rowIdx := m.content.selectedRowIndex()
+	results, ok := m.content.rawData.([]model.TagResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	t := results[rowIdx]
+	ctx := m.ctx
+	org := m.orgName
+
+	m.startConfirm(prompt, fmt.Sprintf("%s / %s", t.RepositoryName, t.Name), func() tea.Msg {
+		switch action {
+		case "delete":
+			resps := tag.DeleteTags(ctx, tag.TagDeleteRequest{
+				OrgName: org, RepoNames: []string{t.RepositoryName}, TagName: t.Name,
+			})
+			for _, r := range resps {
+				if r.ErrorMessage != "" {
+					return actionResultMsg{false, r.ErrorMessage, "tag"}
+				}
+			}
+			return actionResultMsg{true, fmt.Sprintf("Tag %s deleted", t.Name), "tag"}
+		}
+		return nil
+	})
 	return nil
 }
 
@@ -740,73 +902,62 @@ func (m *rootModel) buildContextMenu(cmdKey string) {
 	m.menuItems = nil
 	m.menuCursor = 0
 
+	openBrowserItem := menuItem{"Open in Browser (o)", func() tea.Cmd {
+		if url := m.getSelectedURL(); url != "" {
+			_ = openURL(url)
+			m.showToast("Opened in browser", toastSuccess)
+		}
+		return nil
+	}}
+	refreshItem := menuItem{"Refresh (r)", func() tea.Cmd {
+		if cmd := m.sidebar.activeCommand(); cmd != nil {
+			m.content.loading = true
+			m.statusBar.loading = true
+			m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
+			return m.loadCommand(cmd, true)
+		}
+		return nil
+	}}
+
 	switch cmdKey {
 	case "pr":
 		m.menuItems = []menuItem{
-			{"Approve PR (A)", func() tea.Msg { return m.prAction("APPROVE", "Approve this PR?")(); return nil }},
-			{"Merge PR (m)", func() tea.Msg { return m.prAction("merge", "Merge this PR?")(); return nil }},
-			{"Approve & Merge (M)", func() tea.Msg { return m.prAction("approve+merge", "Approve and merge this PR?")(); return nil }},
-			{"Close PR (c)", func() tea.Msg { return m.prAction("close", "Close this PR?")(); return nil }},
-			{"Open in Browser (o)", func() tea.Msg {
-				if url := m.getSelectedURL(); url != "" {
-					_ = openURL(url)
-					m.toastMsg = "Opened in browser"
-					m.toastExpiry = time.Now().Add(3 * time.Second)
-				}
-				return nil
-			}},
-			{"Refresh (r)", func() tea.Msg {
-				if cmd := m.sidebar.activeCommand(); cmd != nil {
-					m.content.loading = true
-					m.statusBar.loading = true
-					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
-					m.loadCommand(cmd, true)()
-				}
-				return nil
-			}},
+			{"Approve PR (A)", func() tea.Cmd { return m.prAction("APPROVE", "Approve this PR?") }},
+			{"Merge PR (m)", func() tea.Cmd { return m.prAction("merge", "Merge this PR?") }},
+			{"Approve & Merge (M)", func() tea.Cmd { return m.prAction("approve+merge", "Approve and merge this PR?") }},
+			{"Close PR (c)", func() tea.Cmd { return m.prAction("close", "Close this PR?") }},
+			{"Diff Preview (d)", func() tea.Cmd { return m.loadPRDiff() }},
+			openBrowserItem,
+			refreshItem,
 		}
 	case "wf":
 		m.menuItems = []menuItem{
-			{"Rerun Workflow (R)", func() tea.Msg { return m.wfAction("rerun", "Rerun this workflow?")(); return nil }},
-			{"Cancel Workflow (X)", func() tea.Msg { return m.wfAction("cancel", "Cancel this workflow?")(); return nil }},
-			{"Open in Browser (o)", func() tea.Msg {
-				if url := m.getSelectedURL(); url != "" {
-					_ = openURL(url)
-					m.toastMsg = "Opened in browser"
-					m.toastExpiry = time.Now().Add(3 * time.Second)
-				}
-				return nil
-			}},
-			{"Refresh (r)", func() tea.Msg {
-				if cmd := m.sidebar.activeCommand(); cmd != nil {
-					m.content.loading = true
-					m.statusBar.loading = true
-					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
-					m.loadCommand(cmd, true)()
-				}
-				return nil
-			}},
+			{"Rerun Workflow (R)", func() tea.Cmd { return m.wfAction("rerun", "Rerun this workflow?") }},
+			{"Cancel Workflow (X)", func() tea.Cmd { return m.wfAction("cancel", "Cancel this workflow?") }},
+			openBrowserItem,
+			refreshItem,
+		}
+	case "issue":
+		m.menuItems = []menuItem{
+			{"Close Issue", func() tea.Cmd { return m.issueAction("close", "Close this issue?") }},
+			{"Reopen Issue", func() tea.Cmd { return m.issueAction("open", "Reopen this issue?") }},
+			openBrowserItem,
+			refreshItem,
+		}
+	case "branch":
+		m.menuItems = []menuItem{
+			{"Delete Branch", func() tea.Cmd { return m.branchAction("delete", "Delete this branch?") }},
+			openBrowserItem,
+			refreshItem,
+		}
+	case "tag":
+		m.menuItems = []menuItem{
+			{"Delete Tag", func() tea.Cmd { return m.tagAction("delete", "Delete this tag?") }},
+			openBrowserItem,
+			refreshItem,
 		}
 	default:
-		m.menuItems = []menuItem{
-			{"Open in Browser (o)", func() tea.Msg {
-				if url := m.getSelectedURL(); url != "" {
-					_ = openURL(url)
-					m.toastMsg = "Opened in browser"
-					m.toastExpiry = time.Now().Add(3 * time.Second)
-				}
-				return nil
-			}},
-			{"Refresh (r)", func() tea.Msg {
-				if cmd := m.sidebar.activeCommand(); cmd != nil {
-					m.content.loading = true
-					m.statusBar.loading = true
-					m.statusBar.loadingMsg = fmt.Sprintf("refreshing %s", cmd.name)
-					m.loadCommand(cmd, true)()
-				}
-				return nil
-			}},
-		}
+		m.menuItems = []menuItem{openBrowserItem, refreshItem}
 	}
 
 	m.showMenu = true
@@ -837,8 +988,7 @@ func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 		if cmd := m.sidebar.activeCommand(); cmd != nil && cmd.key == "wf" {
 			if m.watching {
 				m.watching = false
-				m.toastMsg = "Watch mode stopped"
-				m.toastExpiry = time.Now().Add(3 * time.Second)
+				m.showToast("Watch mode stopped", toastInfo)
 				m.applyFocus()
 				return nil
 			}
@@ -851,8 +1001,20 @@ func (m *rootModel) handleDetailKey(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, keys.Open):
 		if url := m.getSelectedURL(); url != "" {
 			_ = openURL(url)
-			m.toastMsg = "Opened in browser"
-			m.toastExpiry = time.Now().Add(3 * time.Second)
+			m.showToast("Opened in browser", toastInfo)
+		}
+	case key.Matches(msg, keys.Enter):
+		if url := m.getSelectedURL(); url != "" {
+			_ = openURL(url)
+			m.showToast("Opened in browser", toastInfo)
+		}
+	case key.Matches(msg, keys.Yank):
+		if url := m.getSelectedURL(); url != "" {
+			if err := ui.CopyToClipboard(url); err == nil {
+				m.showToast("URL copied to clipboard", toastSuccess)
+			} else {
+				m.showToast("Copy failed: "+err.Error(), toastWarning)
+			}
 		}
 	}
 	return nil
@@ -869,22 +1031,13 @@ func (m *rootModel) startWatch() tea.Cmd {
 	m.watchRunID = w.ID
 	m.watchRepoName = w.RepositoryName
 	m.watchInterval = 10 * time.Second
-	m.toastMsg = fmt.Sprintf("Watching workflow %d (every 10s)", w.ID)
-	m.toastExpiry = time.Now().Add(3 * time.Second)
+	m.showToast(fmt.Sprintf("Watching workflow %d (every 10s)", w.ID), toastInfo)
 	return tea.Tick(m.watchInterval, func(time.Time) tea.Msg { return watchTickMsg{} })
 }
 
+// openURL opens a URL in the system default browser (delegates to pkg/ui).
 func openURL(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Start()
+	return ui.OpenURL(url)
 }
 
 func (m *rootModel) getSelectedURL() string {
@@ -946,8 +1099,15 @@ func (m *rootModel) relayout() {
 
 	availH := m.height - 1 // 1 line for status bar
 
-	// Sidebar column
-	sbOuterW := sidebarWidth + widthOH
+	// Narrow mode: collapse to a single-column layout when terminal is very narrow
+	m.narrowMode = m.width < 100
+
+	// Sidebar column — use a narrower sidebar in narrow mode
+	effectiveSidebarW := sidebarWidth
+	if m.narrowMode {
+		effectiveSidebarW = 22
+	}
+	sbOuterW := effectiveSidebarW + widthOH
 	cmdBodyH := len(commands)
 	cmdOuterH := cmdBodyH + panelOH
 	repoOuterH := availH - cmdOuterH
@@ -961,13 +1121,22 @@ func (m *rootModel) relayout() {
 	mainW := m.width - sbOuterW
 	mainBodyH := availH - panelOH
 
-	if m.detail.visible {
+	// In narrow mode the detail panel floats as an overlay; content gets full main width
+	if m.detail.visible && !m.narrowMode {
 		detailOuterW := mainW * 2 / 5
 		contentOuterW := mainW - detailOuterW
 		m.detail.width = detailOuterW - widthOH
 		m.content.width = contentOuterW - widthOH
 	} else {
 		m.content.width = mainW - widthOH
+		// Keep a usable detail width for the overlay
+		if m.narrowMode {
+			overlayW := m.width - 8
+			if overlayW < 30 {
+				overlayW = 30
+			}
+			m.detail.width = overlayW - widthOH
+		}
 	}
 	if m.content.width < 10 {
 		m.content.width = 10
@@ -976,11 +1145,26 @@ func (m *rootModel) relayout() {
 		m.detail.width = 10
 	}
 	m.content.height = mainBodyH
-	m.detail.height = mainBodyH
+	m.detail.height = mainBodyH - 4 // slightly shorter for overlay padding
+	if m.detail.height < 5 {
+		m.detail.height = 5
+	}
+	if !m.narrowMode {
+		m.detail.height = mainBodyH
+	}
 	m.statusBar.width = m.width
 }
 
 // -- data loading --
+
+// cacheKeyFor returns a composite cache key that includes the active filter state
+// so that "pr:open" and "pr:merged" are stored separately.
+func (m *rootModel) cacheKeyFor(cmdKey string) string {
+	if f, ok := m.cmdFilters[cmdKey]; ok {
+		return cmdKey + ":" + f.value()
+	}
+	return cmdKey
+}
 
 func (m *rootModel) loadCommand(cmd *commandDef, forceRefresh bool) tea.Cmd {
 	repos := m.selectedRepos
@@ -993,8 +1177,9 @@ func (m *rootModel) loadCommand(cmd *commandDef, forceRefresh bool) tea.Cmd {
 		}
 	}
 
+	cacheKey := m.cacheKeyFor(cmd.key)
 	if !forceRefresh {
-		if cached, hit, stale := m.cache.get(cmd.key, repos); hit && !stale {
+		if cached, hit, stale := m.cache.get(cacheKey, repos); hit && !stale {
 			if dm, ok := cached.(*dataLoadedMsg); ok {
 				return func() tea.Msg { return *dm }
 			}
@@ -1018,6 +1203,8 @@ func (m *rootModel) loadCommand(cmd *commandDef, forceRefresh bool) tea.Cmd {
 		return m.loadTeams(ctx, org, cmd.columns)
 	case "pb":
 		return m.loadProtectedBranches(ctx, org, repos, cmd.columns)
+	case "audit":
+		return m.loadAuditLog(ctx, org, cmd.columns)
 	}
 	return nil
 }
@@ -1052,7 +1239,7 @@ func (m *rootModel) loadPRs(ctx *context.Context, org string, repos []string, co
 			colors = append(colors, []lipgloss.Color{"", "", "", "", statusColor(p.State), ""})
 		}
 		msg := &dataLoadedMsg{command: "pr", columns: cols, rows: rows, colors: colors, raw: valid}
-		m.cache.set("pr", repos, msg)
+		m.cache.set(m.cacheKeyFor("pr"), repos, msg)
 		return *msg
 	}
 }
@@ -1090,7 +1277,7 @@ func (m *rootModel) loadIssues(ctx *context.Context, org string, repos []string,
 			colors = append(colors, []lipgloss.Color{"", "", "", "", statusColor(is.State), "", "", ""})
 		}
 		msg := &dataLoadedMsg{command: "issue", columns: cols, rows: rows, colors: colors, raw: valid}
-		m.cache.set("issue", repos, msg)
+		m.cache.set(m.cacheKeyFor("issue"), repos, msg)
 		return *msg
 	}
 }
@@ -1113,7 +1300,7 @@ func (m *rootModel) loadBranches(ctx *context.Context, org string, repos []strin
 			})
 		}
 		msg := &dataLoadedMsg{command: "branch", columns: cols, rows: rows, raw: results}
-		m.cache.set("branch", repos, msg)
+		m.cache.set("branch", repos, msg) // branch has no filter, key is plain
 		return *msg
 	}
 }
@@ -1170,7 +1357,7 @@ func (m *rootModel) loadWorkflows(ctx *context.Context, org string, repos []stri
 			colors = append(colors, []lipgloss.Color{"", "", statusColor(w.Status), statusColor(conclusion), "", ""})
 		}
 		msg := &dataLoadedMsg{command: "wf", columns: cols, rows: rows, colors: colors, raw: valid}
-		m.cache.set("wf", repos, msg)
+		m.cache.set(m.cacheKeyFor("wf"), repos, msg)
 		return *msg
 	}
 }
@@ -1252,6 +1439,75 @@ func (m *rootModel) loadProtectedBranches(ctx *context.Context, org string, repo
 	}
 }
 
+func (m *rootModel) loadAuditLog(ctx *context.Context, org string, cols []string) tea.Cmd {
+	return func() tea.Msg {
+		resp := pkgaudit.ListAuditLog(ctx, pkgaudit.AuditListRequest{OrgName: org, Count: 100})
+		if resp.ErrorMessage != "" {
+			return errMsg{errors.New(resp.ErrorMessage)}
+		}
+		rows := make([][]string, 0, len(resp.Entries))
+		colors := make([][]lipgloss.Color, 0, len(resp.Entries))
+		for _, e := range resp.Entries {
+			ts := ""
+			if e.CreatedAt > 0 {
+				ts = pkgaudit.FormatTimestamp(e.CreatedAt)
+			}
+			repoName := e.Repo
+			if repoName == "" {
+				repoName = "-"
+			}
+			rows = append(rows, []string{ts, e.Actor, e.Action, repoName})
+			colors = append(colors, []lipgloss.Color{"", "", "", ""})
+		}
+		msg := &dataLoadedMsg{command: "audit", columns: cols, rows: rows, colors: colors, raw: resp.Entries}
+		m.cache.set("audit", nil, msg)
+		return *msg
+	}
+}
+
+func (m *rootModel) loadAuditDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.AuditLogEntry)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	e := results[rowIdx]
+	return func() tea.Msg {
+		ts := ""
+		if e.CreatedAt > 0 {
+			ts = pkgaudit.FormatTimestamp(e.CreatedAt)
+		}
+		fields := []detailField{
+			{"Action", e.Action, ""},
+			{"Actor", e.Actor, ""},
+			{"Time", ts, ""},
+		}
+		if e.Repo != "" {
+			fields = append(fields, detailField{"Repo", e.Repo, ""})
+		}
+		if e.User != "" && e.User != e.Actor {
+			fields = append(fields, detailField{"User", e.User, ""})
+		}
+		if e.ActorIP != "" {
+			fields = append(fields, detailField{"Actor IP", e.ActorIP, ""})
+		}
+		if e.OrgName != "" {
+			fields = append(fields, detailField{"Org", e.OrgName, ""})
+		}
+		if len(e.Data) > 0 {
+			fields = append(fields, detailField{"", "", ""})
+			dataKeys := make([]string, 0, len(e.Data))
+			for k := range e.Data {
+				dataKeys = append(dataKeys, k)
+			}
+			sort.Strings(dataKeys)
+			for _, k := range dataKeys {
+				fields = append(fields, detailField{k, fmt.Sprintf("%v", e.Data[k]), ""})
+			}
+		}
+		return detailLoadedMsg{title: e.Action, fields: fields}
+	}
+}
+
 func (m *rootModel) loadDetail() tea.Cmd {
 	cmd := m.sidebar.activeCommand()
 	if cmd == nil {
@@ -1271,6 +1527,18 @@ func (m *rootModel) loadDetail() tea.Cmd {
 		return m.loadPRDetail(rowIdx)
 	case "wf":
 		return m.loadWorkflowDetail(rowIdx)
+	case "branch":
+		return m.loadBranchDetail(rowIdx)
+	case "tag":
+		return m.loadTagDetail(rowIdx)
+	case "commit":
+		return m.loadCommitDetail(rowIdx)
+	case "team":
+		return m.loadTeamDetail(rowIdx)
+	case "pb":
+		return m.loadPBDetail(rowIdx)
+	case "audit":
+		return m.loadAuditDetail(rowIdx)
 	default:
 		return m.loadGenericDetail(cmd, rowIdx)
 	}
@@ -1474,6 +1742,191 @@ func (m *rootModel) loadWorkflowDetail(rowIdx int) tea.Cmd {
 	}
 }
 
+func (m *rootModel) loadBranchDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.BranchResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	b := results[rowIdx]
+	org := m.orgName
+	return func() tea.Msg {
+		protected := "no"
+		if b.Protected {
+			protected = "yes"
+		}
+		fields := []detailField{
+			{"Repository", b.RepositoryName, ""},
+			{"Branch", b.Name, ""},
+			{"SHA", b.Commit.SHA, ""},
+			{"Protected", protected, statusColor(protected)},
+			{"", "", ""},
+			{"URL", fmt.Sprintf("https://github.com/%s/%s/tree/%s", org, b.RepositoryName, b.Name), ""},
+		}
+		return detailLoadedMsg{title: b.Name, fields: fields}
+	}
+}
+
+func (m *rootModel) loadTagDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.TagResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	t := results[rowIdx]
+	org := m.orgName
+	return func() tea.Msg {
+		fields := []detailField{
+			{"Repository", t.RepositoryName, ""},
+			{"Tag", t.Name, ""},
+			{"SHA", t.Commit.SHA, ""},
+			{"", "", ""},
+			{"Release URL", fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", org, t.RepositoryName, t.Name), ""},
+			{"Zipball", t.ZipballURL, ""},
+			{"Tarball", t.TarballURL, ""},
+		}
+		return detailLoadedMsg{title: t.Name, fields: fields}
+	}
+}
+
+func (m *rootModel) loadCommitDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.CommitResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	c := results[rowIdx]
+	return func() tea.Msg {
+		authorName := c.Commit.Author.Name
+		if authorName == "" {
+			authorName = c.Author.Login
+		}
+		committerName := c.Commit.Committer.Name
+		if committerName == "" {
+			committerName = c.Committer.Login
+		}
+		msg := c.Commit.Message
+		if idx := strings.Index(msg, "\n"); idx > 0 {
+			msg = msg[:idx]
+		}
+		fields := []detailField{
+			{"Repository", c.RepositoryName, ""},
+			{"SHA", ui.ShortSHA(c.Sha), ""},
+			{"Author", authorName, ""},
+			{"Date", ui.RelativeTime(c.Commit.Author.Date), ""},
+			{"Committer", committerName, ""},
+			{"Message", truncateField(msg, 80), ""},
+			{"Changes", fmt.Sprintf("+%d -%d (total: %d)", c.Stats.Additions, c.Stats.Deletions, c.Stats.Total), ""},
+		}
+		if len(c.Files) > 0 {
+			addStyle := lipgloss.NewStyle().Foreground(ui.Green)
+			delStyle := lipgloss.NewStyle().Foreground(ui.Red)
+			dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Files", fmt.Sprintf("%d changed", len(c.Files)), ""})
+			for i, f := range c.Files {
+				if i >= 8 {
+					fields = append(fields, detailField{"", dimStyle.Render(fmt.Sprintf("... and %d more", len(c.Files)-8)), ""})
+					break
+				}
+				name := f.Filename
+				if len(name) > 45 {
+					name = "..." + name[len(name)-42:]
+				}
+				line := fmt.Sprintf("%s  %s %s",
+					name,
+					addStyle.Render(fmt.Sprintf("+%d", f.Additions)),
+					delStyle.Render(fmt.Sprintf("-%d", f.Deletions)),
+				)
+				fields = append(fields, detailField{"", line, ""})
+			}
+		}
+		if c.HtmlUrl != "" {
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"URL", c.HtmlUrl, ""})
+		}
+		return detailLoadedMsg{title: ui.ShortSHA(c.Sha) + " " + truncateField(msg, 40), fields: fields}
+	}
+}
+
+func (m *rootModel) loadTeamDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.OrgTeam)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	t := results[rowIdx]
+	return func() tea.Msg {
+		fields := []detailField{
+			{"Team", t.Name, ""},
+			{"Members", fmt.Sprintf("%d", t.TotalMembers), ""},
+			{"Repos", fmt.Sprintf("%d", t.RepositoriesCount), ""},
+		}
+		if t.Url != "" {
+			fields = append(fields, detailField{"URL", t.Url, ""})
+		}
+		if len(t.Members) > 0 {
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Member List", fmt.Sprintf("%d members", len(t.Members)), ""})
+			for i, mem := range t.Members {
+				if i >= 15 {
+					dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+					fields = append(fields, detailField{"", dimStyle.Render(fmt.Sprintf("... and %d more", len(t.Members)-15)), ""})
+					break
+				}
+				name := mem.Login
+				if mem.Name != "" {
+					name = mem.Name + " (" + mem.Login + ")"
+				}
+				fields = append(fields, detailField{"", name, ""})
+			}
+		}
+		return detailLoadedMsg{title: t.Name, fields: fields}
+	}
+}
+
+func (m *rootModel) loadPBDetail(rowIdx int) tea.Cmd {
+	results, ok := m.content.rawData.([]model.ProtectedBranch)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	pb := results[rowIdx]
+	org := m.orgName
+	return func() tea.Msg {
+		boolStr := func(b bool) string {
+			if b {
+				return "yes"
+			}
+			return "no"
+		}
+		rpr := pb.RequiredPullRequestReviews
+		rsc := pb.RequiredStatusChecks
+		fields := []detailField{
+			{"Repository", pb.RepositoryName, ""},
+			{"Branch", pb.Name, ""},
+			{"", "", ""},
+			{"Enforce Admins", boolStr(pb.EnforceAdmins), ""},
+			{"Lock Branch", boolStr(pb.LockBranch), ""},
+			{"Conv. Resolution", boolStr(pb.RequiredConversationResolution), ""},
+			{"", "", ""},
+			{"Required Approvals", fmt.Sprintf("%d", rpr.RequiredApprovingReviewCount), ""},
+			{"Dismiss Stale", boolStr(rpr.DismissStaleReviews), ""},
+			{"Code Owner Reviews", boolStr(rpr.RequireCodeOwnerReviews), ""},
+			{"Last Push Approval", boolStr(rpr.RequireLastPushApproval), ""},
+		}
+		if rsc.Strict || len(rsc.Contexts) > 0 {
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Status Checks Strict", boolStr(rsc.Strict), ""})
+			if len(rsc.Contexts) > 0 {
+				fields = append(fields, detailField{"Required Checks", strings.Join(rsc.Contexts, ", "), ""})
+			}
+		}
+		if len(pb.RepositoryRulesetNames) > 0 {
+			fields = append(fields, detailField{"", "", ""})
+			fields = append(fields, detailField{"Rulesets", strings.Join(pb.RepositoryRulesetNames, ", "), ""})
+		}
+		fields = append(fields, detailField{"", "", ""})
+		fields = append(fields, detailField{"Settings URL", fmt.Sprintf("https://github.com/%s/%s/settings/branches", org, pb.RepositoryName), ""})
+		return detailLoadedMsg{title: pb.RepositoryName + "/" + pb.Name, fields: fields}
+	}
+}
+
 // -- helpers --
 
 func truncateField(s string, maxLen int) string {
@@ -1562,7 +2015,7 @@ func (m rootModel) View() string {
 	if m.confirming {
 		statusLine = confirmStyle.Width(m.width).Render(m.confirmPrompt)
 	} else if m.toastMsg != "" && time.Now().Before(m.toastExpiry) {
-		statusLine = toastStyle.Width(m.width).Render(m.toastMsg)
+		statusLine = m.renderToast()
 	} else {
 		statusLine = m.statusBar.view()
 	}
@@ -1570,11 +2023,67 @@ func (m rootModel) View() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
 	view := lipgloss.JoinVertical(lipgloss.Left, body, statusLine)
 
+	if m.confirming {
+		view = m.renderConfirmModal(view)
+	}
+	if m.narrowMode && m.detail.visible {
+		view = m.renderNarrowDetailOverlay(view)
+	}
 	if m.showMenu {
 		view = m.renderMenuOverlay(view)
 	}
+	if m.showDiff {
+		view = m.renderDiffOverlay(view)
+	}
 
 	return view
+}
+
+func (m rootModel) renderToast() string {
+	var style lipgloss.Style
+	prefix := ""
+	switch m.toastLevel {
+	case toastSuccess:
+		style = lipgloss.NewStyle().Foreground(ui.Green).Bold(true).Padding(0, 1)
+		prefix = "✓ "
+	case toastWarning:
+		style = lipgloss.NewStyle().Foreground(ui.Yellow).Bold(true).Padding(0, 1)
+		prefix = "⚠ "
+	case toastError:
+		style = lipgloss.NewStyle().Foreground(ui.Red).Bold(true).Padding(0, 1)
+		prefix = "✗ "
+	default: // info
+		style = lipgloss.NewStyle().Foreground(ui.Cyan).Italic(true).Padding(0, 1)
+		prefix = "ℹ "
+	}
+	return style.Width(m.width).Render(prefix + m.toastMsg)
+}
+
+func (m rootModel) renderConfirmModal(base string) string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Yellow)
+	detailStyle := lipgloss.NewStyle().Foreground(ui.White)
+	hintStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(m.confirmTitle),
+		"",
+		detailStyle.Render(m.confirmDetail),
+		"",
+		hintStyle.Render("Press y to confirm, any other key to cancel"),
+	)
+
+	boxWidth := lipgloss.Width(inner) + 6
+	if boxWidth < 40 {
+		boxWidth = 40
+	}
+	box := panelFocusedStyle.
+		Width(boxWidth).
+		BorderStyle(lipgloss.ThickBorder()).
+		BorderForeground(ui.Yellow).
+		BorderTop(true).BorderBottom(true).BorderLeft(true).BorderRight(true).
+		Render(inner)
+
+	return m.overlayCenter(base, box)
 }
 
 func (m rootModel) renderMenuOverlay(base string) string {
@@ -1611,50 +2120,140 @@ func (m rootModel) renderMenuOverlay(base string) string {
 		BorderTop(true).BorderBottom(true).BorderLeft(true).BorderRight(true).
 		Render(menuContent)
 
-	// Center the menu overlay
-	baseLines := strings.Split(base, "\n")
-	menuBoxLines := strings.Split(menuBox, "\n")
+	return m.overlayCenter(base, menuBox)
+}
 
-	startRow := (len(baseLines) - len(menuBoxLines)) / 2
-	if startRow < 0 {
-		startRow = 0
+// overlayCenter places a pre-rendered box string centered over base using
+// lipgloss.Place, which is ANSI-aware and handles escape codes correctly.
+func (m rootModel) overlayCenter(base, box string) string {
+	return lipgloss.Place(m.width, m.height-1, lipgloss.Center, lipgloss.Center, box)
+}
+
+// -- diff overlay --
+
+// diffVisible returns the number of visible lines for the diff overlay.
+func (m rootModel) diffVisible() int {
+	v := m.height - 8
+	if v < 5 {
+		v = 5
 	}
+	return v
+}
 
-	menuWidth := lipgloss.Width(menuBoxLines[0])
-	startCol := (m.width - menuWidth) / 2
-	if startCol < 0 {
-		startCol = 0
+// handleDiffKey processes a key press while the diff overlay is open.
+func (m *rootModel) handleDiffKey(k string) {
+	visible := m.diffVisible()
+	maxScroll := len(m.diffLines) - visible
+	if maxScroll < 0 {
+		maxScroll = 0
 	}
-
-	// Overlay the menu
-	for i, menuLine := range menuBoxLines {
-		rowIdx := startRow + i
-		if rowIdx >= len(baseLines) {
-			break
+	switch k {
+	case "esc", "q":
+		m.showDiff = false
+		m.diffLines = nil
+	case "up", "k":
+		if m.diffScroll > 0 {
+			m.diffScroll--
 		}
-
-		baseLine := baseLines[rowIdx]
-		baseRunes := []rune(baseLine)
-		menuRunes := []rune(menuLine)
-
-		// Insert menu line into base line
-		if startCol < len(baseRunes) {
-			endCol := startCol + len(menuRunes)
-			if endCol > len(baseRunes) {
-				baseRunes = append(baseRunes[:startCol], menuRunes...)
-			} else {
-				copy(baseRunes[startCol:], menuRunes)
-			}
-			baseLines[rowIdx] = string(baseRunes)
+	case "down", "j":
+		if m.diffScroll < maxScroll {
+			m.diffScroll++
 		}
+	case "ctrl+u", "pgup":
+		m.diffScroll -= visible
+		if m.diffScroll < 0 {
+			m.diffScroll = 0
+		}
+	case "ctrl+d", "pgdown":
+		m.diffScroll += visible
+		if m.diffScroll > maxScroll {
+			m.diffScroll = maxScroll
+		}
+	case "g":
+		m.diffScroll = 0
+	case "G":
+		m.diffScroll = maxScroll
+	}
+}
+
+func (m rootModel) renderDiffOverlay(base string) string {
+	if len(m.diffLines) == 0 {
+		return base
+	}
+	visible := m.diffVisible()
+	end := m.diffScroll + visible
+	if end > len(m.diffLines) {
+		end = len(m.diffLines)
 	}
 
-	return strings.Join(baseLines, "\n")
+	addStyle := lipgloss.NewStyle().Foreground(ui.Green)
+	delStyle := lipgloss.NewStyle().Foreground(ui.Red)
+	dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+
+	var lines []string
+	for _, l := range m.diffLines[m.diffScroll:end] {
+		switch {
+		case strings.HasPrefix(l, "+"):
+			lines = append(lines, addStyle.Render(l))
+		case strings.HasPrefix(l, "-"):
+			lines = append(lines, delStyle.Render(l))
+		case strings.HasPrefix(l, "@@"):
+			lines = append(lines, dimStyle.Render(l))
+		default:
+			lines = append(lines, l)
+		}
+	}
+	if len(m.diffLines) > visible {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("  ─ %d-%d of %d lines  ─", m.diffScroll+1, end, len(m.diffLines))))
+	}
+
+	overlayWidth := m.width - 8
+	if overlayWidth < 60 {
+		overlayWidth = 60
+	}
+	box := panelFocusedStyle.
+		Width(overlayWidth).
+		BorderTop(true).BorderBottom(true).BorderLeft(true).BorderRight(true).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			panelTitleFocusedStyle.Render(" Diff: "+truncateField(m.diffTitle, overlayWidth-10)+" "),
+			strings.Join(lines, "\n"),
+			"",
+			dimStyle.Render("  j/k: scroll  Esc: close"),
+		))
+
+	return m.overlayCenter(base, box)
+}
+
+// loadPRDiff fetches the diff/patch for the selected PR and sets showDiff.
+func (m *rootModel) loadPRDiff() tea.Cmd {
+	rowIdx := m.content.selectedRowIndex()
+	results, ok := m.content.rawData.([]model.PullRequestResponse)
+	if !ok || rowIdx < 0 || rowIdx >= len(results) {
+		return nil
+	}
+	p := results[rowIdx]
+	ctx := m.ctx
+	org := m.orgName
+
+	m.statusBar.loading = true
+	m.statusBar.loadingMsg = "loading diff"
+	return func() tea.Msg {
+		filesResp := pr.GetPullRequestFiles(ctx, org, p.RepositoryName(), p.PRNumber)
+		return diffLoadedMsg{
+			title: fmt.Sprintf("PR #%d · %s", p.PRNumber, p.TitleName),
+			lines: pr.ParsePatchLines(filesResp),
+		}
+	}
 }
 
 func (m rootModel) renderSidebar() string {
 	panelOH := 3
 	availH := m.height - 1
+
+	effectiveSidebarW := sidebarWidth
+	if m.narrowMode {
+		effectiveSidebarW = 22
+	}
 
 	cmdBodyH := len(commands)
 	cmdOuterH := cmdBodyH + panelOH
@@ -1666,14 +2265,14 @@ func (m rootModel) renderSidebar() string {
 	repoPanel := renderBorderedPanel(
 		m.repoSelector.title(),
 		m.repoSelector.view(),
-		sidebarWidth, repoBodyH,
+		effectiveSidebarW, repoBodyH,
 		m.focus == focusRepoSelector,
 	)
 
 	cmdPanel := renderBorderedPanel(
 		"Commands",
 		m.sidebar.view(),
-		sidebarWidth, cmdBodyH,
+		effectiveSidebarW, cmdBodyH,
 		m.focus == focusCommandMenu,
 	)
 
@@ -1691,11 +2290,21 @@ func (m rootModel) renderMain() string {
 			total := len(m.content.rows)
 			filtered := len(m.content.filteredRows())
 			if total > 0 {
-				if m.content.filter != "" {
+				if m.content.filter != "" && !m.content.filtering {
+					contentTitle += fmt.Sprintf(" [/%s]", m.content.filter)
+					contentTitle += fmt.Sprintf(" (%d/%d)", filtered, total)
+				} else if m.content.filter != "" {
 					contentTitle += fmt.Sprintf(" (%d/%d)", filtered, total)
 				} else {
 					contentTitle += fmt.Sprintf(" (%d)", total)
 				}
+			}
+			if m.content.sortColumn >= 0 && m.content.sortColumn < len(cmd.columns) {
+				arrow := "▲"
+				if !m.content.sortAscending {
+					arrow = "▼"
+				}
+				contentTitle += fmt.Sprintf(" %s%s", arrow, cmd.columns[m.content.sortColumn])
 			}
 		}
 	}
@@ -1707,7 +2316,7 @@ func (m rootModel) renderMain() string {
 		m.focus == focusContent,
 	)
 
-	if m.detail.visible {
+	if m.detail.visible && !m.narrowMode {
 		detailTitle := m.detail.title
 		if detailTitle == "" {
 			detailTitle = "Detail"
@@ -1722,6 +2331,20 @@ func (m rootModel) renderMain() string {
 	}
 
 	return contentPanel
+}
+
+func (m rootModel) renderNarrowDetailOverlay(base string) string {
+	detailTitle := m.detail.title
+	if detailTitle == "" {
+		detailTitle = "Detail"
+	}
+	detailPanel := renderBorderedPanel(
+		detailTitle,
+		m.detail.view(),
+		m.detail.width, m.detail.height,
+		true,
+	)
+	return m.overlayCenter(base, detailPanel)
 }
 
 // -- help --
