@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package health
 
 import (

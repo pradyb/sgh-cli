@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package postrelease
 
 import (
@@ -12,61 +15,85 @@ import (
 )
 
 var (
-	title        string
-	body         string
-	baseRef      string
-	headRef      string
+	ref          string
+	branchName   string
+	tagName      string
+	message      string
 	repoNames    []string
 	excludeRepos []string
-	createTag    bool
-	tagName      string
 )
 
 func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 	postReleaseCmd := &cobra.Command{
 		Use:   "post-release",
-		Short: "Perform Post release activities like merging to main/develop and tagging",
-		Long:  `Perform Post release activities like merging to main/develop and tagging`,
+		Short: "Create a hotfix branch and/or release tag across repositories",
+		Long: heredoc.Doc(`
+			Automate post-release activities across multiple repositories in an organization.
+
+			Creates a hotfix branch and/or a release tag from a given source branch.
+			At least one of --branch or --tag must be provided.
+
+			Note: --ref must be an existing branch name (not a tag or SHA).
+		`),
 		Example: heredoc.Doc(`
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag --title "Release 1.0"
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" -r sample-repo1 -r sample-repo2
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag -r sample-repo1 -r sample-repo2 
-			$ sgh post-release --org sample-org --base "main" --head "Release-1.0" --create-tag -r sample-repo1 -r sample-repo2 -e sample-repo1
+			# Create a hotfix branch and tag from main
+			$ sgh post-release --org my-org --ref main --branch hotfix/1.0.1 --tag v1.0.1 --message "Hotfix 1.0.1"
+
+			# Create only a hotfix branch from a release branch
+			$ sgh post-release --org my-org --ref release/1.0 --branch hotfix/1.0.1
+
+			# Create only a release tag on main
+			$ sgh post-release --org my-org --ref main --tag v2.0.0 --message "Release 2.0.0"
+
+			# Scope to specific repositories
+			$ sgh post-release --org my-org --ref main --branch hotfix/1.0.1 --tag v1.0.1 -r repo1 -r repo2
+
+			# Exclude specific repositories
+			$ sgh post-release --org my-org --ref main --tag v1.0.1 -e legacy-repo
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
 				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepos)
 				details := map[string]string{
-					"Base Branch": baseRef, "Head Branch": headRef, "Title": title,
+					"Source Ref": ref,
 				}
-				if createTag {
-					details["Create Tag"] = tagName
+				if branchName != "" {
+					details["Hotfix Branch"] = branchName
+				}
+				if tagName != "" {
+					details["Tag"] = tagName
+					details["Message"] = message
 				}
 				ui.PrintDryRunActions("Post Release", orgName, repos, details)
 				return
 			}
-			postReleaseResponses := postrelease.ProcessPostRelease(ctx, postrelease.PostReleaseRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepos: excludeRepos, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body, CreateTag: createTag, TagName: tagName})
-			ui.PrintPostReleaseResponses(postReleaseResponses)
+
+			responses := postrelease.ProcessPostRelease(ctx, postrelease.PostReleaseRequest{
+				OrgName:      orgName,
+				RepoNames:    repoNames,
+				ExcludeRepos: excludeRepos,
+				Ref:          ref,
+				BranchName:   branchName,
+				TagName:      tagName,
+				Message:      message,
+			})
+			ui.PrintPostReleaseResponses(responses)
 		},
 	}
 
-	postReleaseCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
-	postReleaseCmd.Flags().StringArrayVarP(&excludeRepos, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude from post release activities")
-	postReleaseCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
-	postReleaseCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
-	postReleaseCmd.Flags().StringVarP(&title, "title", "t", "", "title for the pull request")
-	postReleaseCmd.Flags().StringVarP(&body, "body", "b", "", "body for the pull request")
-	postReleaseCmd.Flags().BoolVarP(&createTag, "create-tag", "c", false, "create tag for the release")
-	postReleaseCmd.Flags().StringVarP(&tagName, "tag-name", "T", "", "tag name for the release")
+	postReleaseCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
+	postReleaseCmd.Flags().StringArrayVarP(&excludeRepos, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	postReleaseCmd.Flags().StringVarP(&ref, "ref", "R", "", "source `branch` to create the hotfix branch and/or tag from")
+	postReleaseCmd.Flags().StringVarP(&branchName, "branch", "b", "", "name of the hotfix `branch` to create")
+	postReleaseCmd.Flags().StringVarP(&tagName, "tag", "T", "", "name of the release `tag` to create")
+	postReleaseCmd.Flags().StringVarP(&message, "message", "m", "", "tag annotation message (defaults to tag name if omitted)")
 
-	postReleaseCmd.MarkPersistentFlagRequired("org")
-	postReleaseCmd.MarkFlagRequired("base")
-	postReleaseCmd.MarkFlagRequired("head")
-	postReleaseCmd.MarkFlagRequired("title")
-	postReleaseCmd.MarkFlagsRequiredTogether("create-tag", "tag-name")
+	postReleaseCmd.MarkFlagRequired("ref")
+	postReleaseCmd.MarkFlagsOneRequired("branch", "tag")
 
 	return postReleaseCmd
 }

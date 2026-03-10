@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package team
 
 import (
@@ -81,7 +84,6 @@ By default, it will list 50 members in each team.`,
 	listCmd.Flags().StringVarP(&teamName, "team", "t", "", "team name")
 	listCmd.Flags().IntVarP(&noOfMembers, "members", "n", 50, "number of members to list in each team")
 	listCmd.Flags().BoolVarP(&allMembers, "all-members", "a", false, "list all members in the team")
-	listCmd.MarkPersistentFlagRequired("org")
 
 	return listCmd
 }

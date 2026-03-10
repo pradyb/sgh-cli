@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package client
 
 import (
@@ -158,7 +161,12 @@ func (c *HttpClient) prepareRequest(req *http.Request) {
 
 func (c *HttpClient) logRequestIfVerbose(req *http.Request) {
 	if c.Verbose {
-		reqDump, err := httputil.DumpRequestOut(req, true)
+		// Clone the request to redact the Authorization header before logging
+		clone := req.Clone(req.Context())
+		if clone.Header.Get("Authorization") != "" {
+			clone.Header.Set("Authorization", "token [REDACTED]")
+		}
+		reqDump, err := httputil.DumpRequestOut(clone, true)
 		if err != nil {
 			logger.Glog.Error().Err(err).Msg("Error in print the request")
 		}

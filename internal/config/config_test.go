@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package config
 
 import (
@@ -6,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/prady-lab/sgh-cli/pkg/validation"
 )
 
 // Test constants to avoid duplication
@@ -1328,7 +1333,7 @@ func TestIsValidOrgName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isValidOrgName(tt.orgName)
+			result := validation.IsValidOrgName(tt.orgName)
 			if result != tt.expected {
 				t.Errorf("Expected %v for org name '%s', got %v", tt.expected, tt.orgName, result)
 			}

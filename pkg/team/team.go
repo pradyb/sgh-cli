@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 // Package team provides functions for interacting with GitHub teams and their members.
 // It supports listing teams, retrieving team members, and related operations for organizations.
 package team

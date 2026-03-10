@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package tui
 
 import (
@@ -39,15 +42,17 @@ const (
 
 // -- messages --
 
-type reposLoadedMsg struct{ repos []string }
-type repoSelectionChangedMsg struct{ repos []string }
-type dataLoadedMsg struct {
-	command string
-	columns []string
-	rows    [][]string
-	colors  [][]lipgloss.Color
-	raw     any
-}
+type (
+	reposLoadedMsg          struct{ repos []string }
+	repoSelectionChangedMsg struct{ repos []string }
+	dataLoadedMsg           struct {
+		command string
+		columns []string
+		rows    [][]string
+		colors  [][]lipgloss.Color
+		raw     any
+	}
+)
 type detailLoadedMsg struct {
 	title         string
 	fields        []detailField
@@ -60,12 +65,14 @@ type actionResultMsg struct {
 	message string
 	command string
 }
-type watchTickMsg struct{}
-type errMsg struct{ err error }
-type diffLoadedMsg struct {
-	title string
-	lines []string
-}
+type (
+	watchTickMsg  struct{}
+	errMsg        struct{ err error }
+	diffLoadedMsg struct {
+		title string
+		lines []string
+	}
+)
 
 // -- root model --
 
@@ -80,19 +87,19 @@ const (
 )
 
 type rootModel struct {
-	repoSelector   repoSelectorModel
-	sidebar        sidebarModel
-	content        contentModel
-	detail         detailModel
-	statusBar      statusBarModel
-	cache          *dataCache
-	focus          panelFocus
-	ctx            *context.Context
-	orgName        string
-	selectedRepos  []string
-	width          int
-	height         int
-	ready          bool
+	repoSelector  repoSelectorModel
+	sidebar       sidebarModel
+	content       contentModel
+	detail        detailModel
+	statusBar     statusBarModel
+	cache         *dataCache
+	focus         panelFocus
+	ctx           *context.Context
+	orgName       string
+	selectedRepos []string
+	width         int
+	height        int
+	ready         bool
 	// confirmation dialog
 	confirming    bool
 	confirmPrompt string // short one-liner shown in status bar while confirming
@@ -117,9 +124,9 @@ type rootModel struct {
 	menuItems  []menuItem
 	menuCursor int
 	// diff overlay
-	showDiff  bool
-	diffLines []string
-	diffTitle string
+	showDiff   bool
+	diffLines  []string
+	diffTitle  string
 	diffScroll int
 	// narrow-mode flag (set by relayout)
 	narrowMode bool
@@ -347,8 +354,8 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.menuCursor = 0
 					if action != nil {
 						if cmd := action(); cmd != nil {
-						cmds = append(cmds, cmd)
-					}
+							cmds = append(cmds, cmd)
+						}
 					}
 				}
 			case "esc", "m":

@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package config
 
 import (
@@ -13,16 +16,17 @@ import (
 
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/pkg/validation"
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
 const DefaultFilename = "sgh.json"
 
 type Config struct {
-	NoOfWorkers      int                        `json:"no_of_workers,omitempty"`
-	Organizations    []Organization             `json:"organizations"`
-	orgData          map[string]Organization    `json:"-"`
-	compiledPatterns map[string]*regexp.Regexp   `json:"-"`
+	NoOfWorkers      int                       `json:"no_of_workers,omitempty"`
+	Organizations    []Organization            `json:"organizations"`
+	orgData          map[string]Organization   `json:"-"`
+	compiledPatterns map[string]*regexp.Regexp `json:"-"`
 }
 
 type Organization struct {
@@ -44,11 +48,17 @@ type Tagger struct {
 	Email string `json:"email,omitempty"`
 }
 
+type StatusCheck struct {
+	Context string `json:"context"`
+	AppID   int    `json:"app_id,omitempty"`
+}
+
 type ProtectedBranch struct {
-	IgnoreBuildStatusCheckRepos []string `json:"ignore_build_status_check_repos,omitempty"`
-	BypassPullRequestUsers      []string `json:"bypass_pull_request_users,omitempty"`
-	AllowedRestrictionsUsers    []string `json:"allowed_restrictions_users,omitempty"`
-	ApprovingReviewCount        int      `json:"approving_review_count,omitempty"`
+	IgnoreBuildStatusCheckRepos []string      `json:"ignore_build_status_check_repos,omitempty"`
+	BypassPullRequestUsers      []string      `json:"bypass_pull_request_users,omitempty"`
+	AllowedRestrictionsUsers    []string      `json:"allowed_restrictions_users,omitempty"`
+	ApprovingReviewCount        int           `json:"approving_review_count,omitempty"`
+	StatusChecks                []StatusCheck `json:"status_checks,omitempty"`
 }
 
 func Init() (*Config, error) {
@@ -416,7 +426,7 @@ func (config *Config) Save() error {
 		return err
 	}
 
-	err = os.WriteFile(configFile(), contents, 0o644)
+	err = os.WriteFile(configFile(), contents, 0o600)
 	if err != nil {
 		return err
 	}
@@ -481,7 +491,7 @@ func (config *Config) validate() error {
 		orgNames[lowerName] = true
 
 		// Enhanced organization name validation
-		if !isValidOrgName(org.Name) {
+		if !validation.IsValidOrgName(org.Name) {
 			return fmt.Errorf("invalid organization name '%s': must contain only alphanumeric characters, hyphens, and underscores", org.Name)
 		}
 
@@ -584,16 +594,6 @@ func isValidGitHubUsername(username string) bool {
 	}
 
 	return true
-}
-
-// isValidOrgName validates GitHub organization name format
-func isValidOrgName(org string) bool {
-	if org == "" || len(org) > 39 {
-		return false
-	}
-	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`
-	matched, _ := regexp.MatchString(pattern, org)
-	return matched
 }
 
 // isValidEmail validates email format

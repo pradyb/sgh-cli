@@ -1,6 +1,10 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package clone
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"slices"
@@ -36,16 +40,22 @@ func CloneRepositories(ctx *context.Context, orgName string, repos []string, bra
 		repoNames = append(repoNames, actualRepoNames...)
 	}
 
-	if len(repoNames) != 0 {
-		for _, repo := range repositories {
-			if slices.Contains(repoNames, repo.Name) {
-				if err := executeCloneCmd(repo, branch); err != nil {
-					logger.Glog.Error().Err(err).Msgf("Error in cloning the repository %s", repo.Name)
-				}
+	if len(repoNames) == 0 {
+		logger.Flog.Warn().Msgf("No repositories selected for cloning")
+		return nil
+	}
+
+	var errs []string
+	for _, repo := range repositories {
+		if slices.Contains(repoNames, repo.Name) {
+			if err := executeCloneCmd(repo, branch); err != nil {
+				logger.Glog.Error().Err(err).Msgf("Error in cloning the repository %s", repo.Name)
+				errs = append(errs, fmt.Sprintf("%s: %v", repo.Name, err))
 			}
 		}
-	} else {
-		logger.Flog.Warn().Msgf("No repositories selected for cloning")
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to clone %d repository(s): %s", len(errs), strings.Join(errs, "; "))
 	}
 	return nil
 }
@@ -56,7 +66,7 @@ func executeCloneCmd(repo model.Repository, branch string) error {
 	if branch == "" {
 		cloneCmd = exec.Command("git", "clone", repo.SSHUrl)
 	} else {
-		cloneCmd = exec.Command("git", "clone", "-b ", branch, repo.SSHUrl)
+		cloneCmd = exec.Command("git", "clone", "-b", branch, repo.SSHUrl)
 	}
 	cloneCmd.Stdout = os.Stdout
 	if err := cloneCmd.Run(); err != nil {

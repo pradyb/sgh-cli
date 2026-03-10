@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package workflow
 
 import (
@@ -151,7 +154,6 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 	listCmd.Flags().IntVarP(&lastCount, "last", "l", 10, "number of workflow runs to fetch per repository")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, status, created")
 	listCmd.MarkFlagsMutuallyExclusive("status", "running", "queued", "failed")
-	listCmd.MarkPersistentFlagRequired("org")
 
 	return listCmd
 }
@@ -184,6 +186,10 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			if len(resolvedNames) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
+				return
+			}
 			resolvedRepo := resolvedNames[0]
 
 			effectiveRunID := runID
@@ -218,7 +224,6 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 	viewCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID (defaults to latest in-progress or most recent run)")
 	viewCmd.Flags().BoolVarP(&watch, "watch", "W", false, "poll for updates until the workflow run completes")
 	viewCmd.Flags().IntVar(&watchInterval, "interval", 10, "polling interval in seconds when using --watch")
-	viewCmd.MarkPersistentFlagRequired("org")
 	viewCmd.MarkFlagRequired("repository")
 
 	return viewCmd
@@ -226,8 +231,10 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 
 // --- Bubble Tea watch model ---
 
-type watchTickMsg struct{}
-type watchDataMsg struct{ detail model.WorkflowRunDetail }
+type (
+	watchTickMsg struct{}
+	watchDataMsg struct{ detail model.WorkflowRunDetail }
+)
 
 type watchModel struct {
 	ctx      *context.Context
@@ -318,6 +325,10 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			if len(resolvedNames) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
+				return
+			}
 			resolvedRepo := resolvedNames[0]
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
@@ -342,7 +353,6 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 
 	rerunCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 	rerunCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID")
-	rerunCmd.MarkPersistentFlagRequired("org")
 	rerunCmd.MarkFlagRequired("repository")
 	rerunCmd.MarkFlagRequired("run")
 
@@ -361,6 +371,10 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
+			if len(resolvedNames) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
+				return
+			}
 			resolvedRepo := resolvedNames[0]
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
@@ -385,7 +399,6 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 
 	cancelCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 	cancelCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID")
-	cancelCmd.MarkPersistentFlagRequired("org")
 	cancelCmd.MarkFlagRequired("repository")
 	cancelCmd.MarkFlagRequired("run")
 

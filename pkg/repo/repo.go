@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 // Package repo provides functions for interacting with GitHub repositories, including listing,
 // filtering, and retrieving repository details for organizations.
 package repo

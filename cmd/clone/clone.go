@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package clone
 
 import (
@@ -37,6 +40,5 @@ func NewCloneCommand(ctx *context.Context) *cobra.Command {
 	cloneCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
 	cloneCmd.Flags().StringVarP(&branch, "branch", "b", "", "The `branch` for which you want to clone the repositories")
 
-	cloneCmd.MarkPersistentFlagRequired("org")
 	return cloneCmd
 }

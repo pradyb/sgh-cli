@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package branch
 
 import (
@@ -77,7 +80,6 @@ Supports filtering by branch name using partial match or regex pattern.`,
 	listCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter branches by `name` (partial match or regex)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, protected")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd
 }
 
@@ -148,7 +150,6 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
 	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch creation")
 
-	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("new")
 	createCmd.MarkFlagsOneRequired("ref", "commit")
 	createCmd.MarkFlagsMutuallyExclusive("ref", "commit")
@@ -196,7 +197,6 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the branch. If not provided, it will delete for all the repositories in the organization")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch deletion")
 
-	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("branch")
 	return deleteCmd
 }

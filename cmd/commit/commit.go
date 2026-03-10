@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package commit
 
 import (
@@ -81,7 +84,6 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")
 	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "i", false, "include merge commits")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	listCmd.MarkFlagRequired("branch")
 	return listCmd
 }

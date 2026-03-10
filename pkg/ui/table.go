@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package ui
 
 import (
@@ -768,43 +771,54 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 	return rows, failedRows
 }
 
-func PrintPostReleaseResponses(prResponses []model.PostReleaseResponse) {
-	if len(prResponses) == 0 {
-		PrintNoDataMessage("No Post Release activity performed.",
-			"Hint: verify that the source and target branches exist.")
+func PrintPostReleaseResponses(responses []model.PostReleaseResponse) {
+	if len(responses) == 0 {
+		PrintNoDataMessage("No post-release activity performed.",
+			"Hint: verify that --ref points to an existing branch and that at least one of --branch or --tag is set.")
 		return
 	}
+
 	errorMessageMap := map[string][]string{}
-	rows := make([][]string, 0, len(prResponses)+1)
-	for _, pr := range prResponses {
-		if pr.ErrorMessage != "" {
-			errorMessageMap[pr.ErrorMessage] = append(errorMessageMap[pr.ErrorMessage], pr.RepositoryName)
-		} else {
-			rows = append(rows, []string{
-				strconv.Itoa(pr.PRNumber),
-				pr.RepositoryName,
-				fmt.Sprintf(HyperLinkFormat, pr.PRHtmlUrl, "PR"),
-				fmt.Sprintf(HyperLinkFormat, pr.TagHtmlUrl, "Tag"),
-				pr.TagCommitSHA,
-			})
+	rows := make([][]string, 0, len(responses)+1)
+
+	for _, r := range responses {
+		if r.ErrorMessage != "" {
+			errorMessageMap[r.ErrorMessage] = append(errorMessageMap[r.ErrorMessage], r.RepositoryName)
+			continue
 		}
+
+		tagCell := "—"
+		if r.TagURL != "" {
+			tagCell = fmt.Sprintf(HyperLinkFormat, r.TagURL, r.TagName)
+		} else if r.TagName != "" {
+			tagCell = r.TagName
+		}
+
+		shaCell := r.BranchSHA
+		if shaCell == "" {
+			shaCell = r.TagSHA
+		}
+
+		rows = append(rows, []string{
+			r.RepositoryName,
+			r.BranchName,
+			tagCell,
+			shaCell,
+		})
 	}
 
 	if len(rows) > 0 {
-
-		rows = append(rows, []string{"", "Total", strconv.Itoa(len(rows))})
+		rows = append(rows, []string{"Total", strconv.Itoa(len(rows)), "", ""})
 		fmt.Println()
 		t := table.New().
 			Border(lipgloss.RoundedBorder()).
 			BorderStyle(BorderStyle).
 			BorderRow(true).
 			StyleFunc(func(row, col int) lipgloss.Style {
-				style := defaultTableStyle(row, col, len(prResponses), 1, true)
-				return style
+				return defaultTableStyle(row, col, len(rows), 0, true)
 			}).
-			Headers("PR #", repositoryNameDisplayName, "PR URL", "Tag URL", "Tag CommitSha").
+			Headers(repositoryNameDisplayName, "Branch", "Tag", "SHA").
 			Rows(rows...)
-
 		fmt.Println(t)
 	}
 

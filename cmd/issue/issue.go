@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package issue
 
 import (
@@ -88,7 +91,6 @@ By default fetches open issues.`,
 	listCmd.Flags().IntVarP(&lastCount, "last", "l", 30, "the `number` of issues to fetch per repo")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, title, author, state, created")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd
 }
 
@@ -97,9 +99,9 @@ func ViewCommand(ctx *context.Context) *cobra.Command {
 	var issueNumber int
 
 	viewCmd := &cobra.Command{
-		Use:   "view",
-		Short: "View issue details",
-		Long:  `View detailed information about a specific issue including body and comments.`,
+		Use:     "view",
+		Short:   "View issue details",
+		Long:    `View detailed information about a specific issue including body and comments.`,
 		Aliases: []string{"detail", "info"},
 		Example: heredoc.Doc(`
 			$ sgh issue view --org sample-org -r sample-repo --issue 42
@@ -130,7 +132,6 @@ func ViewCommand(ctx *context.Context) *cobra.Command {
 	viewCmd.Flags().StringVarP(&viewRepo, "repository", "r", "", "repository `name`")
 	viewCmd.Flags().IntVarP(&issueNumber, "issue", "i", 0, "issue `number`")
 
-	viewCmd.MarkPersistentFlagRequired("org")
 	viewCmd.MarkFlagRequired("repository")
 	viewCmd.MarkFlagRequired("issue")
 

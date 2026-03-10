@@ -1,9 +1,11 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package cmd
 
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -28,6 +30,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/prady-lab/sgh-cli/pkg/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -221,28 +224,11 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	return rootCmd
 }
 
-// isValidOrgName validates GitHub organization name format
-// GitHub org names can contain alphanumeric characters, hyphens, and underscores
-// They cannot start or end with hyphens, and cannot be empty
-func isValidOrgName(org string) bool {
-	if org == "" {
-		return false
-	}
-	// GitHub org name pattern: alphanumeric, hyphens, underscores, but cannot start/end with hyphen
-	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`
-	matched, err := regexp.MatchString(pattern, org)
-	if err != nil {
-		logger.Glog.Error().Err(err).Msg("Failed to validate organization name")
-		return false
-	}
-	return matched && len(org) <= 39 // GitHub has a 39 character limit for org names
-}
-
 func validateOrganizationName(org string) error {
 	if org == "" {
 		return fmt.Errorf("organization name cannot be empty")
 	}
-	if !isValidOrgName(org) {
+	if !validation.IsValidOrgName(org) {
 		return fmt.Errorf("organization name must contain only alphanumeric characters, hyphens, and underscores")
 	}
 	return nil

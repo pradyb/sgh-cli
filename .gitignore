@@ -1,4 +1,6 @@
 /bin
+/dist
+/build
 
 # VS Code
 .vscode
@@ -12,5 +14,25 @@
 # vim
 *.swp
 
+# Binaries
 *.exe
+*.dll
 sgh
+sgh-cli
+
+# Claude AI config
+.claude/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Go vendor directory
+vendor/
+
+# Test cache
+/tmp/

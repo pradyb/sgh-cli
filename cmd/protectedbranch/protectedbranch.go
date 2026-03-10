@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package protectedbranch
 
 import (
@@ -54,7 +57,6 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from listing the protected branches")
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to list the protected branches")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	listCmd.MarkFlagRequired("branch")
 	return listCmd
 }
@@ -125,7 +127,6 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringArrayVar(&addPushUsers, "add-push-user", []string{}, "specify user(s) allowed to push to matching branches")
 	updateCmd.Flags().StringArrayVar(&removePushUsers, "remove-push-user", []string{}, "remove user(s) allowed to push to matching branches")
 
-	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("branch")
 	return updateCmd
 }
@@ -157,7 +158,6 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the protected branches. If not provided, it will delete for all the repositories in the organization")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from deleting the protected branches")
 
-	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("branch")
 	return deleteCmd
 }

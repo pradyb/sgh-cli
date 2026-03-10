@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package tui
 
 import (
@@ -26,7 +29,7 @@ type contentModel struct {
 	noRepos            bool
 	filterHistory      []string
 	filterHistoryIndex int
-	sortColumn         int  // -1 = unsorted
+	sortColumn         int // -1 = unsorted
 	sortAscending      bool
 }
 

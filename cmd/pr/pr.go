@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package pr
 
 import (
@@ -34,12 +37,12 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 }
 
 var (
-	title           string
-	body            string
-	baseRef         string
-	headRef         string
-	repoNames       []string
-	exclueRepoNames []string
+	title            string
+	body             string
+	baseRef          string
+	headRef          string
+	repoNames        []string
+	excludeRepoNames []string
 )
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
@@ -57,13 +60,13 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
-				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, exclueRepoNames)
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
 				ui.PrintDryRunActions("Create Pull Request", orgName, repos, map[string]string{
 					"Title": title, "Base": baseRef, "Head": headRef,
 				})
 				return
 			}
-			responses := pr.CreateNewPullRequest(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: exclueRepoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body})
+			responses := pr.CreateNewPullRequest(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: excludeRepoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body})
 			logger.Flog.Info().Msg("Pull request created successfully")
 			ui.PrintPullRequestResponses(responses, "", ctx.Compact)
 		},
@@ -74,11 +77,10 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	createCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
-	createCmd.Flags().StringArrayVarP(&exclueRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 
-	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("title")
-	createCmd.MarkFlagRequired("branch")
+	createCmd.MarkFlagRequired("base")
 	createCmd.MarkFlagRequired("head")
 	return createCmd
 }
@@ -115,7 +117,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 			req := pr.PRRequest{
 				OrgName:          orgName,
 				RepoNames:        repoNames,
-				ExcludeRepoNames: exclueRepoNames,
+				ExcludeRepoNames: excludeRepoNames,
 				BaseRef:          baseRef,
 				HeadRef:          headRef,
 				LastCount:        lastCount,
@@ -145,7 +147,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	}
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
-	listCmd.Flags().StringArrayVarP(&exclueRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().BoolVar(&allPullRequests, "all-status", false, "to fetch all the pull requests including closed ones. Default is false")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
@@ -157,8 +159,6 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 	listCmd.Flags().StringVar(&label, "label", "", "filter by `label` name")
 	listCmd.Flags().StringVar(&since, "since", "", "filter PRs created on or after `date` (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&prSortBy, "sort", "", "sort results by: repo, title, author, status")
-
-	listCmd.MarkPersistentFlagRequired("org")
 
 	return listCmd
 }
@@ -179,6 +179,10 @@ check runs, and reviews.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{viewRepo})
+			if len(actualRepoNames) == 0 {
+				fmt.Fprintln(cmd.ErrOrStderr(), ui.ErrorMessage("repository not found: %s", viewRepo))
+				return
+			}
 			repoN := actualRepoNames[0]
 
 			prResp, filesResp, checkRunResp, reviews := pr.GetPRDetailsGraphQL(ctx, pr.PRDetailsRequest{
@@ -203,7 +207,6 @@ check runs, and reviews.`,
 	viewCmd.Flags().StringVarP(&viewRepo, "repository", "r", "", "repository name")
 	viewCmd.Flags().IntVarP(&viewPR, "pr", "P", 0, "pull request `number`")
 
-	viewCmd.MarkPersistentFlagRequired("org")
 	viewCmd.MarkFlagRequired("repository")
 	viewCmd.MarkFlagRequired("pr")
 
@@ -274,7 +277,6 @@ func ReviewCommand(ctx *context.Context) *cobra.Command {
 	reviewCmd.Flags().StringVarP(&reviewEvent, "event", "E", "", "review event: approve, request_changes, comment")
 	reviewCmd.Flags().StringVarP(&reviewBody, "body", "b", "", "review comment `body` (required for request_changes and comment)")
 
-	reviewCmd.MarkPersistentFlagRequired("org")
 	reviewCmd.MarkFlagRequired("repository")
 	reviewCmd.MarkFlagRequired("pr")
 	reviewCmd.MarkFlagRequired("event")
@@ -321,7 +323,6 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringVarP(&action, "action", "a", "", "The `action` you want to perform on the PR. Possible values are close or open")
 	updateCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
-	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("repository")
 	updateCmd.MarkFlagRequired("pr")
 	updateCmd.MarkFlagRequired("action")
@@ -367,7 +368,6 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "extra detail to append to commit message (optional)")
 	mergeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
-	mergeCmd.MarkPersistentFlagRequired("org")
 	mergeCmd.MarkFlagRequired("repository")
 	mergeCmd.MarkFlagRequired("pr")
 

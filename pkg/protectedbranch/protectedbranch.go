@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 // Package protectedbranch provides functions for managing GitHub protected branches, including listing,
 // updating, and deleting protected branch settings across multiple repositories in an organization.
 package protectedbranch
@@ -386,7 +389,15 @@ func createRequestPayload(ctx *context.Context, repoName string, request Protect
 
 func addStatusChecks(ctx *context.Context, repoName string, request ProtectedBranchRequest, requestPayload *model.ProtectedBranchRequest) {
 	if !request.RemoveStatus && !ctx.Config.IsRepoPresentInIgnoreForStatusCheck(request.OrgName, repoName) {
-		requestPayload.RequiredStatusChecks.Checks = append(requestPayload.RequiredStatusChecks.Checks, model.CheckRequest{Context: "Build", AppID: 15368})
+		pbConfig := ctx.Config.ProtectedBranchDetail(request.OrgName)
+		if len(pbConfig.StatusChecks) > 0 {
+			for _, sc := range pbConfig.StatusChecks {
+				requestPayload.RequiredStatusChecks.Checks = append(requestPayload.RequiredStatusChecks.Checks, model.CheckRequest{Context: sc.Context, AppID: sc.AppID})
+			}
+		} else {
+			// Default: require a "Build" check without specifying an AppID
+			requestPayload.RequiredStatusChecks.Checks = append(requestPayload.RequiredStatusChecks.Checks, model.CheckRequest{Context: "Build"})
+		}
 	}
 
 	if request.Lock {

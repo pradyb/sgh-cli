@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package validation
 
 import (
@@ -265,4 +268,13 @@ func (v *GitHubValidator) ValidateRegexPattern(pattern string) error {
 	}
 
 	return nil
+}
+
+// IsValidOrgName provides a simple bool check for organization name validity
+func IsValidOrgName(org string) bool {
+	if org == "" || len(org) > 39 {
+		return false
+	}
+	pattern := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`)
+	return pattern.MatchString(org)
 }

@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package apperrors
 
 import (
@@ -6,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -23,7 +27,7 @@ func (e *GitHubError) Error() string {
 
 func (e *GitHubError) IsRateLimit() bool {
 	return e.StatusCode == http.StatusForbidden &&
-		(e.Message == "API rate limit exceeded" || e.StatusCode == 403)
+		(strings.Contains(e.Message, "rate limit") || strings.Contains(e.Message, "abuse detection"))
 }
 
 func (e *GitHubError) IsNotFound() bool {

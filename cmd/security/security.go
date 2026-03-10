@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package security
 
 import (
@@ -113,7 +116,6 @@ Supports filtering by state (open, resolved) and secret type.`,
 	listCmd.Flags().StringVar(&secretType, "secret-type", "", "filter by secret `type` (e.g., aws_access_key, github_token)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, state, type, created")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd
 }
 
@@ -150,7 +152,6 @@ func ViewAlertCommand(ctx *context.Context) *cobra.Command {
 	viewCmd.Flags().StringVarP(&viewRepo, "repository", "r", "", "repository `name`")
 	viewCmd.Flags().IntVarP(&alertNumber, "alert", "a", 0, "alert `number`")
 
-	viewCmd.MarkPersistentFlagRequired("org")
 	viewCmd.MarkFlagRequired("repository")
 	viewCmd.MarkFlagRequired("alert")
 
@@ -245,7 +246,6 @@ Valid resolutions: false_positive, wont_fix, revoked, used_in_tests`,
 	updateCmd.Flags().StringVar(&resolution, "resolution", "", "`resolution` reason: false_positive, wont_fix, revoked, used_in_tests")
 	updateCmd.Flags().StringVarP(&resolutionComment, "comment", "c", "", "optional resolution `comment`")
 
-	updateCmd.MarkPersistentFlagRequired("org")
 	updateCmd.MarkFlagRequired("repository")
 	updateCmd.MarkFlagRequired("alert")
 	updateCmd.MarkFlagRequired("state")

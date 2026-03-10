@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package ratelimit
 
 import (
@@ -73,26 +76,30 @@ func (rl *RateLimiter) UpdateFromResponse(resp *http.Response) {
 func (rl *RateLimiter) WaitIfNeeded(ctx context.Context, resource string) error {
 	rl.mu.RLock()
 	info, exists := rl.limits[resource]
-	rl.mu.RUnlock()
-
 	if !exists {
+		rl.mu.RUnlock()
 		return nil // No rate limit info available, proceed
 	}
 
+	// Snapshot the values while holding the lock
+	remaining := info.Remaining
+	resetTime := info.ResetTime
+	rl.mu.RUnlock()
+
 	// If we have remaining requests or reset time has passed, proceed
-	if info.Remaining > 0 || time.Now().After(info.ResetTime) {
+	if remaining > 0 || time.Now().After(resetTime) {
 		return nil
 	}
 
 	// Calculate wait time
-	waitTime := time.Until(info.ResetTime)
+	waitTime := time.Until(resetTime)
 	if waitTime <= 0 {
 		return nil // Reset time has passed
 	}
 
 	logger.Flog.Warn().
 		Str("resource", resource).
-		Int("remaining", info.Remaining).
+		Int("remaining", remaining).
 		Dur("waitTime", waitTime).
 		Msg("Rate limit exceeded, waiting for reset")
 

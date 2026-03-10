@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package model
 
 import (
@@ -57,8 +60,7 @@ type PullRequestResponse struct {
 	Reviewers        []Actor  `json:"requested_reviewers"`
 	ReviewDecision   string   `json:"review_decision"`
 	Merged           bool     `json:"merged"`
-	IsMergeable      bool     `json:"mergeable"`
-	Mergeable        string
+	Mergeable        string   // GraphQL mergeable status: MERGEABLE, CONFLICTING, UNKNOWN
 	MergeStateStatus string   `json:"mergeable_state"`
 	MergedBy         User     `json:"merged_by"`
 	MergeAt          string   `json:"merged_at"`
@@ -359,15 +361,16 @@ type ProtectedBranchRequest struct {
 
 type CheckRequest struct {
 	Context string `json:"context"`
-	AppID   int    `json:"app_id"`
+	AppID   int    `json:"app_id,omitempty"`
 }
 
 type PostReleaseResponse struct {
 	RepositoryName string
-	PRNumber       int
-	PRHtmlUrl      string
-	TagHtmlUrl     string
-	TagCommitSHA   string
+	BranchName     string
+	BranchSHA      string
+	TagName        string
+	TagURL         string
+	TagSHA         string
 	ErrorMessage   string
 }
 
@@ -554,25 +557,25 @@ type SecretLocation struct {
 }
 
 type SecretScanningAlertsResponse struct {
-	TotalCount int                  `json:"total_count"`
+	TotalCount int                   `json:"total_count"`
 	Alerts     []SecretScanningAlert `json:"alerts"`
 }
 
 type IssueResponse struct {
-	Number    int      `json:"number"`
-	Title     string   `json:"title"`
-	Body      string   `json:"body"`
-	State     string   `json:"state"`
-	HTMLUrl   string   `json:"html_url"`
-	Author    User     `json:"user"`
-	Assignees []User   `json:"assignees"`
-	Labels    []IssueLabel `json:"labels"`
-	Milestone *IssueMilestone `json:"milestone"`
-	Comments  int      `json:"comments"`
-	CreatedAt string   `json:"created_at"`
-	UpdatedAt string   `json:"updated_at"`
-	ClosedAt  string   `json:"closed_at"`
-	ClosedBy  User     `json:"closed_by"`
+	Number         int             `json:"number"`
+	Title          string          `json:"title"`
+	Body           string          `json:"body"`
+	State          string          `json:"state"`
+	HTMLUrl        string          `json:"html_url"`
+	Author         User            `json:"user"`
+	Assignees      []User          `json:"assignees"`
+	Labels         []IssueLabel    `json:"labels"`
+	Milestone      *IssueMilestone `json:"milestone"`
+	Comments       int             `json:"comments"`
+	CreatedAt      string          `json:"created_at"`
+	UpdatedAt      string          `json:"updated_at"`
+	ClosedAt       string          `json:"closed_at"`
+	ClosedBy       User            `json:"closed_by"`
 	RepositoryName string
 	ErrorMessage   string
 	PullRequest    *IssuePR `json:"pull_request"`

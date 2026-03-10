@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package tag
 
 import (
@@ -70,7 +73,6 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, tag")
 
-	listCmd.MarkPersistentFlagRequired("org")
 	return listCmd
 }
 
@@ -119,7 +121,6 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from creating the tag")
 	createCmd.Flags().StringVarP(&message, "message", "m", "", "The `message` for the tagging")
 
-	createCmd.MarkPersistentFlagRequired("org")
 	createCmd.MarkFlagRequired("tag")
 	createCmd.MarkFlagRequired("head")
 	createCmd.MarkFlagRequired("message")
@@ -165,7 +166,6 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from deleting the tag")
 
-	deleteCmd.MarkPersistentFlagRequired("org")
 	deleteCmd.MarkFlagRequired("tag")
 	return deleteCmd
 }

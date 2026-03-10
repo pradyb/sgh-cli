@@ -1,3 +1,6 @@
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// SPDX-License-Identifier: MIT
+
 package branch
 
 import (
@@ -45,6 +48,9 @@ type BranchDeleteRequest struct {
 
 func CreateNewBranchFromCommit(ctx *context.Context, req BranchCreateFromCommitRequest) []model.RefUIResponse {
 	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
+	if len(actualRepoNames) == 0 {
+		return []model.RefUIResponse{model.CreateNewCommonResponse(req.RepoName, req.NewBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", fmt.Sprintf("repository not found: %s", req.RepoName))}
+	}
 
 	response, err := service.CreateNewBranchFromCommit(ctx, req.OrgName, actualRepoNames[0], req.NewBranchName, req.CommitSHA)
 	if err != nil {
@@ -90,7 +96,14 @@ func ListBranches(ctx *context.Context, req BranchListRequest) []model.BranchRes
 
 	var filterRegex *regexp.Regexp
 	if req.Filter != "" {
-		filterRegex, _ = regexp.Compile("(?i)" + req.Filter)
+		var err error
+		filterRegex, err = regexp.Compile("(?i)" + req.Filter)
+		if err != nil {
+			return []model.BranchResponse{{
+				RepositoryName: "(filter)",
+				Name:           fmt.Sprintf("invalid filter regex: %v", err),
+			}}
+		}
 	}
 
 	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListBranches,
