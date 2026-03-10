@@ -55,8 +55,8 @@ func TestProcessRepositoriesOperationBasicHandlers(t *testing.T) {
 	}
 
 	err := ProcessRepositoriesOperation(ctx, "org", repos, nil, OperationCreateBranch, opHandler, resHandler, errHandler)
-	if err != nil {
-		t.Fatalf(unexpectedErrorMsg, err)
+	if err == nil {
+		t.Fatal("expected error when repo2 fails, got nil")
 	}
 	if opCalls.Load() != 3 || resCalls.Load() != 2 || errCalls.Load() != 1 {
 		t.Errorf("calls: op=%d res=%d err=%d", opCalls.Load(), resCalls.Load(), errCalls.Load())

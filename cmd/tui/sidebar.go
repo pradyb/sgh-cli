@@ -49,8 +49,6 @@ var defaultFilters = map[string]*commandFilter{
 	"wf":    {options: []string{"all", "completed", "in_progress", "queued"}, current: 0},
 }
 
-const commandMenuHeight = 10
-
 type sidebarModel struct {
 	cursor  int
 	active  int

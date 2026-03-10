@@ -72,7 +72,7 @@ func GetTeamAndMembers(ctx *context.Context, req TeamMembersRequest) ([]model.Or
 		}
 
 		for _, team := range q.Organization.Teams.Edges {
-			currentMembers = append(currentMembers, getMembers(team.Node.Members, strings.ReplaceAll(string(q.Organization.Url), q.Organization.Name, "orgs/"+q.Organization.Name)+"/people/")...)
+			currentMembers = append(currentMembers, getMembers(team.Node.Members, strings.ReplaceAll(q.Organization.Url, q.Organization.Name, "orgs/"+q.Organization.Name)+"/people/")...)
 			if req.AllMembers && team.Node.Members.PageInfo.HasNextPage {
 				currentTeamNextPage = team.Node.Members.PageInfo.EndCursor
 				break

@@ -1,29 +1,16 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
   enable:
     - govet
+    - unused
+  disable:
     - errcheck
     - staticcheck
-    - unused
-    - gosimple
-    - ineffassign
-    - typecheck
-    - gofmt
-    - goimports
-    - misspell
-    - unconvert
-    - unparam
-
-linters-settings:
-  goimports:
-    local-prefixes: github.com/prady-lab/sgh-cli
 
 issues:
-  exclude-rules:
-    # Exclude test files from some linters
-    - path: _test\.go
-      linters:
-        - errcheck
-        - unparam
+  max-issues-per-linter: 0
+  max-same-issues: 0

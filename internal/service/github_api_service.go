@@ -38,14 +38,6 @@ func invokeAPI(ctx *appcontext.Context, method, url string, reqBody io.Reader) (
 	return resp.Body, nil
 }
 
-func invokeAPIWithContext(reqCtx context.Context, ctx *appcontext.Context, method, url string, reqBody io.Reader) ([]byte, error) {
-	resp, err := invokeAPIFull(reqCtx, ctx, method, url, reqBody)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Body, nil
-}
-
 func invokeAPIFull(reqCtx context.Context, ctx *appcontext.Context, method, url string, reqBody io.Reader) (*apiResponse, error) {
 	req, err := http.NewRequestWithContext(reqCtx, method, url, reqBody)
 	if err != nil {
@@ -609,24 +601,24 @@ func UpdateSecretScanningAlert(ctx *appcontext.Context, orgName, repoName string
 	updatePayload := map[string]interface{}{
 		"state": state,
 	}
-	
+
 	if state == "resolved" && resolution != "" {
 		updatePayload["resolution"] = resolution
 		if resolutionComment != "" {
 			updatePayload["resolution_comment"] = resolutionComment
 		}
 	}
-	
+
 	payloadBytes, err := json.Marshal(updatePayload)
 	if err != nil {
 		return model.SecretScanningAlert{}, fmt.Errorf("failed to marshal update payload: %w", err)
 	}
-	
+
 	response, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", GITHUB_BASE_URL, orgName, repoName, alertNumber), bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return model.SecretScanningAlert{}, err
 	}
-	
+
 	var alert model.SecretScanningAlert
 	if err := json.Unmarshal(response, &alert); err != nil {
 		logger.Flog.Error().Err(err).Msg("Error in unmarshal the secret scanning alert response body")

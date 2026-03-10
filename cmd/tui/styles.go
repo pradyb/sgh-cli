@@ -110,11 +110,6 @@ var (
 			Bold(true).
 			Padding(0, 1)
 
-	toastStyle = lipgloss.NewStyle().
-			Foreground(ui.Green).
-			Italic(true).
-			Padding(0, 1)
-
 	helpOverlayTitleStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(ui.Cyan).
