@@ -2,10 +2,10 @@
 
 A powerful command-line tool for managing GitHub repositories at scale. Perform bulk operations on branches, tags, pull requests, protected branches, and more across your entire GitHub organization with a single command.
 
-[![CI](https://github.com/prady-lab/sgh-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/prady-lab/sgh-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/pradyb/sgh-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/pradyb/sgh-cli/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.24.0+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/prady-lab/sgh-cli)](https://goreportcard.com/report/github.com/prady-lab/sgh-cli)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pradyb/sgh-cli)](https://goreportcard.com/report/github.com/pradyb/sgh-cli)
 
 ## 📋 Table of Contents
 
@@ -83,7 +83,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 ### Option 1: From Source (Recommended)
 ```bash
-git clone https://github.com/prady-lab/sgh-cli.git
+git clone https://github.com/pradyb/sgh-cli.git
 cd sgh-cli
 go build -o sgh .
 
@@ -95,11 +95,11 @@ sudo mv sgh /usr/local/bin/
 
 ### Option 2: Go Install
 ```bash
-go install github.com/prady-lab/sgh-cli@latest
+go install github.com/pradyb/sgh-cli@latest
 ```
 
 ### Option 3: Download Binary
-Visit the [releases page](https://github.com/prady-lab/sgh-cli/releases) and download the appropriate binary for your platform.
+Visit the [releases page](https://github.com/pradyb/sgh-cli/releases) and download the appropriate binary for your platform.
 
 ### Verify Installation
 ```bash
@@ -828,4 +828,4 @@ We welcome contributions! Please feel free to submit a Pull Request. For major c
 
 **Happy coding! 🚀**
 
-For support, please open an issue on [GitHub](https://github.com/prady-lab/sgh-cli/issues).
+For support, please open an issue on [GitHub](https://github.com/pradyb/sgh-cli/issues).

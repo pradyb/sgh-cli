@@ -38,5 +38,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/prady-lab/sgh-cli/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/prady-lab/sgh-cli/releases/tag/v1.0.0
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pradyb/sgh-cli/releases/tag/v1.0.0

@@ -13,7 +13,7 @@
 If you discover a security vulnerability in sgh-cli, please report it responsibly:
 
 1. **Email:** Send details to `pradeep.dev@proton.me` with the subject line `[SECURITY] sgh-cli vulnerability`
-2. **GitHub Private Advisory:** Use [GitHub's private security advisory](https://github.com/prady-lab/sgh-cli/security/advisories/new) feature
+2. **GitHub Private Advisory:** Use [GitHub's private security advisory](https://github.com/pradyb/sgh-cli/security/advisories/new) feature
 
 ### What to Include
 

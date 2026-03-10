@@ -27,7 +27,7 @@ By participating in this project, you agree to be respectful and considerate of 
    ```
 3. **Add the upstream remote:**
    ```bash
-   git remote add upstream https://github.com/prady-lab/sgh-cli.git
+   git remote add upstream https://github.com/pradyb/sgh-cli.git
    ```
 
 ## Development Setup
