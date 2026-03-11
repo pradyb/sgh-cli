@@ -68,6 +68,9 @@ func TestWaitIfNeeded_NoWait(t *testing.T) {
 }
 
 func TestWaitIfNeeded_Wait(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing-sensitive test in short mode")
+	}
 	rl := NewRateLimiter()
 	// Set reset time to be in the future (use 2 seconds to avoid precision issues)
 	reset := time.Now().Add(2 * time.Second).Unix()

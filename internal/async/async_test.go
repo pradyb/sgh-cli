@@ -10,6 +10,9 @@ import (
 )
 
 func TestAsyncJobQueueBasicProcessing(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing-sensitive test in short mode")
+	}
 	queue := NewAsyncJobQueue[int, int](3)
 	var results []int
 	var errors []error
@@ -60,6 +63,9 @@ func TestAsyncJobQueueBasicProcessing(t *testing.T) {
 }
 
 func TestAsyncJobQueueMultipleWorkers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing-sensitive test in short mode")
+	}
 	queue := NewAsyncJobQueue[int, int](10)
 	var results []int
 	var mu sync.Mutex
@@ -96,6 +102,9 @@ func TestAsyncJobQueueMultipleWorkers(t *testing.T) {
 }
 
 func TestAsyncJobQueueErrorHandling(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping timing-sensitive test in short mode")
+	}
 	queue := NewAsyncJobQueue[int, int](5)
 	var results []int
 	var errors []error
