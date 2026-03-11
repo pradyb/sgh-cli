@@ -3,7 +3,7 @@
 A powerful command-line tool for managing GitHub repositories at scale. Perform bulk operations on branches, tags, pull requests, protected branches, and more across your entire GitHub organization with a single command.
 
 [![CI](https://github.com/pradyb/sgh-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/pradyb/sgh-cli/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.24.0+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26.1+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pradyb/sgh-cli)](https://goreportcard.com/report/github.com/pradyb/sgh-cli)
 

@@ -1,8 +1,6 @@
 module github.com/prady-lab/sgh-cli
 
-go 1.24.2
-
-toolchain go1.24.5
+go 1.26.1
 
 require (
 	github.com/MakeNowJust/heredoc v1.0.0
