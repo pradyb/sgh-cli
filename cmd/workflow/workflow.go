@@ -485,7 +485,7 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 
 	dispatchCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	dispatchCmd.Flags().StringArrayVarP(&excludeRepoNames, "exclude-repository", "e", []string{}, "repository names to exclude")
-	dispatchCmd.Flags().StringVarP(&workflowID, "workflow", "w", "", "workflow filename or ID (e.g. deploy.yml)")
+	dispatchCmd.Flags().StringVarP(&workflowID, "workflow", "W", "", "workflow filename or ID (e.g. deploy.yml)")
 	dispatchCmd.Flags().StringVarP(&ref, "ref", "f", "", "branch or tag to run the workflow on")
 	dispatchCmd.Flags().StringArrayVarP(&inputPairs, "input", "i", []string{}, "workflow input as key=value (repeatable)")
 
