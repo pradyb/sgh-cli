@@ -391,16 +391,19 @@ func resetCommand(ctx *context.Context) *cobra.Command {
 			Without --org: removes all organizations and their data from the config file.
 			With --org:    removes only that organization and all its repos, patterns, and settings.
 
-			Use --force to skip the confirmation prompt.
+			Use --yes to skip the confirmation prompt.
 		`),
 		Example: heredoc.Doc(`
-			$ sgh config reset --force
+			$ sgh config reset --yes
 			$ sgh config reset --org my-org
-			$ sgh config reset --org my-org --force
+			$ sgh config reset --org my-org --yes
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			passStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 			warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow).Bold(true)
+			if v, _ := cmd.Flags().GetBool("force"); v {
+				force = true
+			}
 
 			if orgName != "" {
 				if !force {
@@ -447,7 +450,9 @@ func resetCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	resetCmd.Flags().StringVarP(&orgName, "org", "o", "", "reset only this organization (omit to reset all)")
-	resetCmd.Flags().BoolVarP(&force, "force", "y", false, "skip confirmation prompt")
+	resetCmd.Flags().BoolVarP(&force, "yes", "y", false, "skip the confirmation prompt")
+	resetCmd.Flags().Bool("force", false, "alias for --yes (deprecated)")
+	resetCmd.Flags().MarkHidden("force")
 	return resetCmd
 }
 

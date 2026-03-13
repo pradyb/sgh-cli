@@ -200,7 +200,7 @@ sgh config set tagger-email "john@example.com" --org my-org
 
 ### Repository Include / Exclude Filtering
 
-When no `--repo` (`-r`) flag is given, `sgh` uses the `repo_patterns` in config to decide which repositories to process. The rules are evaluated in this order:
+When no `-r` / `--repository` flag is given, `sgh` uses the `repo_patterns` in config to decide which repositories to process. The rules are evaluated in this order:
 
 | Priority | Condition | Result |
 |----------|-----------|--------|
@@ -309,14 +309,14 @@ Commands are organized into groups:
 **Issue Workflows:**
 - `issue list --org <org>` - List open issues across repositories
 - `issue view --org <org> -r <repo> --issue <num>` - View issue details
-- `issue create --org <org> -r <repo> --title <title> [--body <body>] [--assignee <user>] [--labels <label>]` - Create an issue
+- `issue create --org <org> -r <repo> --title <title> [--body <body>] [--assignee <user>] [--label <label>]` - Create an issue
 
 **Pull Request Workflows:**
-- `pr create --org <org> --title <title> --head <branch> --base <branch>` - Create PRs
-- `pr list --org <org> [--all] [--sort repo|title|author|status]` - List pull requests (default: open only)
+- `pr create --org <org> --title <title> --head <branch> --base <branch> [-r <repo>...] [--label <name>]` - Create PRs
+- `pr list --org <org> [--state open|closed|merged|all] [--sort repo|title|author|status]` - List pull requests (default: open only)
 - `pr list --org <org> --label <name> --since 2024-01-01` - Filter by label and date
 - `pr view --org <org> -r <repo> --pr <num>` - View PR details, files, checks, reviews
-- `pr review --org <org> -r <repo> --pr <num> --event approve|request_changes|comment` - Review a PR
+- `pr review --org <org> -r <repo> --pr <num> --approve|--comment|--request-changes` - Review a PR
 - `pr update --org <org> -r <repo> --pr <num> --state open|closed` - Update PR state
 - `pr close --org <org> -r <repo> --pr <num>` - Close a pull request
 - `pr reopen --org <org> -r <repo> --pr <num>` - Reopen a pull request
@@ -344,7 +344,7 @@ Commands are organized into groups:
 - `config list` - Show current configuration
 - `config validate` - Check configuration for errors
 - `config add <key> <value>` - Add configuration
-- `config reset [--org <name>] [--force]` - Remove one or all organizations from config
+- `config reset [--org <name>] [--yes]` - Remove one or all organizations from config
 
 ### ⚡ Command Shortcuts
 
@@ -370,7 +370,7 @@ Each shortcut supports the same flags as the full command:
 
 ```bash
 sgh orl                                       # same as: sgh org list
-sgh prl --org my-org --author john-doe        # same as: sgh pr list --org my-org --author john-doe
+sgh prl --org my-org -A john-doe              # same as: sgh pr list --org my-org --author john-doe
 sgh wfl --org my-org --running                # same as: sgh workflow list --org my-org --running
 sgh brl --org my-org --filter "Release-"      # same as: sgh branch list --org my-org --filter "Release-"
 sgh rps --org my-org --query "api"            # same as: sgh repo search --org my-org --query "api"
@@ -385,19 +385,19 @@ sgh branch list --org my-org
 
 # List branches matching a pattern (regex)
 sgh branch list --org my-org --filter "Release-"
-sgh branch list --org my-org --filter "feature/" --repo my-app
+sgh branch list --org my-org --filter "feature/" -r my-app
 
 # Create a new release branch across all repos
 sgh branch create --org my-org --new Release-1.1 --ref Release-1.0
 
 # Create hotfix branch for specific repositories
-sgh branch create --org my-org --new hotfix-branch --ref main --repo critical-app --repo important-service
+sgh branch create --org my-org --new hotfix-branch --ref main -r critical-app -r important-service
 
 # Rename a branch across all repos
 sgh branch rename --org my-org --old master --new main
 
 # Delete old branches
-sgh branch delete --org my-org --branch old-feature --repo legacy-app
+sgh branch delete --org my-org --branch old-feature -r legacy-app
 ```
 
 ### Tag Operations
@@ -409,16 +409,16 @@ sgh tag list --org my-org
 sgh tag list --org my-org --filter "^v1\."
 
 # List tags for specific repos
-sgh tag list --org my-org --repo app1 --repo app2
+sgh tag list --org my-org -r app1 -r app2
 
 # Create release tags across repositories
 sgh tag create --org my-org --tag v1.0.0 --head Release-1.0 --message 'Release v1.0.0'
 
 # Create tags for specific repositories
-sgh tag create --org my-org --tag v2.1.0 --head main --message 'Version 2.1.0' --repo app1 --repo app2
+sgh tag create --org my-org --tag v2.1.0 --head main --message 'Version 2.1.0' -r app1 -r app2
 
 # Delete old tags
-sgh tag delete --org my-org --tag old-version --repo legacy-app
+sgh tag delete --org my-org --tag old-version -r legacy-app
 ```
 
 ### Issue Management
@@ -433,7 +433,7 @@ sgh issue list --org my-org -r my-app -r other-service
 sgh issue view --org my-org -r my-app --issue 42
 
 # Create an issue
-sgh issue create --org my-org -r my-app --title "Bug: login fails" --body "Steps to reproduce..." --assignee john-doe --labels bug,high-priority
+sgh issue create --org my-org -r my-app --title "Bug: login fails" --body "Steps to reproduce..." --assignee john-doe --label bug,high-priority
 ```
 
 ### Pull Request Automation
@@ -442,13 +442,13 @@ sgh issue create --org my-org -r my-app --title "Bug: login fails" --body "Steps
 sgh pr create --org my-org --title "Security Update" --body "Update dependencies" --head security-patch --base main
 
 # List PRs for specific repositories (open only by default)
-sgh pr list --org my-org --repo app1 --repo app2 --base main
+sgh pr list --org my-org -r app1 -r app2 --base main
 
 # List all PRs including closed and merged
-sgh pr list --org my-org --repo app1 --repo app2 --all
+sgh pr list --org my-org -r app1 -r app2 --state all
 
 # List PRs with filters
-sgh pr list --org my-org --author john-doe --assignee jane-doe --last 10
+sgh pr list --org my-org -A john-doe -a jane-doe --last 10
 
 # Filter by label and creation date
 sgh pr list --org my-org --label bug --since 2024-01-01
@@ -457,9 +457,9 @@ sgh pr list --org my-org --label bug --since 2024-01-01
 sgh pr view --org my-org -r my-app --pr 42
 
 # Review a pull request
-sgh pr review --org my-org -r my-app --pr 42 --event approve
-sgh pr review --org my-org -r my-app --pr 42 --event request_changes --body "Please fix the tests"
-sgh pr review --org my-org -r my-app --pr 42 --event comment --body "Looks good overall"
+sgh pr review --org my-org -r my-app --pr 42 --approve
+sgh pr review --org my-org -r my-app --pr 42 --request-changes --body "Please fix the tests"
+sgh pr review --org my-org -r my-app --pr 42 --comment --body "Looks good overall"
 
 # Update PR state
 sgh pr update --org my-org -r my-app --pr 123 --state closed
@@ -494,10 +494,10 @@ sgh protected-branch update --org my-org --branch main -r my-app --lock --remove
 sgh post-release --org my-org --base main --head Release-1.0 --create-tag --title "Release 1.0"
 
 # Post-release for specific repositories
-sgh post-release --org my-org --base develop --head feature-complete --repo service1 --repo service2
+sgh post-release --org my-org --base develop --head feature-complete -r service1 -r service2
 
 # Exclude specific repositories from post-release
-sgh post-release --org my-org --base main --head Release-1.0 --exclude-repos legacy-app --exclude-repos deprecated-service
+sgh post-release --org my-org --base main --head Release-1.0 -e legacy-app -e deprecated-service
 ```
 
 ### Repository Operations
@@ -663,7 +663,7 @@ sgh config set tagger-email "releases@my-org.com" --org my-org
 sgh config reset --org my-org
 
 # Remove all organizations from config (skip confirmation prompt)
-sgh config reset --force
+sgh config reset --yes
 ```
 
 ## 🏷️ Global Flags
@@ -678,10 +678,10 @@ sgh config reset --force
 - `-J, --json` - Shorthand for `--output json` (structured JSON for scripting)
 - `--dry-run` - Preview what would be changed without executing
 - `--no-color` - Disable colored output (env: `NO_COLOR`)
-- `--limit int` - Limit the **total** number of items returned in the global output (0 = no limit)
+- `--limit int` - Cap the **final combined output** across all repos (0 = no cap). Use per-command `--last` to control how many items are fetched per repo.
 
 > **Tip:** Set `SGH_ORG` and `SGH_WORKERS` environment variables to avoid repeating common flags.
-> **Note on Limits:** For multi-repo commands, use `--last` to limit how many items are fetched *per repository* from the API, and `--limit` to truncate the *final combined output*.
+> **Note on Limits:** Two separate controls exist. `--last` (on `pr list`, `issue list`, `workflow list`) limits how many items are fetched **per repository** from the GitHub API. The global `--limit` truncates the **final combined output** across all repos (0 = no cap). They can be used together: `--last 20 --limit 50`.
 
 ### Flag Shorthand Convention
 
@@ -707,7 +707,7 @@ Single-letter shorthands follow one consistent rule across the entire CLI:
 |-----------|------|---------|-------------------|
 | `-B` | `--base` | `pr create/list` | `-b` = `--body` |
 | `-H` | `--head` | `pr create/list`, `tag create` | `-h` = help (reserved by Cobra) |
-| `-A` | `--assignee` | `pr list` | `-a` = `--author` |
+| `-A` | `--author` | `pr list` | `-a` = `--assignee` |
 | `-R` | `--reviewer` | `pr list` | `-r` = `--repository` |
 | `-R` | `--run` | `workflow view/rerun/cancel` | `-r` = `--repository` |
 | `-R` | `--ref` | `post-release` | `-r` = `--repository` |
@@ -720,11 +720,13 @@ Single-letter shorthands follow one consistent rule across the entire CLI:
 Some list commands support additional flags:
 
 - `--sort <field>` - Sort table output (available on `pr`, `branch`, `tag`, `issue`, `security`, and `workflow` list commands)
-- `--last <count>` - Number of items to fetch **per repository** from the GitHub API (on `pr`, `workflow`, and `issue` list commands)
+- `--last <count>` - Max items to fetch **per repository** from the GitHub API (on `pr list`, `issue list`, `workflow list`). Distinct from the global `--limit` which caps the final combined output. Note: on `workflow list` this flag has shorthand `-l`; on `pr list` and `issue list` `-l` is taken by `--label`.
+- `--state <value>` - Filter by state: `open`, `closed`, `merged`, `all` (on `pr list` and `issue list`)
 - `--filter <pattern>` - Name filter with regex support (on `branch list` and `tag list`)
-- `--all` - Include closed/merged items (on `pr list`) or all members (on `team list`)
+- `--all` - Include all members (on `team list`)
 - `--workflow <name>` - Workflow name filter with partial match (on `workflow list`)
-- `--label <name>`, `--since <YYYY-MM-DD>` - PR filters (on `pr list`)
+- `-l, --label <name>` - Filter/add labels (on `pr list`, `pr create`, `issue list`, `issue create`)
+- `--since <YYYY-MM-DD>` - Filter PRs created on or after date (on `pr list`)
 - `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
 - `--branch <name>` - Filter by branch name (on `workflow list`)
 - `--watch`, `--interval` - Live monitoring (on `workflow view`)
@@ -757,14 +759,14 @@ sgh workflow list --org my-org        # same filtering
 ```
 
 #### 2. CLI flags (per-command override)
-Pass `-r` / `--repo` to target specific repos, or `--exclude-repo` to skip some:
+Pass `-r` / `--repository` to target specific repos, or `-e` / `--exclude-repository` to skip some:
 
 ```bash
 # Only run on specific repos (fuzzy matched against config repository list)
 sgh branch create --org my-org --new feature --ref main -r api-gateway -r service-auth
 
 # Exclude specific repos for this run only
-sgh pr list --org my-org --exclude-repo legacy-app --exclude-repo test-harness
+sgh pr list --org my-org -e legacy-app -e test-harness
 ```
 
 > **Note:** Even with `-r`, config `exclude` patterns still apply. A repo in your  
@@ -857,7 +859,7 @@ curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
 sgh pr create --org my-org --workers 2 --title "Update"
 
 # Use smaller batches for large operations
-sgh branch create --org my-org --new feature --ref main --repo specific-repo
+sgh branch create --org my-org --new feature --ref main -r specific-repo
 ```
 
 ## 🐛 Troubleshooting
@@ -896,7 +898,7 @@ sgh config validate
 sgh config reset --org my-org
 
 # Reset all configuration (skip prompt)
-sgh config reset --force
+sgh config reset --yes
 
 # Or manually delete the config file
 rm ~/.config/sgh/sgh.json  # Linux/Mac

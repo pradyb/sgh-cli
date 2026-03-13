@@ -54,7 +54,7 @@ By default fetches open issues.`,
 			$ sgh issue list --org sample-org --state all
 			$ sgh issue list --org sample-org --state closed
 			$ sgh issue list --org sample-org -r sample-repo1 -r sample-repo2
-			$ sgh issue list --org sample-org --labels "bug,enhancement"
+			$ sgh issue list --org sample-org --label "bug,enhancement"
 			$ sgh issue list --org sample-org --assignee "john-doe"
 			$ sgh issue list --org sample-org --creator "jane-doe"
 			$ sgh issue list --org sample-org --sort state
@@ -62,7 +62,6 @@ By default fetches open issues.`,
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-
 			req := issue.IssueListRequest{
 				OrgName:          orgName,
 				RepoNames:        repoNames,
@@ -89,10 +88,10 @@ By default fetches open issues.`,
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().StringVarP(&issueState, "state", "s", "open", "filter by `state`: open, closed, all")
-	listCmd.Flags().StringVar(&labels, "labels", "", "filter by comma-separated `labels`")
+	listCmd.Flags().StringVarP(&labels, "label", "l", "", "filter by `label` name (comma-separated for multiple)")
 	listCmd.Flags().StringVarP(&assignee, "assignee", "a", "", "filter by `assignee` login")
 	listCmd.Flags().StringVar(&creator, "creator", "", "filter by `creator` login")
-	listCmd.Flags().IntVarP(&lastCount, "last", "l", 30, "the `number` of issues to fetch per repo")
+	listCmd.Flags().IntVar(&lastCount, "last", 30, "max issues to fetch per repo (use global --limit to cap combined output)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, title, author, state, created")
 
 	return listCmd
@@ -157,7 +156,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Example: heredoc.Doc(`
 			$ sgh issue create --org sample-org -r sample-repo --title "Bug: login fails"
 			$ sgh issue create --org sample-org -r sample-repo --title "Feature request" --body "Please add dark mode" --assignee john-doe
-			$ sgh issue create --org sample-org -r sample-repo --title "Fix crash" --labels "bug,high-priority"
+			$ sgh issue create --org sample-org -r sample-repo --title "Fix crash" --label "bug,high-priority"
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -202,7 +201,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd.Flags().StringVarP(&issueTitle, "title", "t", "", "issue `title`")
 	createCmd.Flags().StringVarP(&issueBody, "body", "b", "", "issue `body` (description)")
 	createCmd.Flags().StringVarP(&issueAssignee, "assignee", "a", "", "assign issue to `user` login")
-	createCmd.Flags().StringVar(&issueLabels, "labels", "", "comma-separated `labels` to apply")
+	createCmd.Flags().StringVarP(&issueLabels, "label", "l", "", "comma-separated `labels` to apply")
 
 	createCmd.MarkFlagRequired("repository")
 	createCmd.MarkFlagRequired("title")

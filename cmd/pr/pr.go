@@ -51,11 +51,12 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a pull request",
-		Long:    `Create a pull request on GitHub for given repos or all the selected reps in the given org/owner`,
+		Long:    `Create a pull request on GitHub for the given org — targeting all repos or a subset via -r.`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh pr create --org sample-org --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "develop"
-			$ sgh pr create --org sample-org --title "PR for feature" --body "This PR is for feature" --head "feature-branch" --base "main" -r sample-repo1 -r sample-repo2
+			$ sgh pr create --org sample-org --title "PR for feature" --head "feature-branch" --base "develop"
+			$ sgh pr create --org sample-org --title "PR for feature" --head "feature-branch" --base "main" -r sample-repo1 -r sample-repo2
+			$ sgh pr create --org sample-org --title "Bug fix" --head "fix/login" --base "main" --label "bug"
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
@@ -76,8 +77,9 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 
 	createCmd.Flags().StringVarP(&title, "title", "t", "", "title for the pull request")
 	createCmd.Flags().StringVarP(&body, "body", "b", "", "body for the pull request")
-	createCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
-	createCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
+	createCmd.Flags().StringVarP(&baseRef, "base", "B", "", "the base `branch` to merge into")
+	createCmd.Flags().StringVarP(&headRef, "head", "H", "", "the head `branch` containing commits for the PR")
+	createCmd.Flags().StringVarP(&label, "label", "l", "", "add a `label` by name")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 
@@ -89,6 +91,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 
 var (
 	allPullRequests bool
+	prState         string
 	interactive     bool
 	lastCount       int
 	author          string
@@ -103,23 +106,29 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List pull requests",
-		Long: `List pull requests on GitHub for given repos or all the selected reps in the given org/owner
-Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests`,
+		Long: `List pull requests across repos in the given organization.
+By default lists open pull requests. Use --state to filter by state.`,
 
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pr list --org sample-org
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --all
+			$ sgh pr list --org sample-org --state all
+			$ sgh pr list --org sample-org --state closed
 			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --head "feature-branch" --base "develop"
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop" --author "john-doe" --assignee "jane-doe"
+			$ sgh pr list --org sample-org --base "develop" --author "john-doe" --assignee "jane-doe"
+			$ sgh pr list --org sample-org --label bug --last 50
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			// support deprecated --all-status alias
-			if v, _ := cmd.Flags().GetBool("all-status"); v {
-				allPullRequests = true
+			// support deprecated --all and --all-status aliases
+			if v, _ := cmd.Flags().GetBool("all"); v {
+				prState = "all"
 			}
+			if v, _ := cmd.Flags().GetBool("all-status"); v {
+				prState = "all"
+			}
+			allPullRequests = prState != "open"
 			req := pr.PRRequest{
 				OrgName:          orgName,
 				RepoNames:        repoNames,
@@ -154,17 +163,19 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
-	listCmd.Flags().BoolVar(&allPullRequests, "all", false, "fetch all pull requests including closed and merged (default: open only)")
-	listCmd.Flags().Bool("all-status", false, "alias for --all (deprecated)")
+	listCmd.Flags().StringVarP(&prState, "state", "s", "open", "filter by state: open, closed, merged, all")
+	listCmd.Flags().Bool("all", false, "alias for --state all (deprecated)")
+	listCmd.Flags().MarkHidden("all")
+	listCmd.Flags().Bool("all-status", false, "alias for --state all (deprecated)")
 	listCmd.Flags().MarkHidden("all-status")
-	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
-	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
+	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "filter by base `branch`")
+	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "filter by head `branch`")
 	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode to select the PR to merge")
-	listCmd.Flags().IntVarP(&lastCount, "last", "l", 20, "The `number` of pull requests to fetch")
-	listCmd.Flags().StringVarP(&author, "author", "a", "", "The `author` of the pull request")
-	listCmd.Flags().StringVarP(&assignee, "assignee", "A", "", "The `assignee` of the pull request")
-	listCmd.Flags().StringVarP(&reviewer, "reviewer", "R", "", "The `reviewer` of the pull request")
-	listCmd.Flags().StringVar(&label, "label", "", "filter by `label` name")
+	listCmd.Flags().IntVar(&lastCount, "last", 20, "max pull requests to fetch per repo (use global --limit to cap combined output)")
+	listCmd.Flags().StringVarP(&assignee, "assignee", "a", "", "filter by `assignee` login")
+	listCmd.Flags().StringVarP(&author, "author", "A", "", "filter by `author` login")
+	listCmd.Flags().StringVarP(&reviewer, "reviewer", "R", "", "filter by `reviewer` login")
+	listCmd.Flags().StringVarP(&label, "label", "l", "", "filter by `label` name")
 	listCmd.Flags().StringVar(&since, "since", "", "filter PRs created on or after `date` (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&prSortBy, "sort", "", "sort results by: repo, title, author, status")
 
@@ -222,37 +233,52 @@ check runs, and reviews.`,
 }
 
 var (
-	prNumber    int
-	action      string
-	repoName    string
-	reviewEvent string
-	reviewBody  string
+	prNumber         int
+	action           string
+	repoName         string
+	reviewEvent      string
+	reviewBody       string
+	reviewApprove    bool
+	reviewComment    bool
+	reviewReqChanges bool
 )
 
 func ReviewCommand(ctx *context.Context) *cobra.Command {
 	reviewCmd := &cobra.Command{
 		Use:   "review",
 		Short: "Review a pull request (approve, request changes, or comment)",
-		Long: `Submit a review on a pull request. Supported events:
-  approve            Approve the pull request
-  request_changes    Request changes on the pull request
-  comment            Leave a general comment`,
+		Long: `Submit a review on a pull request.
+Use exactly one action flag: --approve, --comment, or --request-changes.`,
 		Example: heredoc.Doc(`
-			$ sgh pr review --org sample-org -r sample-repo --pr 42 --event approve
-			$ sgh pr review --org sample-org -r sample-repo --pr 42 --event request_changes --body "Please fix the tests"
-			$ sgh pr review --org sample-org -r sample-repo --pr 42 --event comment --body "Looks good overall"
+			$ sgh pr review --org sample-org -r sample-repo --pr 42 --approve
+			$ sgh pr review --org sample-org -r sample-repo --pr 42 --request-changes --body "Please fix the tests"
+			$ sgh pr review --org sample-org -r sample-repo --pr 42 --comment --body "Looks good overall"
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			event := strings.ToUpper(reviewEvent)
+
+			// resolve event from boolean flags (matching gh pr review style)
+			var event string
+			switch {
+			case reviewApprove:
+				event = "APPROVE"
+			case reviewReqChanges:
+				event = "REQUEST_CHANGES"
+			case reviewComment:
+				event = "COMMENT"
+			default:
+				// legacy --event string fallback
+				event = strings.ToUpper(reviewEvent)
+			}
+
 			validEvents := map[string]bool{"APPROVE": true, "REQUEST_CHANGES": true, "COMMENT": true}
 			if !validEvents[event] {
-				logger.Glog.Error().Msgf("Invalid event: %s. Must be one of: approve, request_changes, comment", reviewEvent)
+				logger.Glog.Error().Msg("specify one of: --approve, --request-changes, --comment")
 				cmd.Help()
 				return
 			}
 			if (event == "REQUEST_CHANGES" || event == "COMMENT") && reviewBody == "" {
-				logger.Glog.Error().Msg("--body is required for request_changes and comment events")
+				logger.Glog.Error().Msg("--body is required with --request-changes and --comment")
 				cmd.Help()
 				return
 			}
@@ -282,12 +308,16 @@ func ReviewCommand(ctx *context.Context) *cobra.Command {
 
 	reviewCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 	reviewCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
-	reviewCmd.Flags().StringVarP(&reviewEvent, "event", "e", "", "review event: approve, request_changes, comment")
-	reviewCmd.Flags().StringVarP(&reviewBody, "body", "b", "", "review comment `body` (required for request_changes and comment)")
+	reviewCmd.Flags().BoolVarP(&reviewApprove, "approve", "a", false, "approve the pull request")
+	reviewCmd.Flags().BoolVarP(&reviewComment, "comment", "c", false, "leave a general comment")
+	reviewCmd.Flags().BoolVar(&reviewReqChanges, "request-changes", false, "request changes on the pull request")
+	reviewCmd.Flags().StringVarP(&reviewBody, "body", "b", "", "review comment `body` (required with --comment and --request-changes)")
+	// legacy flag kept as hidden for backward compat
+	reviewCmd.Flags().StringVar(&reviewEvent, "event", "", "review event (deprecated: use --approve/--comment/--request-changes)")
+	reviewCmd.Flags().MarkHidden("event")
 
 	reviewCmd.MarkFlagRequired("repository")
 	reviewCmd.MarkFlagRequired("pr")
-	reviewCmd.MarkFlagRequired("event")
 
 	return reviewCmd
 }
