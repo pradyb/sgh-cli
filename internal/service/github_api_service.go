@@ -914,3 +914,17 @@ func ListOrganizations(ctx *appcontext.Context) ([]model.OrgDetail, error) {
 	}
 	return results, nil
 }
+
+// GetCurrentUser fetches the authenticated user's profile via GET /user.
+func GetCurrentUser(ctx *appcontext.Context) (*model.UserInfo, error) {
+	url := fmt.Sprintf("%s/user", GITHUB_BASE_URL)
+	body, err := invokeAPI(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user info: %w", err)
+	}
+	var user model.UserInfo
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, fmt.Errorf("failed to parse user info: %w", err)
+	}
+	return &user, nil
+}

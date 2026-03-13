@@ -664,6 +664,29 @@ func (e *AuditLogEntry) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// UserInfo holds the authenticated user's profile from GET /user.
+type UserInfo struct {
+	Login       string `json:"login"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Company     string `json:"company"`
+	Location    string `json:"location"`
+	Bio         string `json:"bio"`
+	Blog        string `json:"blog"`
+	TwitterUsername string `json:"twitter_username"`
+	PublicRepos int    `json:"public_repos"`
+	Followers   int    `json:"followers"`
+	Following   int    `json:"following"`
+	HTMLUrl     string `json:"html_url"`
+	CreatedAt   string `json:"created_at"`
+	// private — only present when token has `user` scope
+	TotalPrivateRepos int `json:"total_private_repos"`
+	DiskUsage         int `json:"disk_usage"`
+	Plan              struct {
+		Name string `json:"name"`
+	} `json:"plan"`
+}
+
 type AuditLogResponse struct {
 	OrgName      string
 	Entries      []AuditLogEntry

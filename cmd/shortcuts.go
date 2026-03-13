@@ -17,6 +17,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/security"
 	"github.com/prady-lab/sgh-cli/cmd/tag"
 	"github.com/prady-lab/sgh-cli/cmd/team"
+	"github.com/prady-lab/sgh-cli/cmd/whoami"
 	"github.com/prady-lab/sgh-cli/cmd/workflow"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -33,7 +34,7 @@ type shortcut struct {
 // shortcutGroups controls the display order in `sgh shortcuts`.
 var shortcutGroups = []string{
 	"Repository", "Organization", "Issue", "Pull Request", "Branch", "Tag",
-	"Protected Branch", "Workflow", "Commit", "Team", "Security", "Config",
+	"Protected Branch", "Workflow", "Commit", "Team", "Security", "Config", "Utilities",
 }
 
 var shortcutDefs = func(ctx *context.Context) []shortcut {
@@ -64,6 +65,7 @@ var shortcutDefs = func(ctx *context.Context) []shortcut {
 		{"cil", "commit list", "Commit", commit.ListCommand},
 		{"tml", "team list", "Team", team.ListCommand},
 		{"secl", "security list", "Security", security.ListAlertsCommand},
+		{"wai", "whoami", "Utilities", func(ctx *context.Context) *cobra.Command { return whoami.NewWhoAmICommand(ctx) }},
 	}
 }
 

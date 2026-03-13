@@ -27,6 +27,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/team"
 	"github.com/prady-lab/sgh-cli/cmd/tui"
 	"github.com/prady-lab/sgh-cli/cmd/version"
+	"github.com/prady-lab/sgh-cli/cmd/whoami"
 	"github.com/prady-lab/sgh-cli/cmd/workflow"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
@@ -205,6 +206,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	configCmd.GroupID = "util"
 	healthCmd := health.NewHealthCommand(ctx)
 	healthCmd.GroupID = "util"
+	whoamiCmd := whoami.NewWhoAmICommand(ctx)
+	whoamiCmd.GroupID = "util"
 	versionCmd := version.NewVersionCommand()
 	versionCmd.GroupID = "util"
 
@@ -214,7 +217,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(teamCmd, securityCmd, auditCmd, orgCmd)
 	tuiCmd := tui.NewTUICommand(ctx)
 	tuiCmd.GroupID = "util"
-	rootCmd.AddCommand(configCmd, healthCmd, versionCmd, tuiCmd)
+	rootCmd.AddCommand(configCmd, healthCmd, whoamiCmd, versionCmd, tuiCmd)
 
 	shortcutsCmd := newShortcutsHelpCommand(ctx)
 	shortcutsCmd.GroupID = "util"

@@ -1733,3 +1733,77 @@ func PrintOrganizations(orgs []model.OrgDetail) {
 
 	fmt.Println(t)
 }
+
+// PrintWhoAmI renders the authenticated user's profile as a styled detail view.
+func PrintWhoAmI(u *model.UserInfo) {
+	if u == nil {
+		PrintNoDataMessage("Could not fetch user info.",
+			"Hint: verify GITHUB_TOKEN is set and valid.")
+		return
+	}
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(Cyan)
+	labelStyle := lipgloss.NewStyle().Foreground(Subtle).Width(20)
+	valueStyle := lipgloss.NewStyle().Foreground(White)
+	dimStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+	numStyle := lipgloss.NewStyle().Foreground(Green).Bold(true)
+
+	row := func(label, value string) {
+		if value == "" {
+			return
+		}
+		fmt.Printf("  %s %s\n", labelStyle.Render(label), valueStyle.Render(value))
+	}
+	numRow := func(label string, value int) {
+		fmt.Printf("  %s %s\n", labelStyle.Render(label), numStyle.Render(strconv.Itoa(value)))
+	}
+
+	displayName := u.Name
+	if displayName == "" {
+		displayName = u.Login
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", titleStyle.Render("  "+displayName))
+	fmt.Println()
+
+	row("Login", u.Login)
+	row("Name", u.Name)
+	row("Email", u.Email)
+	row("Company", u.Company)
+	row("Location", u.Location)
+	row("Bio", u.Bio)
+	row("Website", u.Blog)
+	row("Twitter", u.TwitterUsername)
+
+	fmt.Println()
+	numRow("Public Repos", u.PublicRepos)
+	numRow("Followers", u.Followers)
+	numRow("Following", u.Following)
+
+	if u.TotalPrivateRepos > 0 {
+		numRow("Private Repos", u.TotalPrivateRepos)
+	}
+	if u.DiskUsage > 0 {
+		row("Disk Usage", fmt.Sprintf("%.1f MB", float64(u.DiskUsage)/1024.0))
+	}
+	if u.Plan.Name != "" {
+		row("Plan", u.Plan.Name)
+	}
+
+	fmt.Println()
+	if u.HTMLUrl != "" {
+		row("Profile", u.HTMLUrl)
+	}
+	if u.CreatedAt != "" {
+		created := u.CreatedAt
+		if t, err := time.Parse(time.RFC3339, u.CreatedAt); err == nil {
+			created = t.Format("2006-01-02")
+		}
+		row("Member since", created)
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", dimStyle.Render("Tip: use -J/--json for full profile data"))
+	fmt.Println()
+}

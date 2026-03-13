@@ -34,6 +34,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - **Repository Lifecycle**: Archive/unarchive repos and toggle visibility (public/private) in bulk
 - **Issue Management**: Create and list issues across repositories
 - **Post-Release Workflows**: Automate post-release activities like merging and tagging
+- **Who Am I**: Show the authenticated user's profile and token identity (`sgh whoami`)
 - **Team Management**: List teams and members across your organization
 - **Repository Operations**: Clone repositories and track commits
 - **Flexible Filtering**: Use include/exclude patterns to target specific repositories
@@ -283,6 +284,7 @@ Commands are organized into groups:
 |---------|-------|-------------|-------------|
 | `config` | `cfg` | `list`, `validate`, `add`, `set`, `reset` | Manage and validate CLI configuration |
 | `health` | | - | Check system health and connectivity (`--json` for structured output) |
+| `whoami` | `me` | - | Show the authenticated GitHub user's profile |
 | `shortcuts` | | - | List available command shortcuts |
 | `version` | | - | Display version information (`--short` for version string only) |
 | `completion` | | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
@@ -365,6 +367,7 @@ For faster typing, single-word shortcuts are available for common `list` and `vi
 | `wfl` | `workflow list` | `wfv` | `workflow view` |
 | `wfd` | `workflow dispatch` | `cil` | `commit list` |
 | `tml` | `team list` | `secl` | `security list` |
+| `wai` | `whoami` | | |
 
 Each shortcut supports the same flags as the full command:
 
@@ -605,6 +608,17 @@ sgh security update --org my-org -r my-app --alert 4 --state resolved --resoluti
 
 # Preview changes with dry-run
 sgh security update --org my-org -r my-app --alert 1 --state resolved --resolution false_positive --dry-run
+```
+
+### Who Am I
+```bash
+# Show the authenticated user's profile
+sgh whoami
+sgh me
+
+# JSON output (full profile including private fields if token has 'user' scope)
+sgh whoami --json
+sgh wai -J
 ```
 
 ### Organization Management
