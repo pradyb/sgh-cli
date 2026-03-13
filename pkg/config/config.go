@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	internalconfig "github.com/prady-lab/sgh-cli/internal/config"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/ui"
@@ -69,12 +70,61 @@ func SaveRepositoryNamesForFuzzySearch(ctx *context.Context, orgName string, rep
 func SetTaggerName(ctx *context.Context, orgName, taggerName string) {
 	ctx.Config.SetTaggerName(orgName, taggerName)
 	saveConfig(ctx)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Tagger name for %s set to %q", orgName, taggerName)))
 }
 
 func SetTaggerEmail(ctx *context.Context, orgName, taggerEmail string) {
 	ctx.Config.SetTaggerEmail(orgName, taggerEmail)
 	saveConfig(ctx)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Tagger email for %s set to %q", orgName, taggerEmail)))
 }
+
+func RemoveOrganization(ctx *context.Context, orgName string) {
+	if !ctx.Config.RemoveOrganization(orgName) {
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Organization %q not found in config", orgName)))
+		return
+	}
+	saveConfig(ctx)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Organization %q removed", orgName)))
+}
+
+func RemoveRepository(ctx *context.Context, orgName, repoName string) {
+	if !ctx.Config.RemoveRepository(orgName, repoName) {
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Repository %q not found in org %q", repoName, orgName)))
+		return
+	}
+	saveConfig(ctx)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Repository %q removed from %q", repoName, orgName)))
+}
+
+func RemovePullRequestAssignee(ctx *context.Context, orgName, assignee string) {
+	if !ctx.Config.RemovePullRequestAssignee(orgName, assignee) {
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  Assignee %q not found in org %q", assignee, orgName)))
+		return
+	}
+	saveConfig(ctx)
+	fmt.Println(successStyle.Render(fmt.Sprintf("  Assignee %q removed from %q", assignee, orgName)))
+}
+
+func RemoveRepositoryPattern(ctx *context.Context, orgName string, include bool, pattern string) {
+	if !ctx.Config.RemoveRepositoryPattern(orgName, include, pattern) {
+		kind := "exclude"
+		if include {
+			kind = "include"
+		}
+		fmt.Println(warnStyle.Render(fmt.Sprintf("  %s pattern %q not found in org %q", kind, pattern, orgName)))
+		return
+	}
+	saveConfig(ctx)
+	kind := "exclude"
+	if include {
+		kind = "include"
+	}
+	fmt.Println(successStyle.Render(fmt.Sprintf("  %s pattern %q removed from %q", kind, pattern, orgName)))
+}
+
+// ConfigFilePath returns the absolute path to the active sgh config file.
+func ConfigFilePath() string { return internalconfig.ConfigFilePath() }
 
 func saveConfig(ctx *context.Context) {
 	if err := ctx.Config.Save(); err != nil {

@@ -67,6 +67,18 @@ func ErrorMessage(format string, args ...any) string {
 	return lipgloss.NewStyle().Foreground(Red).Bold(true).Render("Error: " + msg)
 }
 
+// PrintCLIError prints a styled error message followed by optional hint lines to stderr.
+// The first argument is the main error message; subsequent arguments are hints rendered in dim style.
+func PrintCLIError(message string, hints ...string) {
+	errorStyle := lipgloss.NewStyle().Foreground(Red).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(Dimmed).Italic(true)
+
+	fmt.Fprintln(os.Stderr, errorStyle.Render("✗ "+message))
+	for _, hint := range hints {
+		fmt.Fprintln(os.Stderr, hintStyle.Render("  hint: "+hint))
+	}
+}
+
 // StyledStatus returns the status string rendered with its appropriate color.
 func StyledStatus(status string) string {
 	return lipgloss.NewStyle().Foreground(StatusColor(status)).Render(status)

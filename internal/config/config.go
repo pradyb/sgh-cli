@@ -280,6 +280,13 @@ func (config *Config) AddPullRequestAssignee(orgName, pullRequestAssignee string
 }
 
 func (config *Config) AddRepositoryPattern(orgName string, include bool, exclude bool, pattern string) bool {
+	// Auto-create org if it doesn't exist, consistent with AddRepository behaviour.
+	if !config.IsOrganizationPresent(orgName) {
+		config.Organizations = append(config.Organizations, Organization{Name: orgName})
+		config.rebuildOrgData()
+		logger.Flog.Info().Str("org", orgName).Msg("Auto-created organization for pattern")
+	}
+
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
 			if include && !config.IsRepositoryPatternPresent(orgName, pattern, true) {
@@ -290,6 +297,95 @@ func (config *Config) AddRepositoryPattern(orgName string, include bool, exclude
 				config.Organizations[i].RepoPatterns.Exclude = append(config.Organizations[i].RepoPatterns.Exclude, pattern)
 				config.rebuildOrgData()
 				return true
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// RemoveOrganization removes an organization and all its associated data from the
+// config. Returns true if the org was found and removed, false if it was not present.
+func (config *Config) RemoveOrganization(orgName string) bool {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			config.Organizations = append(config.Organizations[:i], config.Organizations[i+1:]...)
+			config.rebuildOrgData()
+			return true
+		}
+	}
+	return false
+}
+
+// RemoveRepository removes a repository from an organization's list.
+// Returns true if removed, false if the org or repo was not found.
+func (config *Config) RemoveRepository(orgName, repoName string) bool {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			for j, r := range org.Repositories {
+				if strings.EqualFold(r, repoName) {
+					config.Organizations[i].Repositories = append(
+						config.Organizations[i].Repositories[:j],
+						config.Organizations[i].Repositories[j+1:]...,
+					)
+					config.rebuildOrgData()
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// RemovePullRequestAssignee removes an assignee from an org's PR assignee list.
+// Returns true if removed, false if not found.
+func (config *Config) RemovePullRequestAssignee(orgName, assignee string) bool {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			for j, a := range org.PullRequestAssignees {
+				if strings.EqualFold(a, assignee) {
+					config.Organizations[i].PullRequestAssignees = append(
+						config.Organizations[i].PullRequestAssignees[:j],
+						config.Organizations[i].PullRequestAssignees[j+1:]...,
+					)
+					config.rebuildOrgData()
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// RemoveRepositoryPattern removes an include or exclude pattern from an org.
+// Returns true if removed, false if not found.
+func (config *Config) RemoveRepositoryPattern(orgName string, include bool, pattern string) bool {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			if include {
+				for j, p := range org.RepoPatterns.Include {
+					if p == pattern {
+						config.Organizations[i].RepoPatterns.Include = append(
+							config.Organizations[i].RepoPatterns.Include[:j],
+							config.Organizations[i].RepoPatterns.Include[j+1:]...,
+						)
+						config.rebuildOrgData()
+						return true
+					}
+				}
+			} else {
+				for j, p := range org.RepoPatterns.Exclude {
+					if p == pattern {
+						config.Organizations[i].RepoPatterns.Exclude = append(
+							config.Organizations[i].RepoPatterns.Exclude[:j],
+							config.Organizations[i].RepoPatterns.Exclude[j+1:]...,
+						)
+						config.rebuildOrgData()
+						return true
+					}
+				}
 			}
 			return false
 		}
@@ -345,23 +441,36 @@ func resolveRepoName(repoName string, configRepoNames []string) string {
 	return best
 }
 
+// CanSelectRepositoryForProcessing decides whether a repo should be processed
+// based on the configured include/exclude regex patterns for the org.
+//
+// Rules (evaluated in order):
+//  1. No patterns configured → include everything.
+//  2. Exclude patterns match → always exclude, regardless of include.
+//  3. Include patterns configured → only include repos that match at least one.
+//  4. Only exclude patterns configured → include everything not excluded.
 func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string) bool {
-	repoPatterns := config.orgData[strings.ToLower(orgName)].RepoPatterns
-	if repoPatterns.Include == nil && repoPatterns.Exclude == nil {
+	patterns := config.orgData[strings.ToLower(orgName)].RepoPatterns
+	hasInclude := len(patterns.Include) > 0
+	hasExclude := len(patterns.Exclude) > 0
+
+	// Rule 1: no patterns at all → include everything
+	if !hasInclude && !hasExclude {
 		return true
 	}
-	if repoPatterns.Include != nil {
-		if config.matchPatterns(repoPatterns.Include, repoName) {
-			if repoPatterns.Exclude != nil {
-				return !config.matchPatterns(repoPatterns.Exclude, repoName)
-			}
-			return true
-		}
+
+	// Rule 2: exclude always wins
+	if hasExclude && config.matchPatterns(patterns.Exclude, repoName) {
+		return false
 	}
-	if repoPatterns.Exclude != nil {
-		return !config.matchPatterns(repoPatterns.Exclude, repoName)
+
+	// Rule 3: include filter is active — repo must match at least one include pattern
+	if hasInclude {
+		return config.matchPatterns(patterns.Include, repoName)
 	}
-	return false
+
+	// Rule 4: only exclude patterns configured, repo didn't match any — include it
+	return true
 }
 
 func (config *Config) SetTaggerName(orgName, taggerName string) {
@@ -443,6 +552,9 @@ func configFile() string {
 	return filepath.Join(configDir, DefaultFilename)
 }
 
+// ConfigFilePath returns the absolute path to the sgh config file.
+func ConfigFilePath() string { return configFile() }
+
 func (config *Config) matchPatterns(patterns []string, repoName string) bool {
 	for _, pattern := range patterns {
 		r, ok := config.compiledPatterns[pattern]
@@ -465,6 +577,10 @@ func (config *Config) matchPatterns(patterns []string, repoName string) bool {
 }
 
 // validate checks the configuration for common issues
+// Validate runs all configuration integrity checks and returns the first error found.
+// It is safe to call at any time and does not mutate the config.
+func (config *Config) Validate() error { return config.validate() }
+
 func (config *Config) validate() error {
 	// Validate worker count
 	if config.NoOfWorkers < 0 {
@@ -533,27 +649,64 @@ func (config *Config) validate() error {
 	return nil
 }
 
-// validateRepoPatterns validates repository patterns for security
-func validateRepoPatterns(patterns IncludeExcludePattern) error {
-	allPatterns := append(patterns.Include, patterns.Exclude...)
+// catchAllPatterns are regexes that match every possible string.
+// We reject these to prevent accidental blanket inclusion/exclusion.
+var catchAllPatterns = []string{
+	`.*`, `.*?`, `.+`, `.+?`, `^.*$`, `^.+$`,
+	`[\s\S]*`, `[\s\S]+`, `(?s:.*)`, `(?s:.+)`,
+	`[^]*`, `*`,
+}
 
-	for _, pattern := range allPatterns {
-		// Check for potentially dangerous patterns
-		if strings.Contains(pattern, "..") {
-			return fmt.Errorf("pattern '%s' contains '..' which could be dangerous", pattern)
-		}
+// ValidatePattern validates a single include/exclude repository pattern.
+// It is exported so the cmd layer can validate patterns before storing them,
+// giving the user immediate, actionable feedback.
+//
+// Checks performed (in order):
+//  1. Not empty or whitespace-only
+//  2. Does not contain ".." (path traversal)
+//  3. Not a known catch-all literal (e.g. ".*", ".+", "*")
+//  4. Compiles as a valid Go regular expression
+//  5. Does not behave as a catch-all at runtime (matches "" and any long string)
+func ValidatePattern(pattern string) error {
+	if strings.TrimSpace(pattern) == "" {
+		return fmt.Errorf("pattern cannot be empty or whitespace-only")
+	}
 
-		// Check for overly broad patterns that might match too many repos
-		if pattern == "*" || pattern == ".*" {
-			return fmt.Errorf("pattern '%s' is too broad and could match all repositories", pattern)
-		}
+	if strings.Contains(pattern, "..") {
+		return fmt.Errorf("pattern %q contains '..' which is not allowed", pattern)
+	}
 
-		// Validate regex pattern
-		if _, err := regexp.Compile(pattern); err != nil {
-			return fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
+	for _, bad := range catchAllPatterns {
+		if pattern == bad {
+			return fmt.Errorf("pattern %q matches every repository — use a more specific pattern (e.g. %q)", pattern, "^my-service-")
 		}
 	}
 
+	r, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("pattern %q is not a valid Go regular expression: %w", pattern, err)
+	}
+
+	// Runtime catch-all detection: matches empty string AND arbitrary content
+	if r.MatchString("") && r.MatchString("arbitrary-repo-name-xyz-123") {
+		return fmt.Errorf("pattern %q appears to match every repository — use a more specific pattern (e.g. %q)", pattern, "^my-service-")
+	}
+
+	return nil
+}
+
+// validateRepoPatterns validates all include and exclude patterns for an org.
+func validateRepoPatterns(patterns IncludeExcludePattern) error {
+	for _, p := range patterns.Include {
+		if err := ValidatePattern(p); err != nil {
+			return fmt.Errorf("include pattern: %w", err)
+		}
+	}
+	for _, p := range patterns.Exclude {
+		if err := ValidatePattern(p); err != nil {
+			return fmt.Errorf("exclude pattern: %w", err)
+		}
+	}
 	return nil
 }
 

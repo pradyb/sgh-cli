@@ -872,12 +872,12 @@ func TestAddRepositoryPattern(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "add pattern to non-existent org",
-			orgName:  "nonexistent",
+			name:     "add pattern to non-existent org — auto-creates org",
+			orgName:  "nonexistent-pattern-org",
 			include:  true,
 			exclude:  false,
-			pattern:  "pattern",
-			expected: false,
+			pattern:  "new-pattern-for-new-org",
+			expected: true,
 		},
 	}
 
@@ -958,6 +958,7 @@ func TestActualRepositoryNamesUsingFzf(t *testing.T) {
 }
 
 func TestCanSelectRepositoryForProcessing(t *testing.T) {
+	// testorg has: include=[.*api.*, web-.*], exclude=[.*test.*, deprecated-.*]
 	config := setupConfig()
 
 	tests := []struct {
@@ -966,43 +967,75 @@ func TestCanSelectRepositoryForProcessing(t *testing.T) {
 		repoName string
 		expected bool
 	}{
+		// Rule 3: include filter active — repo must match at least one include pattern
 		{
-			name:     "repo matches include pattern",
+			name:     "repo matches include pattern (web-)",
 			orgName:  "testorg",
 			repoName: "web-app",
 			expected: true,
 		},
 		{
-			name:     "repo matches exclude pattern",
+			name:     "repo matches include pattern (api)",
+			orgName:  "testorg",
+			repoName: "user-api-service",
+			expected: true,
+		},
+		// Rule 2: exclude always wins
+		{
+			name:     "repo matches exclude pattern only",
 			orgName:  "testorg",
 			repoName: "deprecated-app",
 			expected: false,
 		},
 		{
-			name:     "repo matches both include and exclude",
+			name:     "repo matches both include and exclude — exclude wins",
 			orgName:  "testorg",
 			repoName: "web-test-app",
-			expected: false, // exclude takes precedence
+			expected: false,
 		},
+		// Rule 3: include patterns set but repo doesn't match any — excluded
 		{
-			name:     "repo doesn't match any pattern",
+			name:     "repo matches neither include nor exclude — excluded because include is active",
 			orgName:  "testorg",
 			repoName: "random-repo",
-			expected: true, // doesn't match include, but also doesn't match exclude
+			expected: false,
 		},
+		// Rule 1: no patterns configured → include everything
 		{
-			name:     "org with no patterns",
+			name:     "org with no patterns — any repo included",
 			orgName:  "emptyorg",
 			repoName: "any-repo",
 			expected: true,
 		},
+		// Rule 4: only exclude patterns → include everything not excluded
+		{
+			name:     "only-exclude org — repo not excluded",
+			orgName:  "excludeonly",
+			repoName: "service-a",
+			expected: true,
+		},
+		{
+			name:     "only-exclude org — repo matches exclude",
+			orgName:  "excludeonly",
+			repoName: "legacy-service",
+			expected: false,
+		},
 	}
+
+	// Add an org with only exclude patterns for Rule 4 tests
+	config.Organizations = append(config.Organizations, Organization{
+		Name: "excludeonly",
+		RepoPatterns: IncludeExcludePattern{
+			Exclude: []string{"legacy-.*"},
+		},
+	})
+	config.rebuildOrgData()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := config.CanSelectRepositoryForProcessing(tt.orgName, tt.repoName)
 			if result != tt.expected {
-				t.Errorf("Expected %v for repo '%s' in org '%s', got %v", tt.expected, tt.repoName, tt.orgName, result)
+				t.Errorf(expectedRepoError, tt.expected, tt.repoName, tt.orgName, result)
 			}
 		})
 	}

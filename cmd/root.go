@@ -17,6 +17,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/config"
 	"github.com/prady-lab/sgh-cli/cmd/health"
 	"github.com/prady-lab/sgh-cli/cmd/issue"
+	cmdorg "github.com/prady-lab/sgh-cli/cmd/org"
 	postrelease "github.com/prady-lab/sgh-cli/cmd/postrelease"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
 	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protectedbranch"
@@ -52,6 +53,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  • Protected branch configuration and updates
 			  • Post-release workflow automation
 			  • Team and member management
+			  • Organization details across all token memberships
 			  • Repository cloning and commit tracking
 			  • Flexible filtering with include/exclude patterns
 
@@ -97,6 +99,10 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh commit list --org my-org --days 7 --details
 			  $ sgh issue list --org my-org -r sample-repo1
 
+			Organization:
+			  $ sgh org list
+			  $ sgh orl
+
 			Team Management:
 			  $ sgh team list --org my-org
 			  $ sgh team list --org my-org --team developers --all-members
@@ -109,7 +115,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh config add pattern api-* --org my-org --include
 			`),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			validateCommandRequirements(cmd)
+			validateCommandRequirements(cmd, args)
 			setupContext(cmd, ctx)
 			logCommandExecution(cmd)
 		},
@@ -189,6 +195,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	issueCmd.GroupID = "repo"
 	auditCmd := audit.NewAuditCommand(ctx)
 	auditCmd.GroupID = "org"
+	orgCmd := cmdorg.NewOrgCommand(ctx)
+	orgCmd.GroupID = "org"
 
 	securityCmd := security.NewSecurityCommand(ctx)
 	securityCmd.GroupID = "org"
@@ -203,7 +211,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.AddCommand(repoCmd, cloneCmd, commitCmd, issueCmd)
 	rootCmd.AddCommand(branchCmd, tagCmd, prCmd, pbCmd)
 	rootCmd.AddCommand(workflowCmd, postreleaseCmd)
-	rootCmd.AddCommand(teamCmd, securityCmd, auditCmd)
+	rootCmd.AddCommand(teamCmd, securityCmd, auditCmd, orgCmd)
 	tuiCmd := tui.NewTUICommand(ctx)
 	tuiCmd.GroupID = "util"
 	rootCmd.AddCommand(configCmd, healthCmd, versionCmd, tuiCmd)
@@ -244,14 +252,14 @@ func validateWorkerCount(workers int) error {
 	return nil
 }
 
-func validateCommandRequirements(cmd *cobra.Command) {
+func validateCommandRequirements(cmd *cobra.Command, args []string) {
 	cmdName := cmd.Name()
 
 	// Walk the command tree to check if any ancestor is exempt
 	skipOrg := map[string]bool{
 		"help": true, "completion": true, "health": true,
 		"version": true, "config": true, "repo": true,
-		"shortcuts": true, "tui": true,
+		"org": true, "orl": true, "shortcuts": true, "tui": true,
 	}
 	noOrgRequired := !cmd.HasParent() || (cmd.Run == nil && cmd.RunE == nil)
 	for c := cmd; c != nil; c = c.Parent() {
@@ -264,6 +272,10 @@ func validateCommandRequirements(cmd *cobra.Command) {
 	// Validate org flag for commands that require it
 	if !noOrgRequired {
 		orgFlag, _ := cmd.Flags().GetString("org")
+		// Accept positional arg as org (e.g. `sgh rpl my-org`)
+		if orgFlag == "" && len(args) > 0 {
+			orgFlag = args[0]
+		}
 		if orgFlag == "" {
 			logger.Flog.Error().Msg("Organization parameter is required for this command")
 			printCLIError(

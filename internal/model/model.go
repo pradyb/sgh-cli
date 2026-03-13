@@ -678,3 +678,26 @@ type IssueComment struct {
 	UpdatedAt string `json:"updated_at"`
 	HTMLUrl   string `json:"html_url"`
 }
+
+// OrgDetail holds rich information about a GitHub organization fetched via GraphQL.
+type OrgDetail struct {
+	Login            string
+	Name             string
+	Description      string
+	Email            string
+	WebsiteURL       string
+	Location         string
+	TwitterUsername  string
+	CreatedAt        string
+	UpdatedAt        string
+	URL              string
+	AvatarURL        string
+	IsVerified       bool
+	RequiresTwoFA    bool
+	MembersCount     int
+	TeamsCount       int
+	ReposCount       int
+	PublicReposCount int
+	PrivateReposCount int
+	DiskUsageMB      float64
+}

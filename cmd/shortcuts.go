@@ -10,6 +10,7 @@ import (
 	"github.com/prady-lab/sgh-cli/cmd/branch"
 	"github.com/prady-lab/sgh-cli/cmd/commit"
 	"github.com/prady-lab/sgh-cli/cmd/issue"
+	cmdorg "github.com/prady-lab/sgh-cli/cmd/org"
 	"github.com/prady-lab/sgh-cli/cmd/pr"
 	protectedbranch "github.com/prady-lab/sgh-cli/cmd/protectedbranch"
 	"github.com/prady-lab/sgh-cli/cmd/repo"
@@ -31,7 +32,7 @@ type shortcut struct {
 
 // shortcutGroups controls the display order in `sgh shortcuts`.
 var shortcutGroups = []string{
-	"Repository", "Issue", "Pull Request", "Branch", "Tag",
+	"Repository", "Organization", "Issue", "Pull Request", "Branch", "Tag",
 	"Protected Branch", "Workflow", "Commit", "Team", "Security",
 }
 
@@ -39,6 +40,7 @@ var shortcutDefs = func(ctx *context.Context) []shortcut {
 	return []shortcut{
 		{"rpl", "repo list", "Repository", repo.ListCommand},
 		{"rps", "repo search", "Repository", repo.SearchCommand},
+		{"orl", "org list", "Organization", cmdorg.ListCommand},
 		{"isl", "issue list", "Issue", issue.ListCommand},
 		{"isv", "issue view", "Issue", issue.ViewCommand},
 		{"prl", "pr list", "Pull Request", pr.ListCommand},

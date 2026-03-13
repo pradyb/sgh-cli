@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
@@ -726,4 +728,93 @@ func GetAuditLog(ctx *appcontext.Context, orgName string, phrase, include string
 		return nil, err
 	}
 	return entries, nil
+}
+
+// orgNode is the per-org fragment used inside the viewer organizations query.
+type orgNode struct {
+	Login           githubv4.String
+	Name            githubv4.String
+	Description     githubv4.String
+	Email           githubv4.String
+	WebsiteURL      githubv4.String   `graphql:"websiteUrl"`
+	Location        githubv4.String
+	TwitterUsername githubv4.String   `graphql:"twitterUsername"`
+	CreatedAt       githubv4.DateTime
+	UpdatedAt       githubv4.DateTime
+	URL             githubv4.String   `graphql:"url"`
+	AvatarURL       githubv4.String   `graphql:"avatarUrl"`
+	IsVerified      githubv4.Boolean
+	RequiresTwoFactorAuthentication githubv4.Boolean `graphql:"requiresTwoFactorAuthentication"`
+	MembersWithRole struct {
+		TotalCount githubv4.Int
+	} `graphql:"membersWithRole"`
+	Teams struct {
+		TotalCount githubv4.Int
+	} `graphql:"teams"`
+	Repositories struct {
+		TotalCount     githubv4.Int
+		TotalDiskUsage githubv4.Int `graphql:"totalDiskUsage"`
+	} `graphql:"repositories(privacy: PRIVATE, first: 1)"`
+	PublicRepositories struct {
+		TotalCount githubv4.Int
+	} `graphql:"publicRepositories: repositories(privacy: PUBLIC, first: 1)"`
+}
+
+// viewerOrgsQuery pages through all organizations the authenticated user belongs to.
+type viewerOrgsQuery struct {
+	Viewer struct {
+		Organizations struct {
+			PageInfo model.PageInfo
+			Nodes    []orgNode
+		} `graphql:"organizations(first: 100, after: $cursor)"`
+	}
+}
+
+func orgNodeToDetail(o orgNode) model.OrgDetail {
+	totalRepos := int(o.Repositories.TotalCount) + int(o.PublicRepositories.TotalCount)
+	return model.OrgDetail{
+		Login:             string(o.Login),
+		Name:              string(o.Name),
+		Description:       string(o.Description),
+		Email:             string(o.Email),
+		WebsiteURL:        string(o.WebsiteURL),
+		Location:          string(o.Location),
+		TwitterUsername:   string(o.TwitterUsername),
+		CreatedAt:         o.CreatedAt.Format("2006-01-02"),
+		UpdatedAt:         o.UpdatedAt.Format("2006-01-02"),
+		URL:               string(o.URL),
+		AvatarURL:         string(o.AvatarURL),
+		IsVerified:        bool(o.IsVerified),
+		RequiresTwoFA:     bool(o.RequiresTwoFactorAuthentication),
+		MembersCount:      int(o.MembersWithRole.TotalCount),
+		TeamsCount:        int(o.Teams.TotalCount),
+		ReposCount:        totalRepos,
+		PublicReposCount:  int(o.PublicRepositories.TotalCount),
+		PrivateReposCount: int(o.Repositories.TotalCount),
+		DiskUsageMB:       float64(o.Repositories.TotalDiskUsage) / 1024.0,
+	}
+}
+
+// ListOrganizations returns all organizations the authenticated token belongs to,
+// using the viewer.organizations GraphQL query (paginated).
+func ListOrganizations(ctx *appcontext.Context) ([]model.OrgDetail, error) {
+	variables := map[string]interface{}{
+		"cursor": (*githubv4.String)(nil),
+	}
+	var results []model.OrgDetail
+	for {
+		var q viewerOrgsQuery
+		if err := QueryWithContext(context.Background(), ctx, &q, variables); err != nil {
+			return nil, fmt.Errorf("graphql query failed for viewer organizations: %w", err)
+		}
+		for _, node := range q.Viewer.Organizations.Nodes {
+			results = append(results, orgNodeToDetail(node))
+		}
+		if !q.Viewer.Organizations.PageInfo.HasNextPage {
+			break
+		}
+		cursor := githubv4.String(q.Viewer.Organizations.PageInfo.EndCursor)
+		variables["cursor"] = &cursor
+	}
+	return results, nil
 }

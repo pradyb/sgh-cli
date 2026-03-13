@@ -194,7 +194,16 @@ func ResolveRepositoryNames(ctx *context.Context, orgName string, repos, exclude
 		repoNames = append(repoNames, ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)...)
 	}
 
-	filteredRepoNames := make([]string, 0)
+	// Apply config include/exclude patterns (consistent with ProcessRepositoriesOperation)
+	patternFiltered := make([]string, 0, len(repoNames))
+	for _, repoName := range repoNames {
+		if ctx.Config.CanSelectRepositoryForProcessing(orgName, repoName) {
+			patternFiltered = append(patternFiltered, repoName)
+		}
+	}
+	repoNames = patternFiltered
+
+	filteredRepoNames := make([]string, 0, len(repoNames))
 	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
 	for _, repoName := range repoNames {
 		if !slices.Contains(actualExcludeRepoNames, repoName) {
@@ -225,8 +234,21 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 		repoNames = append(repoNames, actualRepoNames...)
 	}
 
-	// Exclude repositories
-	filteredRepoNames := make([]string, 0)
+	// Apply config include/exclude pattern filtering even when repos were
+	// explicitly provided via -r. This ensures exclude patterns always win
+	// and prevents processing repos that are explicitly excluded in config.
+	patternFiltered := make([]string, 0, len(repoNames))
+	for _, repoName := range repoNames {
+		if ctx.Config.CanSelectRepositoryForProcessing(orgName, repoName) {
+			patternFiltered = append(patternFiltered, repoName)
+		} else {
+			logger.Flog.Debug().Str("repo", repoName).Msg("Skipping repo excluded by config pattern")
+		}
+	}
+	repoNames = patternFiltered
+
+	// Exclude repositories explicitly provided via --exclude-repo flag
+	filteredRepoNames := make([]string, 0, len(repoNames))
 	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
 	for _, repoName := range repoNames {
 		if !slices.Contains(actualExcludeRepoNames, repoName) {

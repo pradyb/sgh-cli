@@ -7,7 +7,6 @@ package repo
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/service"
@@ -20,15 +19,12 @@ import (
 // GetReposForOrg retrieves repositories for the given organization, optionally filtering by config.
 // If all is true, returns all repositories; otherwise, applies config-based filtering.
 func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Repository, error) {
-	var queryString string
-	queryString = "org:" + orgName
-
-	if ctx.Config.IsOrganizationPresent(orgName) {
-		includes := ctx.Config.IncludePatterns(orgName)
-		if (len(includes)) == 1 {
-			queryString = queryString + " " + strings.ReplaceAll(includes[0], "*", "") + " in:name"
-		}
-	}
+	// Always fetch all repos for the org and apply include/exclude patterns
+	// in-memory via CanSelectRepositoryForProcessing. The old approach of
+	// injecting a single include pattern directly into the GitHub search query
+	// was incorrect (patterns are regex, not globs) and only worked for exactly
+	// one pattern, causing inconsistent behaviour.
+	queryString := "org:" + orgName
 
 	variables := map[string]interface{}{
 		"queryString": githubv4.String(queryString),

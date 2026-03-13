@@ -142,8 +142,7 @@ set GITHUB_TOKEN=your_token_here
 
 ### Config File Locations
 - **Windows:** `~/sgh.json`
-- **Linux:** `~/.config/sgh/sgh.json`
-- **Mac:** `~/.config/sgh/sgh.json`
+- **Linux/Mac:** `~/.config/sgh/sgh.json`
 
 ### Configuration Management
 ```bash
@@ -154,32 +153,91 @@ sgh config list
 sgh config validate
 
 # Add organization
-sgh config add org my-organization
+sgh config add org my-org
 
-# Add repository to organization
-sgh config add repo my-repo --org my-organization
+# Add specific repositories for fuzzy name matching (used with -r flag)
+sgh config add repo my-repo --org my-org
 
-# Add include patterns (only these repos will be processed)
-sgh config add pattern api-* --org my-organization --include
-sgh config add pattern service-* --org my-organization --include
+# Add include patterns — only repos matching these will be processed
+sgh config add pattern "^api-" --org my-org --include
+sgh config add pattern "^service-" --org my-org --include
 
-# Add exclude patterns (these repos will be skipped)
-sgh config add pattern legacy-* --org my-organization --exclude
-sgh config add pattern deprecated-* --org my-organization --exclude
+# Add exclude patterns — repos matching these are always skipped
+sgh config add pattern "legacy-.*" --org my-org --exclude
+sgh config add pattern ".*-deprecated$" --org my-org --exclude
+
+# Set tagger identity (used by tag create)
+sgh config set tagger-name "John Doe" --org my-org
+sgh config set tagger-email "john@example.com" --org my-org
 ```
 
 ### Sample Configuration File
 ```json
 {
-  "organizations": {
-    "my-org": {
-      "repositories": ["repo1", "repo2"],
-      "include_patterns": ["api-*", "service-*"],
-      "exclude_patterns": ["legacy-*", "test-*"]
+  "no_of_workers": 5,
+  "organizations": [
+    {
+      "name": "my-org",
+      "repositories": ["api-gateway", "service-auth", "service-billing"],
+      "repo_patterns": {
+        "include": ["^api-", "^service-"],
+        "exclude": ["legacy-.*", ".*-deprecated$", ".*-archive$"]
+      },
+      "pull_request_assignees": ["jane-doe", "john-smith"],
+      "tagger": {
+        "name": "Release Bot",
+        "email": "release@my-org.com"
+      }
     }
-  }
+  ]
 }
 ```
+
+> **Note:** Patterns are **Go regular expressions**, not globs.  
+> Use `^api-` (not `api-*`) to match repos starting with `api-`.
+
+### Repository Include / Exclude Filtering
+
+When no `--repo` (`-r`) flag is given, `sgh` uses the `repo_patterns` in config to decide which repositories to process. The rules are evaluated in this order:
+
+| Priority | Condition | Result |
+|----------|-----------|--------|
+| 1 | No `include` **and** no `exclude` patterns configured | Include **all** repos |
+| 2 | Repo matches any `exclude` pattern | **Always excluded** (even if it also matches an include pattern) |
+| 3 | `include` patterns are configured and repo matches at least one | Included |
+| 3 | `include` patterns are configured but repo matches **none** | Excluded |
+| 4 | Only `exclude` patterns configured (no include), repo doesn't match | Included |
+
+**Examples:**
+
+```
+Config: include=[^api-, ^service-]  exclude=[.*-legacy$]
+
+  api-gateway         → included   (matches include)
+  service-auth        → included   (matches include)
+  api-legacy          → EXCLUDED   (matches exclude — exclude always wins)
+  web-frontend        → EXCLUDED   (include is active but no match)
+  random-tool         → EXCLUDED   (include is active but no match)
+```
+
+```
+Config: include=[]  exclude=[.*-archive$, .*-deprecated$]
+
+  api-gateway         → included   (no include filter, not excluded)
+  old-app-archive     → EXCLUDED   (matches exclude)
+  service-deprecated  → EXCLUDED   (matches exclude)
+  web-frontend        → included   (no include filter, not excluded)
+```
+
+#### The `repositories` list vs `repo_patterns`
+
+| Field | Purpose |
+|-------|---------|
+| `repositories` | Auto-populated fuzzy-match dictionary for the `-r` flag. Allows short/partial names like `-r api` to resolve to `api-gateway`. Not used for filtering when no `-r` is given. |
+| `repo_patterns.include` / `repo_patterns.exclude` | Controls which repos are selected when **no** `-r` flag is provided. Applied as regex. Exclude always wins. |
+
+> **Important:** Even when you explicitly pass repos via `-r`, the `exclude` patterns from config still apply.  
+> If a repo is in your `exclude` list, it will be skipped even if named directly with `-r`.
 
 ## 📚 Available Commands
 
@@ -213,7 +271,8 @@ Commands are organized into groups:
 
 | Command | Alias | Subcommands | Description |
 |---------|-------|-------------|-------------|
-| `team` | | `list` | List teams and members |
+| `org` | `orl` | `list` | List all GitHub organizations the token belongs to |
+| `team` | `tml` | `list` | List teams and members |
 
 ### Utilities
 
@@ -266,6 +325,7 @@ Commands are organized into groups:
 - `pb delete --org <org> --branch <branch>` - Remove protection
 
 **Organization & Configuration:**
+- `org list` - List all GitHub organizations the token belongs to (no `--org` needed)
 - `team list --org <org>` - List teams and members
 - `config list` - Show current configuration
 - `config validate` - Check configuration for errors
@@ -278,15 +338,18 @@ For faster typing, single-word shortcuts are available for common `list` and `vi
 | Shortcut | Expands To | Shortcut | Expands To |
 |----------|------------|----------|------------|
 | `rpl` | `repo list` | `rps` | `repo search` |
-| `prl` | `pr list` | `prv` | `pr view` |
-| `brl` | `branch list` | `tgl` | `tag list` |
+| `orl` | `org list` | `isl` | `issue list` |
+| `isv` | `issue view` | `prl` | `pr list` |
+| `prv` | `pr view` | `brl` | `branch list` |
+| `tgl` | `tag list` | `pbl` | `pb list` |
 | `wfl` | `workflow list` | `wfv` | `workflow view` |
-| `pbl` | `pb list` | `cil` | `commit list` |
-| `tml` | `team list` | | |
+| `cil` | `commit list` | `tml` | `team list` |
+| `secl` | `security list` | | |
 
 Each shortcut supports the same flags as the full command:
 
 ```bash
+sgh orl                                       # same as: sgh org list
 sgh prl --org my-org --author john-doe        # same as: sgh pr list --org my-org --author john-doe
 sgh wfl --org my-org --running                # same as: sgh workflow list --org my-org --running
 sgh brl --org my-org --filter "Release-"      # same as: sgh branch list --org my-org --filter "Release-"
@@ -476,6 +539,19 @@ sgh security update --org my-org -r my-app --alert 4 --state resolved --resoluti
 sgh security update --org my-org -r my-app --alert 1 --state resolved --resolution false_positive --dry-run
 ```
 
+### Organization Management
+```bash
+# List all organizations the token belongs to (no --org flag needed)
+sgh org list
+sgh orl
+
+# JSON output
+sgh orl -J
+
+# Limit results
+sgh orl --limit 5
+```
+
 ### Team Management
 ```bash
 # List all teams
@@ -490,18 +566,30 @@ sgh team list --org my-org --members 100
 
 ### Configuration Management
 ```bash
-# View current configuration
+# View current configuration (includes pattern rules and repo list)
 sgh config list
 
-# Validate config file for errors
+# Validate config file for errors (regex syntax, duplicate orgs, etc.)
 sgh config validate
 
 # Add organization to config
 sgh config add org my-org
 
-# Add repository patterns
-sgh config add pattern api-* --org my-org --include
-sgh config add pattern legacy-* --org my-org --exclude
+# Add specific repos to the fuzzy-match dictionary (used with -r flag)
+sgh config add repo api-gateway --org my-org
+sgh config add repo service-auth --org my-org
+
+# Add include patterns — only repos matching these are selected (regex)
+sgh config add pattern "^api-" --org my-org --include
+sgh config add pattern "^service-" --org my-org --include
+
+# Add exclude patterns — these repos are always skipped (regex, wins over include)
+sgh config add pattern ".*-legacy$" --org my-org --exclude
+sgh config add pattern ".*-archive$" --org my-org --exclude
+
+# Set tagger identity for tag commands
+sgh config set tagger-name "Release Bot" --org my-org
+sgh config set tagger-email "releases@my-org.com" --org my-org
 ```
 
 ## 🏷️ Global Flags
@@ -536,15 +624,40 @@ Some list commands support additional flags:
 ## 🔍 Advanced Usage
 
 ### Repository Filtering
-Use include/exclude patterns to target specific repositories:
+
+There are two complementary ways to control which repositories are processed:
+
+#### 1. Config-based (persistent, automatic)
+Set `repo_patterns` in config once and every command respects it automatically:
 
 ```bash
-# Target only API services
-sgh branch create --org my-org --new feature --ref main --repo api-*
+# Only process repos matching these patterns (regex)
+sgh config add pattern "^api-" --org my-org --include
+sgh config add pattern "^service-" --org my-org --include
 
-# Exclude legacy applications
-sgh pr create --org my-org --title "Update" --head feature --base main --exclude-repos legacy-*
+# Always skip these repos (regex) — exclude wins over include
+sgh config add pattern ".*-legacy$" --org my-org --exclude
+sgh config add pattern ".*-archive$" --org my-org --exclude
+
+# Now all commands automatically respect these patterns:
+sgh branch list --org my-org          # only api-* and service-* repos
+sgh pr list --org my-org              # same filtering
+sgh workflow list --org my-org        # same filtering
 ```
+
+#### 2. CLI flags (per-command override)
+Pass `-r` / `--repo` to target specific repos, or `--exclude-repo` to skip some:
+
+```bash
+# Only run on specific repos (fuzzy matched against config repository list)
+sgh branch create --org my-org --new feature --ref main -r api-gateway -r service-auth
+
+# Exclude specific repos for this run only
+sgh pr list --org my-org --exclude-repo legacy-app --exclude-repo test-harness
+```
+
+> **Note:** Even with `-r`, config `exclude` patterns still apply. A repo in your  
+> `exclude` list will be skipped even if explicitly named with `-r`.
 
 ### Output Modes
 Use `--output`, `--compact`, or `--json` for scripting:

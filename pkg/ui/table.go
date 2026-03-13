@@ -1663,3 +1663,73 @@ func SortIssues(issues []model.IssueResponse, sortBy string) {
 		})
 	}
 }
+
+// PrintOrganizations renders a table of GitHub organization details.
+func PrintOrganizations(orgs []model.OrgDetail) {
+	if len(orgs) == 0 {
+		PrintNoDataMessage("No organization details found.",
+			"Hint: verify the organization name(s) and your access token scope (read:org).")
+		return
+	}
+
+	boolYN := func(b bool) string {
+		if b {
+			return "Yes"
+		}
+		return "No"
+	}
+
+	rows := make([][]string, 0, len(orgs)+1)
+	for _, o := range orgs {
+		name := o.Name
+		if name == "" {
+			name = o.Login
+		}
+		disk := fmt.Sprintf("%.1f MB", o.DiskUsageMB)
+		rows = append(rows, []string{
+			fmt.Sprintf(HyperLinkFormat, o.URL, name),
+			o.Login,
+			o.Description,
+			o.Email,
+			o.Location,
+			o.WebsiteURL,
+			strconv.Itoa(o.MembersCount),
+			strconv.Itoa(o.TeamsCount),
+			strconv.Itoa(o.ReposCount),
+			boolYN(o.IsVerified),
+			boolYN(o.RequiresTwoFA),
+			disk,
+			o.CreatedAt,
+		})
+	}
+	rows = append(rows, []string{"Total Organizations", strconv.Itoa(len(orgs)), "", "", "", "", "", "", "", "", "", "", ""})
+
+	fmt.Println()
+	t := table.New().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(BorderStyle).
+		BorderRow(true).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == -1 {
+				return HeaderStyle
+			}
+			if row == len(rows)-1 {
+				return FooterStyle
+			}
+			switch col {
+			case 6, 7, 8:
+				return CellStyle.Foreground(Subtle).Align(lipgloss.Center, lipgloss.Center)
+			case 9, 10:
+				return CellStyle.Foreground(Green).Align(lipgloss.Center, lipgloss.Center)
+			}
+			if row%2 == 0 {
+				return EvenRowStyle
+			}
+			return OddRowStyle
+		}).
+		Headers("Name", "Login", "Description", "Email", "Location", "Website",
+			"Members", "Teams", "Repos", "Verified", "2FA Required", "Disk Usage", "Created").
+		Rows(rows...)
+
+	fmt.Println(t)
+}
