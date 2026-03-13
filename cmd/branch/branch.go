@@ -20,13 +20,14 @@ import (
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	branchCmd := &cobra.Command{
 		Use:     "branch <command>",
-		Short:   "List, create, and delete branches",
-		Long:    `Perform branch operations like list/create/delete across repositories.`,
+		Short:   "List, create, rename, and delete branches",
+		Long:    `Perform branch operations like list/create/rename/delete across repositories.`,
 		Aliases: []string{"br"},
 	}
 
 	branchCmd.AddCommand(ListCommand(ctx))
 	branchCmd.AddCommand(CreateCommand(ctx))
+	branchCmd.AddCommand(RenameCommand(ctx))
 	branchCmd.AddCommand(DeleteCommand(ctx))
 	return branchCmd
 }
@@ -145,7 +146,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	createCmd.Flags().StringVarP(&branchName, "new", "N", "", "The new `branch` which you want to be created")
-	createCmd.Flags().StringVarP(&refBranchName, "ref", "R", "", "The `branch` from which you want to use as reference")
+	createCmd.Flags().StringVarP(&refBranchName, "ref", "f", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringVarP(&commitSHA, "commit", "c", "", "The `commit sha` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
 	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch creation")
@@ -157,11 +158,56 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	return createCmd
 }
 
+func RenameCommand(ctx *context.Context) *cobra.Command {
+	var oldName, newName string
+
+	renameCmd := &cobra.Command{
+		Use:     "rename",
+		Short:   "Rename a branch across repositories",
+		Long:    `Rename a branch across given repositories or all selected repositories in the organization.`,
+		Aliases: []string{"mv"},
+		Example: heredoc.Doc(`
+			$ sgh branch rename --org sample-org --old Release-1.0 --new Release-1.0-final
+			$ sgh branch rename --org sample-org --old feature/old-name --new feature/new-name -r sample-repo1
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			repos, _ := cmd.Flags().GetStringArray("repository")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				resolved, _ := processor.ResolveRepositoryNames(ctx, orgName, repos, excludeRepoNames)
+				ui.PrintDryRunActions("Rename Branch", orgName, resolved, map[string]string{
+					"Old Name": oldName, "New Name": newName,
+				})
+				return
+			}
+			req := branch.BranchRenameRequest{
+				OrgName:          orgName,
+				RepoNames:        repos,
+				ExcludeRepoNames: excludeRepoNames,
+				OldName:          oldName,
+				NewName:          newName,
+			}
+			responses := branch.RenameBranches(ctx, req)
+			ui.PrintResponses(responses)
+		},
+	}
+
+	renameCmd.Flags().StringVar(&oldName, "old", "", "the current `branch` name")
+	renameCmd.Flags().StringVar(&newName, "new", "", "the new `branch` name")
+	renameCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
+	renameCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+
+	renameCmd.MarkFlagRequired("old")
+	renameCmd.MarkFlagRequired("new")
+	return renameCmd
+}
+
 func DeleteCommand(ctx *context.Context) *cobra.Command {
 	deleteCmd := &cobra.Command{
 		Use:     "delete",
-		Short:   "Delete a new branch.",
-		Long:    `Delete a new branch for given repositories or all the selected repositories in the given organization/owner.`,
+		Short:   "Delete a branch across repositories.",
+		Long:    `Delete a branch for given repositories or all the selected repositories in the given organization/owner.`,
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh branch delete --org sample-org --branch Release-1.0 

@@ -22,6 +22,7 @@ var (
 	excludeRepoNames []string
 	message          string
 	sortBy           string
+	filter           string
 )
 
 func NewTagCommand(ctx *context.Context) *cobra.Command {
@@ -55,6 +56,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 				OrgName:          orgName,
 				RepoNames:        repoNames,
 				ExcludeRepoNames: excludeRepoNames,
+				Filter:           filter,
 			}
 			responses := tag.ListTags(ctx, req)
 			ui.SortTags(responses, sortBy)
@@ -71,6 +73,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter tags by `name` (partial match or regex)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, tag")
 
 	return listCmd
@@ -83,7 +86,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Create a new tag from a existing branch for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"add"},
 		Example: heredoc.Doc(`
-			$ sgh tag create --org sample-org --tag Release-1.0 --Head Release-1.0 -m 'Tag for Release 1.0'
+			$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 -m 'Tag for Release 1.0'
 			$ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 -m 'Tag for Release 1.0' -r sample-repo1 -r sample-repo2
 		`),
 
@@ -130,8 +133,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 func DeleteCommand(ctx *context.Context) *cobra.Command {
 	deleteCmd := &cobra.Command{
 		Use:     "delete",
-		Short:   "Delete a new tag",
-		Long:    `Delete a new tag for given repos or all the selected repos in the given org/owner`,
+		Short:   "Delete a tag across repositories",
+		Long:    `Delete a tag for given repos or all the selected repos in the given org/owner`,
 		Aliases: []string{"rm"},
 		Example: heredoc.Doc(`
 			$ sgh tag delete --Tag Release-1.0 --org sample-org
@@ -162,7 +165,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	deleteCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
+	deleteCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The `tag` which you want to be deleted")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from deleting the tag")
 

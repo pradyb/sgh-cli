@@ -19,6 +19,8 @@ var (
 )
 
 func NewVersionCommand() *cobra.Command {
+	var short bool
+
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Display version information",
@@ -30,11 +32,18 @@ This includes:
 - Build date
 - Go version
 - Platform information`,
+		Example: `  $ sgh version
+  $ sgh version --short`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if short {
+				fmt.Println(Version)
+				return
+			}
 			displayVersion()
 		},
 	}
 
+	versionCmd.Flags().BoolVarP(&short, "short", "s", false, "print only the version number")
 	return versionCmd
 }
 

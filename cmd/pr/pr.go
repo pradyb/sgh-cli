@@ -23,8 +23,8 @@ import (
 func NewPRCommand(ctx *context.Context) *cobra.Command {
 	prCmd := &cobra.Command{
 		Use:   "pr <command>",
-		Short: "Perform PR operations like create/review/merge/close/update/list",
-		Long:  `Perform PR operations like create/review/merge/close/update/list`,
+		Short: "Perform PR operations like create/list/view/review/merge/close/reopen",
+		Long:  `Perform PR operations like create/list/view/review/merge/close/reopen`,
 	}
 
 	prCmd.AddCommand(CreateCommand(ctx))
@@ -33,6 +33,8 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 	prCmd.AddCommand(ReviewCommand(ctx))
 	prCmd.AddCommand(UpdateCommand(ctx))
 	prCmd.AddCommand(MergeCommand(ctx))
+	prCmd.AddCommand(CloseCommand(ctx))
+	prCmd.AddCommand(ReopenCommand(ctx))
 	return prCmd
 }
 
@@ -107,13 +109,17 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh pr list --org sample-org
-			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --all-status
+			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --all
 			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --head "feature-branch" --base "develop"
 			$ sgh pr list --org sample-org -r sample-repo1 -r sample-repo2 --base "develop" --author "john-doe" --assignee "jane-doe"
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			// support deprecated --all-status alias
+			if v, _ := cmd.Flags().GetBool("all-status"); v {
+				allPullRequests = true
+			}
 			req := pr.PRRequest{
 				OrgName:          orgName,
 				RepoNames:        repoNames,
@@ -148,7 +154,9 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
-	listCmd.Flags().BoolVar(&allPullRequests, "all-status", false, "to fetch all the pull requests including closed ones. Default is false")
+	listCmd.Flags().BoolVarP(&allPullRequests, "all", "A", false, "fetch all pull requests including closed and merged (default: open only)")
+	listCmd.Flags().Bool("all-status", false, "alias for --all (deprecated)")
+	listCmd.Flags().MarkHidden("all-status")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
 	listCmd.Flags().StringVarP(&headRef, "head", "H", "", "The `branch` that contains commits for your pull request")
 	listCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode to select the PR to merge")
@@ -205,7 +213,7 @@ check runs, and reviews.`,
 	}
 
 	viewCmd.Flags().StringVarP(&viewRepo, "repository", "r", "", "repository name")
-	viewCmd.Flags().IntVarP(&viewPR, "pr", "P", 0, "pull request `number`")
+	viewCmd.Flags().IntVarP(&viewPR, "pr", "n", 0, "pull request `number`")
 
 	viewCmd.MarkFlagRequired("repository")
 	viewCmd.MarkFlagRequired("pr")
@@ -273,8 +281,8 @@ func ReviewCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	reviewCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
-	reviewCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "pull request `number`")
-	reviewCmd.Flags().StringVarP(&reviewEvent, "event", "E", "", "review event: approve, request_changes, comment")
+	reviewCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
+	reviewCmd.Flags().StringVarP(&reviewEvent, "event", "e", "", "review event: approve, request_changes, comment")
 	reviewCmd.Flags().StringVarP(&reviewBody, "body", "b", "", "review comment `body` (required for request_changes and comment)")
 
 	reviewCmd.MarkFlagRequired("repository")
@@ -291,20 +299,20 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Update a pull request on GitHub for given repo`,
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
-			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action close 
-			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --action open
+			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --state closed
+			$ sgh pr update --org sample-org -r sample-repo1 --pr 1 --state open
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			if action != "close" && action != "open" {
-				logger.Glog.Error().Msgf("Invalid action provided. Please provide either close or open")
+			if action != "closed" && action != "open" {
+				logger.Glog.Error().Msgf("Invalid state provided. Please provide either 'open' or 'closed'")
 				cmd.Help()
 				return
 			}
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
 				ui.PrintDryRunActions("Update Pull Request", orgName, []string{repoName}, map[string]string{
-					"PR Number": fmt.Sprintf("%d", prNumber), "Action": action,
+					"PR Number": fmt.Sprintf("%d", prNumber), "State": action,
 				})
 				return
 			}
@@ -319,13 +327,13 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	updateCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
-	updateCmd.Flags().StringVarP(&action, "action", "a", "", "The `action` you want to perform on the PR. Possible values are close or open")
+	updateCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
+	updateCmd.Flags().StringVarP(&action, "state", "s", "", "new `state` for the PR: open or closed")
 	updateCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 
 	updateCmd.MarkFlagRequired("repository")
 	updateCmd.MarkFlagRequired("pr")
-	updateCmd.MarkFlagRequired("action")
+	updateCmd.MarkFlagRequired("state")
 
 	return updateCmd
 }
@@ -363,7 +371,7 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	mergeCmd.Flags().IntVarP(&prNumber, "pr", "P", 0, "The `PR number` into which you want to update")
+	mergeCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
 	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "custom commit title (optional, GitHub auto-generates if omitted)")
 	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "extra detail to append to commit message (optional)")
 	mergeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
@@ -372,4 +380,77 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	mergeCmd.MarkFlagRequired("pr")
 
 	return mergeCmd
+}
+
+func CloseCommand(ctx *context.Context) *cobra.Command {
+	closeCmd := &cobra.Command{
+		Use:   "close",
+		Short: "Close a pull request",
+		Long:  `Close an open pull request in the specified repository.`,
+		Example: heredoc.Doc(`
+			$ sgh pr close --org sample-org -r sample-repo1 --pr 42
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				ui.PrintDryRunActions("Close Pull Request", orgName, []string{repoName}, map[string]string{
+					"PR Number": fmt.Sprintf("%d", prNumber),
+				})
+				return
+			}
+			req := pr.PRUpdateRequest{
+				OrgName:  orgName,
+				RepoName: repoName,
+				PRNumber: prNumber,
+				State:    "closed",
+			}
+			response := pr.UpdatePullRequest(ctx, req)
+			ui.PrintPullRequestResponses([]model.PullRequestResponse{response}, "", ctx.Compact)
+		},
+	}
+
+	closeCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
+	closeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
+
+	closeCmd.MarkFlagRequired("repository")
+	closeCmd.MarkFlagRequired("pr")
+	return closeCmd
+}
+
+func ReopenCommand(ctx *context.Context) *cobra.Command {
+	reopenCmd := &cobra.Command{
+		Use:     "reopen",
+		Short:   "Reopen a closed pull request",
+		Long:    `Reopen a previously closed pull request in the specified repository.`,
+		Aliases: []string{"open"},
+		Example: heredoc.Doc(`
+			$ sgh pr reopen --org sample-org -r sample-repo1 --pr 42
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				ui.PrintDryRunActions("Reopen Pull Request", orgName, []string{repoName}, map[string]string{
+					"PR Number": fmt.Sprintf("%d", prNumber),
+				})
+				return
+			}
+			req := pr.PRUpdateRequest{
+				OrgName:  orgName,
+				RepoName: repoName,
+				PRNumber: prNumber,
+				State:    "open",
+			}
+			response := pr.UpdatePullRequest(ctx, req)
+			ui.PrintPullRequestResponses([]model.PullRequestResponse{response}, "", ctx.Compact)
+		},
+	}
+
+	reopenCmd.Flags().IntVarP(&prNumber, "pr", "n", 0, "pull request `number`")
+	reopenCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
+
+	reopenCmd.MarkFlagRequired("repository")
+	reopenCmd.MarkFlagRequired("pr")
+	return reopenCmd
 }

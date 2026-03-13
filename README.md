@@ -27,10 +27,12 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 ## ✨ Key Features
 
 - **Bulk Repository Operations**: Manage multiple repositories across entire organizations
-- **Advanced Branch & Tag Management**: Create, delete, and manage branches and tags across repos
-- **Pull Request Automation**: Create, list, update, and merge pull requests in bulk
-- **GitHub Actions / Workflow Runs**: List, view, rerun, and cancel workflow runs across repos with live monitoring
+- **Advanced Branch & Tag Management**: Create, rename, delete, and filter branches and tags across repos
+- **Pull Request Automation**: Create, list, view, review, update, close, reopen, and merge pull requests in bulk
+- **GitHub Actions / Workflow Runs**: List, view, rerun, cancel, and dispatch workflow runs across repos with live monitoring
 - **Protected Branch Management**: Configure and update branch protection rules
+- **Repository Lifecycle**: Archive/unarchive repos and toggle visibility (public/private) in bulk
+- **Issue Management**: Create and list issues across repositories
 - **Post-Release Workflows**: Automate post-release activities like merging and tagging
 - **Team Management**: List teams and members across your organization
 - **Repository Operations**: Clone repositories and track commits
@@ -247,7 +249,7 @@ Commands are organized into groups:
 
 | Command | Alias | Subcommands | Description |
 |---------|-------|-------------|-------------|
-| `repo` | | `list`, `search` | List and search repositories for an organization |
+| `repo` | | `list`, `search`, `archive`, `visibility` | List, search, archive, and manage repository visibility |
 | `clone` | | - | Clone multiple repositories at once |
 | `commit` | `ci` | `list` | Track and list commits across repositories |
 
@@ -255,16 +257,17 @@ Commands are organized into groups:
 
 | Command | Alias | Subcommands | Description |
 |---------|-------|-------------|-------------|
-| `branch` | `br` | `list`, `create`, `delete` | List, create, and delete branches across repositories |
+| `branch` | `br` | `list`, `create`, `rename`, `delete` | List, create, rename, and delete branches across repositories |
 | `tag` | `tg` | `list`, `create`, `delete` | List, create, and delete tags across repositories |
-| `pr` | | `create`, `list`, `view`, `review`, `update`, `merge` | Create, list, view, review, update, and merge pull requests |
-| `pb` | | `list`, `update`, `delete` | Manage protected branch settings |
+| `issue` | | `list`, `view`, `create` | List, view, and create issues across repositories |
+| `pr` | | `create`, `list`, `view`, `review`, `update`, `merge`, `close`, `reopen` | Full pull request lifecycle management |
+| `protected-branch` | `pb` | `list`, `update`, `delete` | Manage protected branch settings |
 
 ### CI/CD & Release
 
 | Command | Alias | Subcommands | Description |
 |---------|-------|-------------|-------------|
-| `workflow` | `wf` | `list`, `view`, `rerun`, `cancel` | Manage GitHub Actions workflow runs |
+| `workflow` | `wf` | `list`, `view`, `rerun`, `cancel`, `dispatch` | Manage GitHub Actions workflow runs |
 | `post-release` | | - | Automate post-release workflows |
 
 ### Organization
@@ -278,10 +281,10 @@ Commands are organized into groups:
 
 | Command | Alias | Subcommands | Description |
 |---------|-------|-------------|-------------|
-| `config` | `cfg` | `list`, `validate`, `add`, `set` | Manage and validate CLI configuration |
-| `health` | | - | Check system health and connectivity |
+| `config` | `cfg` | `list`, `validate`, `add`, `set`, `reset` | Manage and validate CLI configuration |
+| `health` | | - | Check system health and connectivity (`--json` for structured output) |
 | `shortcuts` | | - | List available command shortcuts |
-| `version` | | - | Display version information |
+| `version` | | - | Display version information (`--short` for version string only) |
 | `completion` | | `bash`, `zsh`, `fish`, `powershell` | Generate shell completion scripts |
 
 ### Command Details
@@ -289,24 +292,34 @@ Commands are organized into groups:
 **Repository Management:**
 - `repo list --org <org> [--all]` - List repositories for an organization
 - `repo search --org <org> --query <text> [--language <lang>] [--topic <topic>]` - Search repositories
+- `repo archive --org <org> [-r <repo>...] [--unarchive]` - Archive or unarchive repositories in bulk
+- `repo visibility --org <org> [-r <repo>...] --visibility public|private` - Set repository visibility
 - `clone --org <org> [--branch <branch>]` - Clone multiple repositories
 - `commit list --org <org> [--days <n>]` - Track commits across repositories
 
 **Branch & Tag Operations:**
-- `branch list --org <org> [--filter <pattern>]` - List branches across repos with optional name filter (regex)
+- `branch list --org <org> [--filter <pattern>]` - List branches with optional regex filter
 - `branch create --org <org> --new <name> --ref <ref>` - Create branches across repos
+- `branch rename --org <org> --old <name> --new <name>` - Rename a branch across repos
 - `branch delete --org <org> --branch <name>` - Delete branches across repos
-- `tag list --org <org>` - List tags across repos
+- `tag list --org <org> [--filter <pattern>]` - List tags with optional regex filter
 - `tag create --org <org> --tag <name> --head <ref> --message <msg>` - Create tags
 - `tag delete --org <org> --tag <name>` - Delete tags
 
+**Issue Workflows:**
+- `issue list --org <org>` - List open issues across repositories
+- `issue view --org <org> -r <repo> --issue <num>` - View issue details
+- `issue create --org <org> -r <repo> --title <title> [--body <body>] [--assignee <user>] [--labels <label>]` - Create an issue
+
 **Pull Request Workflows:**
 - `pr create --org <org> --title <title> --head <branch> --base <branch>` - Create PRs
-- `pr list --org <org> [--all-status] [--sort repo|title|author|status]` - List pull requests
+- `pr list --org <org> [--all] [--sort repo|title|author|status]` - List pull requests (default: open only)
 - `pr list --org <org> --label <name> --since 2024-01-01` - Filter by label and date
-- `pr view --org <org> --repo <repo> --pr <num>` - View PR details, files, checks, reviews
-- `pr review --org <org> --repo <repo> --pr <num> --event approve` - Review a PR
-- `pr update --org <org> --repo <repo> --pr <number> --action <close|open>` - Update PRs
+- `pr view --org <org> -r <repo> --pr <num>` - View PR details, files, checks, reviews
+- `pr review --org <org> -r <repo> --pr <num> --event approve|request_changes|comment` - Review a PR
+- `pr update --org <org> -r <repo> --pr <num> --state open|closed` - Update PR state
+- `pr close --org <org> -r <repo> --pr <num>` - Close a pull request
+- `pr reopen --org <org> -r <repo> --pr <num>` - Reopen a pull request
 - `pr list --interactive` - Interactive PR management with Bubble Tea UI
 
 **Workflow Runs (GitHub Actions):**
@@ -314,22 +327,24 @@ Commands are organized into groups:
 - `workflow list --org <org> --running` - Show only in-progress runs
 - `workflow list --org <org> --failed --branch main` - Show failed runs on a branch
 - `workflow list --org <org> --workflow "CI Build"` - Filter by workflow name
-- `workflow view --org <org> --repo <repo> --run <id>` - View run details with jobs & steps
-- `workflow view --org <org> --repo <repo> --run <id> --watch` - Live monitor until completion
-- `workflow rerun --org <org> --repo <repo> --run <id>` - Re-trigger a workflow run
-- `workflow cancel --org <org> --repo <repo> --run <id>` - Cancel an in-progress run
+- `workflow view --org <org> -r <repo> --run <id>` - View run details with jobs & steps
+- `workflow view --org <org> -r <repo> --run <id> --watch` - Live monitor until completion
+- `workflow rerun --org <org> -r <repo> --run <id>` - Re-trigger a workflow run
+- `workflow cancel --org <org> -r <repo> --run <id>` - Cancel an in-progress run
+- `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` - Trigger `workflow_dispatch` event
 
 **Protected Branch Management:**
-- `pb list --org <org> --branch <branch>` - List protection settings
-- `pb update --org <org> --branch <branch> [options]` - Update protection rules
-- `pb delete --org <org> --branch <branch>` - Remove protection
+- `protected-branch list --org <org> [--branch <branch>]` - List protection settings
+- `protected-branch update --org <org> --branch <branch> [--lock] [--remove-status-checks]` - Update protection rules
+- `protected-branch delete --org <org> --branch <branch>` - Remove protection
 
 **Organization & Configuration:**
 - `org list` - List all GitHub organizations the token belongs to (no `--org` needed)
-- `team list --org <org>` - List teams and members
+- `team list --org <org> [--team <name>] [--all]` - List teams and all their members
 - `config list` - Show current configuration
 - `config validate` - Check configuration for errors
 - `config add <key> <value>` - Add configuration
+- `config reset [--org <name>] [--force]` - Remove one or all organizations from config
 
 ### ⚡ Command Shortcuts
 
@@ -338,13 +353,18 @@ For faster typing, single-word shortcuts are available for common `list` and `vi
 | Shortcut | Expands To | Shortcut | Expands To |
 |----------|------------|----------|------------|
 | `rpl` | `repo list` | `rps` | `repo search` |
+| `rpa` | `repo archive` | `rpv` | `repo visibility` |
 | `orl` | `org list` | `isl` | `issue list` |
-| `isv` | `issue view` | `prl` | `pr list` |
-| `prv` | `pr view` | `brl` | `branch list` |
-| `tgl` | `tag list` | `pbl` | `pb list` |
+| `isv` | `issue view` | `isc` | `issue create` |
+| `prl` | `pr list` | `prv` | `pr view` |
+| `prc` | `pr create` | `prx` | `pr close` |
+| `brl` | `branch list` | `brc` | `branch create` |
+| `brr` | `branch rename` | `brd` | `branch delete` |
+| `tgl` | `tag list` | `tgc` | `tag create` |
+| `tgd` | `tag delete` | `pbl` | `protected-branch list` |
 | `wfl` | `workflow list` | `wfv` | `workflow view` |
-| `cil` | `commit list` | `tml` | `team list` |
-| `secl` | `security list` | | |
+| `wfd` | `workflow dispatch` | `cil` | `commit list` |
+| `tml` | `team list` | `secl` | `security list` |
 
 Each shortcut supports the same flags as the full command:
 
@@ -373,6 +393,9 @@ sgh branch create --org my-org --new Release-1.1 --ref Release-1.0
 # Create hotfix branch for specific repositories
 sgh branch create --org my-org --new hotfix-branch --ref main --repo critical-app --repo important-service
 
+# Rename a branch across all repos
+sgh branch rename --org my-org --old master --new main
+
 # Delete old branches
 sgh branch delete --org my-org --branch old-feature --repo legacy-app
 ```
@@ -381,6 +404,9 @@ sgh branch delete --org my-org --branch old-feature --repo legacy-app
 ```bash
 # List tags across all repos
 sgh tag list --org my-org
+
+# List tags matching a pattern (regex)
+sgh tag list --org my-org --filter "^v1\."
 
 # List tags for specific repos
 sgh tag list --org my-org --repo app1 --repo app2
@@ -395,13 +421,31 @@ sgh tag create --org my-org --tag v2.1.0 --head main --message 'Version 2.1.0' -
 sgh tag delete --org my-org --tag old-version --repo legacy-app
 ```
 
+### Issue Management
+```bash
+# List open issues across all repos
+sgh issue list --org my-org
+
+# List issues for specific repos
+sgh issue list --org my-org -r my-app -r other-service
+
+# View a specific issue
+sgh issue view --org my-org -r my-app --issue 42
+
+# Create an issue
+sgh issue create --org my-org -r my-app --title "Bug: login fails" --body "Steps to reproduce..." --assignee john-doe --labels bug,high-priority
+```
+
 ### Pull Request Automation
 ```bash
 # Create PRs across multiple repositories
 sgh pr create --org my-org --title "Security Update" --body "Update dependencies" --head security-patch --base main
 
-# List PRs for specific repositories
-sgh pr list --org my-org --repo app1 --repo app2 --base main --all-status
+# List PRs for specific repositories (open only by default)
+sgh pr list --org my-org --repo app1 --repo app2 --base main
+
+# List all PRs including closed and merged
+sgh pr list --org my-org --repo app1 --repo app2 --all
 
 # List PRs with filters
 sgh pr list --org my-org --author john-doe --assignee jane-doe --last 10
@@ -410,15 +454,20 @@ sgh pr list --org my-org --author john-doe --assignee jane-doe --last 10
 sgh pr list --org my-org --label bug --since 2024-01-01
 
 # View detailed PR information (files, checks, reviews)
-sgh pr view --org my-org --repo my-app --pr 42
+sgh pr view --org my-org -r my-app --pr 42
 
 # Review a pull request
-sgh pr review --org my-org --repo my-app --pr 42 --event approve
-sgh pr review --org my-org --repo my-app --pr 42 --event request_changes --body "Please fix the tests"
-sgh pr review --org my-org --repo my-app --pr 42 --event comment --body "Looks good overall"
+sgh pr review --org my-org -r my-app --pr 42 --event approve
+sgh pr review --org my-org -r my-app --pr 42 --event request_changes --body "Please fix the tests"
+sgh pr review --org my-org -r my-app --pr 42 --event comment --body "Looks good overall"
 
-# Update PR status
-sgh pr update --org my-org --repo my-app --pr 123 --action close
+# Update PR state
+sgh pr update --org my-org -r my-app --pr 123 --state closed
+sgh pr update --org my-org -r my-app --pr 123 --state open
+
+# Close or reopen a PR with dedicated shortcuts
+sgh pr close --org my-org -r my-app --pr 123
+sgh pr reopen --org my-org -r my-app --pr 123
 
 # Interactive PR management
 sgh pr list --org my-org --interactive
@@ -426,14 +475,17 @@ sgh pr list --org my-org --interactive
 
 ### Protected Branch Management
 ```bash
-# List protected branch settings
-sgh pb list --org my-org --branch main
+# List all protected branches (all repos in org)
+sgh protected-branch list --org my-org
+
+# List protected branches matching a specific name
+sgh protected-branch list --org my-org --branch main
 
 # Update protection rules
-sgh pb update --org my-org --branch main --repo my-app --add-bypass-user admin --add-push-user ci-bot
+sgh protected-branch update --org my-org --branch main -r my-app --add-bypass-user admin --add-push-user ci-bot
 
-# Configure protection for all repositories
-sgh pb update --org my-org --branch main --require-reviews --dismiss-stale-reviews
+# Lock the protected branch and remove all required status checks
+sgh protected-branch update --org my-org --branch main -r my-app --lock --remove-status-checks
 ```
 
 ### Post-Release Workflows
@@ -458,6 +510,16 @@ sgh repo search --org my-org --query "api"
 
 # Search by language and topic
 sgh repo search --org my-org --language go --topic microservice
+
+# Archive old repositories in bulk
+sgh repo archive --org my-org -r old-service -r legacy-api
+
+# Unarchive a repository
+sgh repo archive --org my-org -r old-service --unarchive
+
+# Change repository visibility
+sgh repo visibility --org my-org -r my-repo --visibility private
+sgh repo visibility --org my-org -r internal-tool --visibility public
 
 # Clone repositories with specific branch
 sgh clone --org my-org --branch develop
@@ -484,19 +546,25 @@ sgh workflow list --org my-org --workflow "CI Build"
 sgh workflow list --org my-org --sort status
 
 # View detailed run info with jobs and steps
-sgh workflow view --org my-org --repo my-app --run 123456789
+sgh workflow view --org my-org -r my-app --run 123456789
 
 # Watch a run live until it completes (polls every 10s)
-sgh workflow view --org my-org --repo my-app --run 123456789 --watch
+sgh workflow view --org my-org -r my-app --run 123456789 --watch
 
 # Watch with a custom polling interval
-sgh workflow view --org my-org --repo my-app --run 123456789 --watch --interval 5
+sgh workflow view --org my-org -r my-app --run 123456789 --watch --interval 5
 
 # Rerun a failed workflow
-sgh workflow rerun --org my-org --repo my-app --run 123456789
+sgh workflow rerun --org my-org -r my-app --run 123456789
 
 # Cancel a running workflow
-sgh workflow cancel --org my-org --repo my-app --run 123456789
+sgh workflow cancel --org my-org -r my-app --run 123456789
+
+# Trigger a workflow_dispatch event across all repos
+sgh workflow dispatch --org my-org --workflow deploy.yml --ref main
+
+# Trigger with input parameters
+sgh workflow dispatch --org my-org -r app1 -r app2 --workflow release.yml --ref main --input env=production --input dry_run=false
 ```
 
 ### Security (Secret Scanning Alerts)
@@ -558,7 +626,7 @@ sgh orl --limit 5
 sgh team list --org my-org
 
 # List specific team with all members
-sgh team list --org my-org --team developers --all-members
+sgh team list --org my-org --team developers --all
 
 # Get team details with member count
 sgh team list --org my-org --members 100
@@ -590,6 +658,12 @@ sgh config add pattern ".*-archive$" --org my-org --exclude
 # Set tagger identity for tag commands
 sgh config set tagger-name "Release Bot" --org my-org
 sgh config set tagger-email "releases@my-org.com" --org my-org
+
+# Remove a specific organization from config (prompts for confirmation)
+sgh config reset --org my-org
+
+# Remove all organizations from config (skip confirmation prompt)
+sgh config reset --force
 ```
 
 ## 🏷️ Global Flags
@@ -615,11 +689,16 @@ Some list commands support additional flags:
 
 - `--sort <field>` - Sort table output (available on `pr`, `branch`, `tag`, `issue`, `security`, and `workflow` list commands)
 - `--last <count>` - Number of items to fetch **per repository** from the GitHub API (on `pr`, `workflow`, and `issue` list commands)
-- `--filter <pattern>` - Branch name filter with regex support (on `branch list`)
+- `--filter <pattern>` - Name filter with regex support (on `branch list` and `tag list`)
+- `--all` - Include closed/merged items (on `pr list`) or all members (on `team list`)
 - `--workflow <name>` - Workflow name filter with partial match (on `workflow list`)
 - `--label <name>`, `--since <YYYY-MM-DD>` - PR filters (on `pr list`)
 - `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
+- `--branch <name>` - Filter by branch name (on `workflow list`)
 - `--watch`, `--interval` - Live monitoring (on `workflow view`)
+- `--input key=value` - Workflow input parameters, repeatable (on `workflow dispatch`)
+- `--short` - Print version string only (on `version`)
+- `--json` - Structured JSON output (on `health`)
 
 ## 🔍 Advanced Usage
 
@@ -781,7 +860,13 @@ sgh config list
 # Validate configuration for errors
 sgh config validate
 
-# Reset configuration
+# Reset a specific org from configuration
+sgh config reset --org my-org
+
+# Reset all configuration (skip prompt)
+sgh config reset --force
+
+# Or manually delete the config file
 rm ~/.config/sgh/sgh.json  # Linux/Mac
 rm ~/sgh.json              # Windows
 ```

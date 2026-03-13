@@ -39,8 +39,9 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List commits for all the repositories in the given org/owner",
-		Long: `List commits on GitHub for given repos or all the selected reps in the given org/owner
-Default fetches all commits for past 3 days, use -n flag to fetch commits for specific number of days (since n days)`,
+		Long: `List commits on GitHub for given repos or all the selected repos in the given org/owner.
+Default fetches all commits for the past 3 days, use -n flag to fetch commits for a specific number of days.
+If --branch is omitted, each repository's default branch is used.`,
 
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
@@ -79,11 +80,10 @@ Default fetches all commits for past 3 days, use -n flag to fetch commits for sp
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepos, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
-	listCmd.Flags().StringVarP(&branchName, "branch", "b", "main", "The `branch` for which you want to fetch commits")
+	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to fetch commits (defaults to each repo's default branch)")
 	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "number of days to fetch commits")
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")
-	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "i", false, "include merge commits")
+	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "M", false, "include merge commits")
 
-	listCmd.MarkFlagRequired("branch")
 	return listCmd
 }

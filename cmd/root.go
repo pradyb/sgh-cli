@@ -88,7 +88,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh tag create --org sample-org --tag Release-1.0 --head Release-1.0 --message 'Tag for Release 1.0'
 
 			Protected Branch Management:
-			  $ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
+			  $ sgh protected-branch update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
 
 			Post-Release Workflows:
 			  $ sgh post-release --org my-org --base main --head Release-1.0 --create-tag --title "Release 1.0"
@@ -99,13 +99,13 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			  $ sgh commit list --org my-org --days 7 --details
 			  $ sgh issue list --org my-org -r sample-repo1
 
-			Organization:
-			  $ sgh org list
-			  $ sgh orl
+		Organization:
+		  $ sgh org list
+		  $ sgh orl
 
 			Team Management:
 			  $ sgh team list --org my-org
-			  $ sgh team list --org my-org --team developers --all-members
+			  $ sgh team list --org my-org --team developers --all
 
 			Security:
 			  $ sgh security list --org my-org --state open

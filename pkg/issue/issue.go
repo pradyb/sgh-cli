@@ -36,10 +36,35 @@ type IssueUpdateRequest struct {
 	State       string // "open" or "closed"
 }
 
+type IssueCreateRequest struct {
+	OrgName  string
+	RepoName string
+	Title    string
+	Body     string
+	Assignee string
+	Labels   []string
+}
+
 type IssueUpdateResponse struct {
 	RepositoryName string
 	IssueNumber    int
 	ErrorMessage   string
+}
+
+func CreateIssue(ctx *context.Context, req IssueCreateRequest) model.IssueResponse {
+	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
+	repoName := req.RepoName
+	if len(actualRepoNames) > 0 {
+		repoName = actualRepoNames[0]
+	}
+	issue, err := service.CreateIssue(ctx, req.OrgName, repoName, req.Title, req.Body, req.Assignee, req.Labels)
+	if err != nil {
+		return model.IssueResponse{
+			RepositoryName: repoName,
+			ErrorMessage:   fmt.Sprintf("failed to create issue: %v", err),
+		}
+	}
+	return issue
 }
 
 func UpdateIssue(ctx *context.Context, req IssueUpdateRequest) IssueUpdateResponse {

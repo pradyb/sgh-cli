@@ -33,23 +33,34 @@ type shortcut struct {
 // shortcutGroups controls the display order in `sgh shortcuts`.
 var shortcutGroups = []string{
 	"Repository", "Organization", "Issue", "Pull Request", "Branch", "Tag",
-	"Protected Branch", "Workflow", "Commit", "Team", "Security",
+	"Protected Branch", "Workflow", "Commit", "Team", "Security", "Config",
 }
 
 var shortcutDefs = func(ctx *context.Context) []shortcut {
 	return []shortcut{
 		{"rpl", "repo list", "Repository", repo.ListCommand},
 		{"rps", "repo search", "Repository", repo.SearchCommand},
+		{"rpa", "repo archive", "Repository", repo.ArchiveCommand},
+		{"rpv", "repo visibility", "Repository", repo.VisibilityCommand},
 		{"orl", "org list", "Organization", cmdorg.ListCommand},
 		{"isl", "issue list", "Issue", issue.ListCommand},
 		{"isv", "issue view", "Issue", issue.ViewCommand},
+		{"isc", "issue create", "Issue", issue.CreateCommand},
 		{"prl", "pr list", "Pull Request", pr.ListCommand},
 		{"prv", "pr view", "Pull Request", pr.ViewCommand},
+		{"prc", "pr create", "Pull Request", pr.CreateCommand},
+		{"prx", "pr close", "Pull Request", pr.CloseCommand},
 		{"brl", "branch list", "Branch", branch.ListCommand},
+		{"brc", "branch create", "Branch", branch.CreateCommand},
+		{"brr", "branch rename", "Branch", branch.RenameCommand},
+		{"brd", "branch delete", "Branch", branch.DeleteCommand},
 		{"tgl", "tag list", "Tag", tag.ListCommand},
-		{"pbl", "pb list", "Protected Branch", protectedbranch.ListCommand},
+		{"tgc", "tag create", "Tag", tag.CreateCommand},
+		{"tgd", "tag delete", "Tag", tag.DeleteCommand},
+		{"pbl", "protected-branch list", "Protected Branch", protectedbranch.ListCommand},
 		{"wfl", "workflow list", "Workflow", workflow.ListCommand},
 		{"wfv", "workflow view", "Workflow", workflow.ViewCommand},
+		{"wfd", "workflow dispatch", "Workflow", workflow.DispatchCommand},
 		{"cil", "commit list", "Commit", commit.ListCommand},
 		{"tml", "team list", "Team", team.ListCommand},
 		{"secl", "security list", "Security", security.ListAlertsCommand},

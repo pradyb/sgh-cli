@@ -63,7 +63,7 @@ Requires the organization to have an audit log enabled (GitHub Enterprise or Git
 	}
 
 	listCmd.Flags().StringVarP(&phrase, "phrase", "p", "", "filter by action phrase (e.g. repo.create)")
-	listCmd.Flags().StringVar(&include, "include", "", "event type filter: web, git, or all (default: all)")
+	listCmd.Flags().StringVarP(&include, "include", "I", "", "event type filter: web, git, or all (default: all)")
 	listCmd.Flags().IntVarP(&count, "count", "c", 30, "number of entries to fetch")
 	return listCmd
 }

@@ -4,6 +4,9 @@
 package issue
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
@@ -28,12 +31,13 @@ func NewIssueCommand(ctx *context.Context) *cobra.Command {
 	issueCmd := &cobra.Command{
 		Use:     "issue <command>",
 		Aliases: []string{"is"},
-		Short:   "List and view issues across repositories",
-		Long:    `Perform issue operations like list and view across repositories.`,
+		Short:   "List, view, and create issues across repositories",
+		Long:    `Perform issue operations like list, view, and create across repositories.`,
 	}
 
 	issueCmd.AddCommand(ListCommand(ctx))
 	issueCmd.AddCommand(ViewCommand(ctx))
+	issueCmd.AddCommand(CreateCommand(ctx))
 	return issueCmd
 }
 
@@ -136,4 +140,72 @@ func ViewCommand(ctx *context.Context) *cobra.Command {
 	viewCmd.MarkFlagRequired("issue")
 
 	return viewCmd
+}
+
+func CreateCommand(ctx *context.Context) *cobra.Command {
+	var createRepo string
+	var issueTitle string
+	var issueBody string
+	var issueAssignee string
+	var issueLabels string
+
+	createCmd := &cobra.Command{
+		Use:     "create",
+		Short:   "Create a new issue in a repository",
+		Long:    `Create a new GitHub issue in the specified repository.`,
+		Aliases: []string{"add", "new"},
+		Example: heredoc.Doc(`
+			$ sgh issue create --org sample-org -r sample-repo --title "Bug: login fails"
+			$ sgh issue create --org sample-org -r sample-repo --title "Feature request" --body "Please add dark mode" --assignee john-doe
+			$ sgh issue create --org sample-org -r sample-repo --title "Fix crash" --labels "bug,high-priority"
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+
+			var labels []string
+			if issueLabels != "" {
+				for _, l := range strings.Split(issueLabels, ",") {
+					if trimmed := strings.TrimSpace(l); trimmed != "" {
+						labels = append(labels, trimmed)
+					}
+				}
+			}
+
+			req := issue.IssueCreateRequest{
+				OrgName:  orgName,
+				RepoName: createRepo,
+				Title:    issueTitle,
+				Body:     issueBody,
+				Assignee: issueAssignee,
+				Labels:   labels,
+			}
+			result := issue.CreateIssue(ctx, req)
+			if ctx.JSON {
+				ui.PrintJSON(result)
+				return
+			}
+			if result.ErrorMessage != "" {
+				fmt.Fprintln(cmd.ErrOrStderr(), ui.ErrorMessage("%s", result.ErrorMessage))
+				return
+			}
+			fmt.Printf("  ✓ Issue #%d created in %s\n",
+				result.Number,
+				result.RepositoryName,
+			)
+			if result.HTMLUrl != "" {
+				fmt.Printf("  %s\n", result.HTMLUrl)
+			}
+		},
+	}
+
+	createCmd.Flags().StringVarP(&createRepo, "repository", "r", "", "repository `name`")
+	createCmd.Flags().StringVarP(&issueTitle, "title", "t", "", "issue `title`")
+	createCmd.Flags().StringVarP(&issueBody, "body", "b", "", "issue `body` (description)")
+	createCmd.Flags().StringVarP(&issueAssignee, "assignee", "a", "", "assign issue to `user` login")
+	createCmd.Flags().StringVar(&issueLabels, "labels", "", "comma-separated `labels` to apply")
+
+	createCmd.MarkFlagRequired("repository")
+	createCmd.MarkFlagRequired("title")
+
+	return createCmd
 }

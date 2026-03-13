@@ -39,6 +39,7 @@ func NewConfigCommand(ctx *context.Context) *cobra.Command {
 	configCmd.AddCommand(addCommand(ctx))
 	configCmd.AddCommand(removeCommand(ctx))
 	configCmd.AddCommand(setCommand(ctx))
+	configCmd.AddCommand(resetCommand(ctx))
 
 	return configCmd
 }
@@ -375,6 +376,79 @@ func setCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 	return configSetCmd
+}
+
+func resetCommand(ctx *context.Context) *cobra.Command {
+	var orgName string
+	var force bool
+
+	resetCmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Reset (clear) configuration",
+		Long: heredoc.Doc(`
+			Reset sgh configuration.
+
+			Without --org: removes all organizations and their data from the config file.
+			With --org:    removes only that organization and all its repos, patterns, and settings.
+
+			Use --force to skip the confirmation prompt.
+		`),
+		Example: heredoc.Doc(`
+			$ sgh config reset --force
+			$ sgh config reset --org my-org
+			$ sgh config reset --org my-org --force
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			passStyle := lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
+			warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow).Bold(true)
+
+			if orgName != "" {
+				if !force {
+					fmt.Printf("\n  %s\n\n", warnStyle.Render(fmt.Sprintf("This will remove organization %q and all its data.", orgName)))
+					fmt.Print("  Type the organization name to confirm: ")
+					var confirm string
+					fmt.Scanln(&confirm)
+					if confirm != orgName {
+						fmt.Println(warnStyle.Render("  Aborted."))
+						return
+					}
+				}
+				if !ctx.Config.RemoveOrganization(orgName) {
+					ui.PrintCLIError(fmt.Sprintf("Organization %q not found in config", orgName), "")
+					return
+				}
+				if err := ctx.Config.Save(); err != nil {
+					ui.PrintCLIError("Failed to save config", err.Error())
+					return
+				}
+				fmt.Println(passStyle.Render(fmt.Sprintf("  Organization %q removed from config.", orgName)))
+				return
+			}
+
+			if !force {
+				orgs := ctx.Config.OrganizationNames()
+				fmt.Printf("\n  %s\n", warnStyle.Render(fmt.Sprintf("This will remove ALL %d organization(s) and their data.", len(orgs))))
+				fmt.Print("  Type 'yes' to confirm: ")
+				var confirm string
+				fmt.Scanln(&confirm)
+				if confirm != "yes" {
+					fmt.Println(warnStyle.Render("  Aborted."))
+					return
+				}
+			}
+
+			ctx.Config.Organizations = nil
+			if err := ctx.Config.Save(); err != nil {
+				ui.PrintCLIError("Failed to save config", err.Error())
+				return
+			}
+			fmt.Println(passStyle.Render("  Configuration reset successfully."))
+		},
+	}
+
+	resetCmd.Flags().StringVarP(&orgName, "org", "o", "", "reset only this organization (omit to reset all)")
+	resetCmd.Flags().BoolVarP(&force, "force", "y", false, "skip confirmation prompt")
+	return resetCmd
 }
 
 func printConfigTable(ctx *context.Context, orgs []string) {

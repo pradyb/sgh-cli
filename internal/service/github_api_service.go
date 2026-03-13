@@ -83,6 +83,34 @@ type refResponse struct {
 	} `json:"object"`
 }
 
+// UpdateRepoArchived sets the archived state of a repository (true = archive, false = unarchive).
+func UpdateRepoArchived(ctx *appcontext.Context, orgName, repoName string, archived bool) error {
+	payload := map[string]interface{}{"archived": archived}
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "PATCH",
+		fmt.Sprintf("%s/repos/%s/%s", GITHUB_BASE_URL, orgName, repoName),
+		bytes.NewReader(jsonBody),
+	)
+	return err
+}
+
+// UpdateRepoVisibility sets a repository to "public" or "private".
+func UpdateRepoVisibility(ctx *appcontext.Context, orgName, repoName, visibility string) error {
+	payload := map[string]interface{}{"visibility": visibility}
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "PATCH",
+		fmt.Sprintf("%s/repos/%s/%s", GITHUB_BASE_URL, orgName, repoName),
+		bytes.NewReader(jsonBody),
+	)
+	return err
+}
+
 func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, refBranchName string) (model.RefResponse, error) {
 	commitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
 	if err != nil {
@@ -135,6 +163,20 @@ func DeleteBranch(ctx *appcontext.Context, orgName, repoName, branchName string)
 		return false, err
 	}
 	return true, nil
+}
+
+// RenameBranch renames a branch using the GitHub API.
+func RenameBranch(ctx *appcontext.Context, orgName, repoName, oldName, newName string) error {
+	payload := map[string]string{"new_name": newName}
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "POST",
+		fmt.Sprintf("%s/repos/%s/%s/branches/%s/rename", GITHUB_BASE_URL, orgName, repoName, oldName),
+		bytes.NewReader(jsonBody),
+	)
+	return err
 }
 
 func ListBranches(ctx *appcontext.Context, orgName, repoName string) ([]model.BranchResponse, error) {
@@ -517,6 +559,26 @@ func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status
 	return runsResponse.WorkflowRuns, nil
 }
 
+// DispatchWorkflow triggers a workflow_dispatch event for a named workflow.
+// inputs is a map of input key→value pairs (may be nil).
+func DispatchWorkflow(ctx *appcontext.Context, orgName, repoName, workflowID, ref string, inputs map[string]string) error {
+	payload := map[string]interface{}{
+		"ref": ref,
+	}
+	if len(inputs) > 0 {
+		payload["inputs"] = inputs
+	}
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "POST",
+		fmt.Sprintf("%s/repos/%s/%s/actions/workflows/%s/dispatches", GITHUB_BASE_URL, orgName, repoName, workflowID),
+		bytes.NewReader(jsonBody),
+	)
+	return err
+}
+
 func RerunWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {
 	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/rerun", GITHUB_BASE_URL, orgName, repoName, runID), nil)
 	if err != nil {
@@ -682,6 +744,40 @@ func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int
 	return issue, nil
 }
 
+// CreateIssue creates a new issue in a repository.
+func CreateIssue(ctx *appcontext.Context, orgName, repoName, title, body, assignee string, labels []string) (model.IssueResponse, error) {
+	payload := map[string]interface{}{
+		"title": title,
+	}
+	if body != "" {
+		payload["body"] = body
+	}
+	if assignee != "" {
+		payload["assignees"] = []string{assignee}
+	}
+	if len(labels) > 0 {
+		payload["labels"] = labels
+	}
+	jsonBody, err := json.Marshal(payload)
+	if err != nil {
+		return model.IssueResponse{}, err
+	}
+	response, err := invokeAPI(ctx, "POST",
+		fmt.Sprintf("%s/repos/%s/%s/issues", GITHUB_BASE_URL, orgName, repoName),
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return model.IssueResponse{}, err
+	}
+	var issue model.IssueResponse
+	if err := json.Unmarshal(response, &issue); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error unmarshalling create issue response")
+		return model.IssueResponse{}, err
+	}
+	issue.RepositoryName = repoName
+	return issue, nil
+}
+
 // UpdateIssue patches an issue state ("open" or "closed").
 func UpdateIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int, state string) error {
 	body := fmt.Sprintf(`{"state":%q}`, state)
@@ -732,20 +828,20 @@ func GetAuditLog(ctx *appcontext.Context, orgName string, phrase, include string
 
 // orgNode is the per-org fragment used inside the viewer organizations query.
 type orgNode struct {
-	Login           githubv4.String
-	Name            githubv4.String
-	Description     githubv4.String
-	Email           githubv4.String
-	WebsiteURL      githubv4.String   `graphql:"websiteUrl"`
-	Location        githubv4.String
-	TwitterUsername githubv4.String   `graphql:"twitterUsername"`
-	CreatedAt       githubv4.DateTime
-	UpdatedAt       githubv4.DateTime
-	URL             githubv4.String   `graphql:"url"`
-	AvatarURL       githubv4.String   `graphql:"avatarUrl"`
-	IsVerified      githubv4.Boolean
+	Login                           githubv4.String
+	Name                            githubv4.String
+	Description                     githubv4.String
+	Email                           githubv4.String
+	WebsiteURL                      githubv4.String `graphql:"websiteUrl"`
+	Location                        githubv4.String
+	TwitterUsername                 githubv4.String `graphql:"twitterUsername"`
+	CreatedAt                       githubv4.DateTime
+	UpdatedAt                       githubv4.DateTime
+	URL                             githubv4.String `graphql:"url"`
+	AvatarURL                       githubv4.String `graphql:"avatarUrl"`
+	IsVerified                      githubv4.Boolean
 	RequiresTwoFactorAuthentication githubv4.Boolean `graphql:"requiresTwoFactorAuthentication"`
-	MembersWithRole struct {
+	MembersWithRole                 struct {
 		TotalCount githubv4.Int
 	} `graphql:"membersWithRole"`
 	Teams struct {

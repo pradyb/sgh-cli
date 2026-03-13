@@ -45,12 +45,16 @@ By default, it will list 50 members in each team.`,
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
 			$ sgh team list --org <owner>
-			$ sgh team list --org <owner> --team <team> --all-members
+			$ sgh team list --org <owner> --team <team> --all
 		`),
 
 		Args: func(cmd *cobra.Command, args []string) error {
+			// support deprecated --all-members alias
+			if v, _ := cmd.Flags().GetBool("all-members"); v {
+				allMembers = true
+			}
 			if allMembers && teamName == "" {
-				return fmt.Errorf("team name is required when listing all members")
+				return fmt.Errorf("team name is required when --all is used")
 			}
 			if noOfMembers > 100 {
 				return fmt.Errorf("maximum number of members to list is 100")
@@ -83,7 +87,9 @@ By default, it will list 50 members in each team.`,
 
 	listCmd.Flags().StringVarP(&teamName, "team", "t", "", "team name")
 	listCmd.Flags().IntVarP(&noOfMembers, "members", "n", 50, "number of members to list in each team")
-	listCmd.Flags().BoolVarP(&allMembers, "all-members", "a", false, "list all members in the team")
+	listCmd.Flags().BoolVarP(&allMembers, "all", "a", false, "list all members in the team (requires --team)")
+	listCmd.Flags().Bool("all-members", false, "alias for --all (deprecated)")
+	listCmd.Flags().MarkHidden("all-members")
 
 	return listCmd
 }

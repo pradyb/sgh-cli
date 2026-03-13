@@ -30,6 +30,47 @@ type WorkflowRunRequest struct {
 	RunID    int
 }
 
+type WorkflowDispatchRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	WorkflowID       string
+	Ref              string
+	Inputs           map[string]string
+}
+
+type WorkflowDispatchResult struct {
+	RepositoryName string
+	WorkflowID     string
+	Ref            string
+	ErrorMessage   string
+}
+
+func DispatchWorkflow(ctx *context.Context, req WorkflowDispatchRequest) []WorkflowDispatchResult {
+	results := make([]WorkflowDispatchResult, 0)
+
+	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListWorkflowRuns,
+		func(ctx *context.Context, orgName, repoName string) (bool, error) {
+			return true, service.DispatchWorkflow(ctx, orgName, repoName, req.WorkflowID, req.Ref, req.Inputs)
+		},
+		func(repoName string, _ processor.RepoOperationResult[bool]) {
+			results = append(results, WorkflowDispatchResult{
+				RepositoryName: repoName,
+				WorkflowID:     req.WorkflowID,
+				Ref:            req.Ref,
+			})
+		},
+		func(repoName string, err error) {
+			results = append(results, WorkflowDispatchResult{
+				RepositoryName: repoName,
+				WorkflowID:     req.WorkflowID,
+				Ref:            req.Ref,
+				ErrorMessage:   fmt.Sprintf("failed to dispatch workflow: %v", err),
+			})
+		})
+	return results
+}
+
 func ListWorkflowRuns(ctx *context.Context, req WorkflowListRequest) []model.WorkflowRun {
 	responses := make([]model.WorkflowRun, 0)
 

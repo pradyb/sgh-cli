@@ -46,6 +46,15 @@ type BranchDeleteRequest struct {
 	BranchName       string
 }
 
+// BranchRenameRequest contains parameters for renaming a branch.
+type BranchRenameRequest struct {
+	OrgName          string
+	RepoNames        []string
+	ExcludeRepoNames []string
+	OldName          string
+	NewName          string
+}
+
 func CreateNewBranchFromCommit(ctx *context.Context, req BranchCreateFromCommitRequest) []model.RefUIResponse {
 	actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, []string{req.RepoName})
 	if len(actualRepoNames) == 0 {
@@ -87,6 +96,23 @@ func DeleteBranches(ctx *context.Context, req BranchDeleteRequest) []model.RefUI
 		},
 		func(repoName string, err error) {
 			responses = append(responses, model.CreateNewCommonResponse(repoName, req.BranchName, "DELETE_BRANCH", "", fmt.Sprintf("failed to delete branch: %v", err)))
+		})
+	return responses
+}
+
+func RenameBranches(ctx *context.Context, req BranchRenameRequest) []model.RefUIResponse {
+	responses := make([]model.RefUIResponse, 0)
+
+	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationDeleteBranch,
+		func(ctx *context.Context, orgName, repoName string) (bool, error) {
+			err := service.RenameBranch(ctx, orgName, repoName, req.OldName, req.NewName)
+			return err == nil, err
+		},
+		func(repoName string, result processor.RepoOperationResult[bool]) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, req.NewName, "RENAME_BRANCH", "Branch renamed", ""))
+		},
+		func(repoName string, err error) {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, req.OldName, "RENAME_BRANCH", "", fmt.Sprintf("failed to rename branch: %v", err)))
 		})
 	return responses
 }

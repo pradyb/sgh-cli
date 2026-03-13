@@ -4,6 +4,7 @@
 package health
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,10 +31,16 @@ func NewHealthCommand(ctx *context.Context) *cobra.Command {
 
 This command helps diagnose issues with the CLI setup.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			jsonOutput, _ := cmd.Flags().GetBool("json")
+			if jsonOutput {
+				runHealthCheckJSON(ctx)
+				return
+			}
 			runHealthCheck(ctx)
 		},
 	}
 
+	healthCmd.Flags().Bool("json", false, "output health check results as JSON")
 	return healthCmd
 }
 
@@ -161,6 +168,54 @@ func checkConfiguration(ctx *context.Context) error {
 	}
 
 	return nil
+}
+
+type healthCheckResult struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+type healthReport struct {
+	Checks  []healthCheckResult `json:"checks"`
+	Passed  int                 `json:"passed"`
+	Total   int                 `json:"total"`
+	Healthy bool                `json:"healthy"`
+}
+
+func runHealthCheckJSON(ctx *context.Context) {
+	checks := []struct {
+		name string
+		fn   func(*context.Context) error
+	}{
+		{"GitHub API Connectivity", checkGitHubAPIConnectivity},
+		{"Authentication", checkAuthentication},
+		{"Rate Limit Status", checkRateLimitStatus},
+		{"Configuration", checkConfiguration},
+		{"Network Connectivity", checkNetworkConnectivity},
+	}
+
+	report := healthReport{
+		Checks: make([]healthCheckResult, 0, len(checks)),
+		Total:  len(checks),
+	}
+
+	for _, check := range checks {
+		result := healthCheckResult{Name: check.name}
+		if err := check.fn(ctx); err != nil {
+			result.Status = "fail"
+			result.Error = err.Error()
+		} else {
+			result.Status = "pass"
+			report.Passed++
+		}
+		report.Checks = append(report.Checks, result)
+	}
+	report.Healthy = report.Passed == report.Total
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(report)
 }
 
 func checkNetworkConnectivity(ctx *context.Context) error {

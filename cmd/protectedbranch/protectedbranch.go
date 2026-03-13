@@ -19,9 +19,10 @@ import (
 
 func NewProtectedBranchCommand(ctx *context.Context) *cobra.Command {
 	pbCmd := &cobra.Command{
-		Use:   "pb <command>",
-		Short: "Perform operations like view/update/delete protected branches.",
-		Long:  `Perform operations like view/update/delete protected branches.`,
+		Use:     "protected-branch <command>",
+		Aliases: []string{"pb"},
+		Short:   "Perform operations like list/update/delete protected branches.",
+		Long:    `Perform operations like list/update/delete protected branches.`,
 	}
 
 	pbCmd.AddCommand(ListCommand(ctx))
@@ -55,19 +56,18 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to list the protected branches. If not provided, it will list for all the repositories in the organization")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from listing the protected branches")
-	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to list the protected branches")
+	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "filter by `branch` name (optional; omit to list all protected branches)")
 
-	listCmd.MarkFlagRequired("branch")
 	return listCmd
 }
 
 var (
-	lock              bool
-	removeStatus      bool
-	addBypassUsers    []string
-	removeBypassUsers []string
-	addPushUsers      []string
-	removePushUsers   []string
+	lock               bool
+	removeStatusChecks bool
+	addBypassUsers     []string
+	removeBypassUsers  []string
+	addPushUsers       []string
+	removePushUsers    []string
 )
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
@@ -77,11 +77,11 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		Long:    `Update protected branches for given repos or all the selected reps in the given org/owner`,
 		Aliases: []string{"edit"},
 		Example: heredoc.Doc(`
-			$ sgh pb update --org sample-org --branch sample-branch 
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --add-bypass-user john-doe --add-push-user jane-doe
-			$ sgh pb update --org sample-org --branch sample-branch -r sample-repo1 -l -d --remove-bypass-user john-doe --remove-push-user jane-doe
+			$ sgh protected-branch update --org sample-org --branch sample-branch
+			$ sgh protected-branch update --org sample-org --branch sample-branch -r sample-repo1 -r sample-repo2
+			$ sgh protected-branch update --org sample-org --branch sample-branch -r sample-repo1 --lock --remove-status-checks
+			$ sgh protected-branch update --org sample-org --branch sample-branch -r sample-repo1 --lock --add-bypass-user john-doe --add-push-user jane-doe
+			$ sgh protected-branch update --org sample-org --branch sample-branch -r sample-repo1 --remove-bypass-user john-doe --remove-push-user jane-doe
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -92,7 +92,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 				if lock {
 					details["Lock"] = "true"
 				}
-				if removeStatus {
+				if removeStatusChecks {
 					details["Remove Status Checks"] = "true"
 				}
 				if len(addBypassUsers) > 0 {
@@ -110,7 +110,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 				ui.PrintDryRunActions("Update Protected Branch", orgName, repos, details)
 				return
 			}
-			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatus, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
+			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatusChecks, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
 			fmt.Println()
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
@@ -121,7 +121,7 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 	updateCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to update the protected branches. If not provided, it will update for all the repositories in the organization")
 	updateCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from updating the protected branches")
 	updateCmd.Flags().BoolVarP(&lock, "lock", "l", false, "lock the protected branch")
-	updateCmd.Flags().BoolVarP(&removeStatus, "delete", "d", false, "remove the status checks in protected branch")
+	updateCmd.Flags().BoolVarP(&removeStatusChecks, "remove-status-checks", "d", false, "remove all required status checks from the protected branch")
 	updateCmd.Flags().StringArrayVar(&addBypassUsers, "add-bypass-user", []string{}, "add user(s) to bypass required pull requests")
 	updateCmd.Flags().StringArrayVar(&removeBypassUsers, "remove-bypass-user", []string{}, "remove user(s) from bypass required pull requests")
 	updateCmd.Flags().StringArrayVar(&addPushUsers, "add-push-user", []string{}, "specify user(s) allowed to push to matching branches")

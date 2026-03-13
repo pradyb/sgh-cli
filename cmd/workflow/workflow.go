@@ -29,10 +29,11 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 			Manage GitHub Actions workflow runs across repositories in your organization.
 
 			Available Operations:
-			  list     List workflow runs across all or selected repositories
-			  view     View detailed run info with jobs and steps (supports --watch for live polling)
-			  rerun    Re-trigger a specific workflow run
-			  cancel   Cancel an in-progress workflow run
+			  list      List workflow runs across all or selected repositories
+			  view      View detailed run info with jobs and steps (supports --watch for live polling)
+			  rerun     Re-trigger a specific workflow run
+			  cancel    Cancel an in-progress workflow run
+			  dispatch  Trigger a workflow_dispatch event across repositories
 
 			Quick Filters (list command):
 			  --running   Show only in-progress runs
@@ -65,6 +66,9 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 
 			Cancel a running workflow:
 			  $ sgh workflow cancel --org my-org -r my-app --run 123456789
+
+			Trigger a workflow across all repos:
+			  $ sgh workflow dispatch --org my-org --workflow deploy.yml --ref main
 		`),
 	}
 
@@ -72,6 +76,7 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 	workflowCmd.AddCommand(ViewCommand(ctx))
 	workflowCmd.AddCommand(rerunCommand(ctx))
 	workflowCmd.AddCommand(cancelCommand(ctx))
+	workflowCmd.AddCommand(dispatchCommand(ctx))
 	return workflowCmd
 }
 
@@ -149,7 +154,7 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 	listCmd.Flags().BoolVar(&running, "running", false, "show only in-progress workflow runs")
 	listCmd.Flags().BoolVar(&queued, "queued", false, "show only queued workflow runs")
 	listCmd.Flags().BoolVar(&failed, "failed", false, "show only failed workflow runs")
-	listCmd.Flags().StringVarP(&branch, "branch", "B", "", "filter by `branch` name")
+	listCmd.Flags().StringVarP(&branch, "branch", "b", "", "filter by `branch` name")
 	listCmd.Flags().StringVarP(&workflowName, "workflow", "n", "", "filter by `workflow` name (partial match)")
 	listCmd.Flags().IntVarP(&lastCount, "last", "l", 10, "number of workflow runs to fetch per repository")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, status, created")
@@ -403,4 +408,89 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 	cancelCmd.MarkFlagRequired("run")
 
 	return cancelCmd
+}
+
+func DispatchCommand(ctx *context.Context) *cobra.Command {
+	return dispatchCommand(ctx)
+}
+
+func dispatchCommand(ctx *context.Context) *cobra.Command {
+	var repoNames []string
+	var excludeRepoNames []string
+	var workflowID string
+	var ref string
+	var inputPairs []string
+
+	dispatchCmd := &cobra.Command{
+		Use:     "dispatch",
+		Aliases: []string{"wfd"},
+		Short:   "Trigger a workflow_dispatch event across repositories",
+		Long: heredoc.Doc(`
+			Trigger a workflow_dispatch event for a named workflow file across one or more
+			repositories in the organization.
+
+			The workflow must have a 'workflow_dispatch' trigger defined in its YAML file.
+			Use --input key=value to pass input parameters to the workflow.
+		`),
+		Example: heredoc.Doc(`
+			$ sgh workflow dispatch --org my-org --workflow deploy.yml --ref main
+			$ sgh workflow dispatch --org my-org -r app1 -r app2 --workflow build.yml --ref develop
+			$ sgh workflow dispatch --org my-org --workflow release.yml --ref main --input env=production --input dry_run=false
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+
+			inputs := make(map[string]string)
+			for _, pair := range inputPairs {
+				for i, ch := range pair {
+					if ch == '=' {
+						inputs[pair[:i]] = pair[i+1:]
+						break
+					}
+				}
+			}
+
+			if ctx.DryRun {
+				ui.PrintDryRunBanner()
+				details := map[string]string{
+					"Workflow": workflowID,
+					"Ref":      ref,
+				}
+				for k, v := range inputs {
+					details["Input: "+k] = v
+				}
+				ui.PrintDryRunActions("Dispatch Workflow", orgName, repoNames, details)
+				return
+			}
+
+			req := workflow.WorkflowDispatchRequest{
+				OrgName:          orgName,
+				RepoNames:        repoNames,
+				ExcludeRepoNames: excludeRepoNames,
+				WorkflowID:       workflowID,
+				Ref:              ref,
+				Inputs:           inputs,
+			}
+			results := workflow.DispatchWorkflow(ctx, req)
+			for _, r := range results {
+				if r.ErrorMessage != "" {
+					logger.Glog.Error().Str("repo", r.RepositoryName).Msg(r.ErrorMessage)
+					fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", r.RepositoryName, r.ErrorMessage)
+				} else {
+					fmt.Printf("  ✓ %s: workflow '%s' dispatched on '%s'\n", r.RepositoryName, r.WorkflowID, r.Ref)
+				}
+			}
+		},
+	}
+
+	dispatchCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
+	dispatchCmd.Flags().StringArrayVarP(&excludeRepoNames, "exclude-repository", "e", []string{}, "repository names to exclude")
+	dispatchCmd.Flags().StringVarP(&workflowID, "workflow", "w", "", "workflow filename or ID (e.g. deploy.yml)")
+	dispatchCmd.Flags().StringVarP(&ref, "ref", "f", "", "branch or tag to run the workflow on")
+	dispatchCmd.Flags().StringArrayVarP(&inputPairs, "input", "i", []string{}, "workflow input as key=value (repeatable)")
+
+	dispatchCmd.MarkFlagRequired("workflow")
+	dispatchCmd.MarkFlagRequired("ref")
+
+	return dispatchCmd
 }

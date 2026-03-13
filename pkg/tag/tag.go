@@ -5,6 +5,7 @@ package tag
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
@@ -17,6 +18,7 @@ type TagListRequest struct {
 	OrgName          string
 	RepoNames        []string
 	ExcludeRepoNames []string
+	Filter           string
 }
 
 // TagCreateRequest contains parameters for creating tags.
@@ -70,6 +72,18 @@ func CreateNewTag(ctx *context.Context, req TagCreateSingleRequest) (model.RefRe
 func ListTags(ctx *context.Context, req TagListRequest) []model.TagResponse {
 	responses := make([]model.TagResponse, 0)
 
+	var filterRegex *regexp.Regexp
+	if req.Filter != "" {
+		var err error
+		filterRegex, err = regexp.Compile("(?i)" + req.Filter)
+		if err != nil {
+			return []model.TagResponse{{
+				RepositoryName: "(filter)",
+				Name:           fmt.Sprintf("invalid filter regex: %v", err),
+			}}
+		}
+	}
+
 	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListTags,
 		func(ctx *context.Context, orgName, repoName string) ([]model.TagResponse, error) {
 			tags, err := service.ListTags(ctx, orgName, repoName)
@@ -82,7 +96,11 @@ func ListTags(ctx *context.Context, req TagListRequest) []model.TagResponse {
 			return tags, nil
 		},
 		func(repoName string, result processor.RepoOperationResult[[]model.TagResponse]) {
-			responses = append(responses, result.Result...)
+			for _, t := range result.Result {
+				if filterRegex == nil || filterRegex.MatchString(t.Name) {
+					responses = append(responses, t)
+				}
+			}
 		},
 		func(repoName string, err error) {
 			responses = append(responses, model.TagResponse{

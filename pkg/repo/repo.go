@@ -6,6 +6,7 @@
 package repo
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
@@ -153,6 +154,75 @@ func filteredRepos(ctx *context.Context, repositories []model.Repository, orgNam
 		}
 	}
 	return filteredRepos, nil
+}
+
+// ArchiveRepos archives or unarchives repositories in bulk.
+func ArchiveRepos(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, archive bool) []model.RefUIResponse {
+	action := "ARCHIVE"
+	verb := "archived"
+	if !archive {
+		action = "UNARCHIVE"
+		verb = "unarchived"
+	}
+
+	resolved := resolveRepoList(ctx, orgName, repoNames, excludeRepoNames)
+	responses := make([]model.RefUIResponse, 0, len(resolved))
+	for _, repoName := range resolved {
+		err := service.UpdateRepoArchived(ctx, orgName, repoName, archive)
+		if err != nil {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, repoName, action, "", fmt.Sprintf("failed to %s: %v", verb, err)))
+		} else {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, repoName, action, fmt.Sprintf("Repository %s", verb), ""))
+		}
+	}
+	return responses
+}
+
+// SetRepoVisibility changes repository visibility in bulk.
+func SetRepoVisibility(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string, visibility string) []model.RefUIResponse {
+	resolved := resolveRepoList(ctx, orgName, repoNames, excludeRepoNames)
+	responses := make([]model.RefUIResponse, 0, len(resolved))
+	for _, repoName := range resolved {
+		err := service.UpdateRepoVisibility(ctx, orgName, repoName, visibility)
+		if err != nil {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, repoName, "SET_VISIBILITY", "", fmt.Sprintf("failed to set visibility: %v", err)))
+		} else {
+			responses = append(responses, model.CreateNewCommonResponse(repoName, repoName, "SET_VISIBILITY", fmt.Sprintf("Visibility set to %s", visibility), ""))
+		}
+	}
+	return responses
+}
+
+// resolveRepoList returns the list of repos to process: if repoNames is non-empty, filter
+// it through exclude; otherwise use all configured repos for the org.
+func resolveRepoList(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string) []string {
+	excl := make(map[string]bool, len(excludeRepoNames))
+	for _, n := range excludeRepoNames {
+		excl[n] = true
+	}
+
+	if len(repoNames) > 0 {
+		out := make([]string, 0, len(repoNames))
+		for _, n := range repoNames {
+			if !excl[n] {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+
+	all, err := GetSelectedRepoNames(ctx, orgName)
+	if err != nil {
+		logger.Glog.Error().Err(err).Str("org", orgName).Msg("failed to resolve repository names")
+		return nil
+	}
+	out := make([]string, 0, len(all))
+	for _, n := range all {
+		if !excl[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // saveRepositoryNamesForFuzzySearch saves repository names for fuzzy search in config.
