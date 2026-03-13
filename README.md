@@ -683,6 +683,38 @@ sgh config reset --force
 > **Tip:** Set `SGH_ORG` and `SGH_WORKERS` environment variables to avoid repeating common flags.
 > **Note on Limits:** For multi-repo commands, use `--last` to limit how many items are fetched *per repository* from the API, and `--limit` to truncate the *final combined output*.
 
+### Flag Shorthand Convention
+
+Single-letter shorthands follow one consistent rule across the entire CLI:
+
+> **Use lowercase by default. Use uppercase only when the lowercase letter is already taken** — either by a global persistent flag or by another flag in the same command.
+
+**Global flag shorthands** (reserved across all commands — never reused locally):
+
+| Shorthand | Flag |
+|-----------|------|
+| `-o` | `--org` |
+| `-v` | `--verbose` |
+| `-w` | `--workers` |
+| `-L` | `--log-response` |
+| `-O` | `--output` |
+| `-C` | `--compact` |
+| `-J` | `--json` |
+
+**Uppercase shorthands in use** (lowercase was already taken):
+
+| Shorthand | Flag | Command | Lowercase taken by |
+|-----------|------|---------|-------------------|
+| `-B` | `--base` | `pr create/list` | `-b` = `--body` |
+| `-H` | `--head` | `pr create/list`, `tag create` | `-h` = help (reserved by Cobra) |
+| `-A` | `--assignee` | `pr list` | `-a` = `--author` |
+| `-R` | `--reviewer` | `pr list` | `-r` = `--repository` |
+| `-R` | `--run` | `workflow view/rerun/cancel` | `-r` = `--repository` |
+| `-R` | `--ref` | `post-release` | `-r` = `--repository` |
+| `-W` | `--watch` | `workflow view` | `-w` = global `--workers` |
+| `-W` | `--workflow` | `workflow dispatch` | `-w` = global `--workers` |
+| `-V` | `--visibility` | `repo visibility` | `-v` = global `--verbose` |
+
 ### Per-Command Flags
 
 Some list commands support additional flags:
