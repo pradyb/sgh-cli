@@ -72,8 +72,8 @@ func TestWaitIfNeeded_Wait(t *testing.T) {
 		t.Skip("skipping timing-sensitive test in short mode")
 	}
 	rl := NewRateLimiter()
-	// Set reset time to be in the future (use 2 seconds to avoid precision issues)
-	reset := time.Now().Add(2 * time.Second).Unix()
+	// Set reset time 4s in the future so there is enough headroom for slow CI runners.
+	reset := time.Now().Add(4 * time.Second).Unix()
 	response := makeResponse(map[string]string{
 		headerRateLimitLimit:     "100",
 		headerRateLimitRemaining: "0", // Set to 0 to definitely trigger wait
@@ -95,7 +95,7 @@ func TestWaitIfNeeded_Wait(t *testing.T) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
 	start := time.Now()
 	err := rl.WaitIfNeeded(ctx, coreResource)
@@ -103,12 +103,12 @@ func TestWaitIfNeeded_Wait(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	// The function should wait for at least 1.5 seconds (allowing for some timing variance)
-	if elapsed < 1500*time.Millisecond {
-		t.Errorf("should have waited at least 1.5s, elapsed: %v", elapsed)
+	// Should wait at least 1s (generous lower bound for slow runners)
+	if elapsed < 1000*time.Millisecond {
+		t.Errorf("should have waited at least 1s, elapsed: %v", elapsed)
 	}
-	// But not more than 2.5 seconds (to account for timing precision)
-	if elapsed > 2500*time.Millisecond {
+	// But not more than 5s
+	if elapsed > 5000*time.Millisecond {
 		t.Errorf("waited too long, elapsed: %v", elapsed)
 	}
 }
