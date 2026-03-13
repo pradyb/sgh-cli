@@ -145,7 +145,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	createCmd.Flags().StringVarP(&branchName, "new", "N", "", "The new `branch` which you want to be created")
+	createCmd.Flags().StringVarP(&branchName, "new", "n", "", "The new `branch` which you want to be created")
 	createCmd.Flags().StringVarP(&refBranchName, "ref", "f", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringVarP(&commitSHA, "commit", "c", "", "The `commit sha` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the branch. If not provided, it will create for all the repositories in the organization")
@@ -239,7 +239,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	deleteCmd.Flags().StringVarP(&branchName, "branch", "B", "", "The `branch` which you want to be deleted")
+	deleteCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` which you want to be deleted")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to delete the branch. If not provided, it will delete for all the repositories in the organization")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names to exclude from branch deletion")
 

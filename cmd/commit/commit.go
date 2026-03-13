@@ -83,7 +83,7 @@ If --branch is omitted, each repository's default branch is used.`,
 	listCmd.Flags().StringVarP(&branchName, "branch", "b", "", "The `branch` for which you want to fetch commits (defaults to each repo's default branch)")
 	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "number of days to fetch commits")
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")
-	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "M", false, "include merge commits")
+	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "m", false, "include merge commits")
 
 	return listCmd
 }

@@ -118,7 +118,7 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	createCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The new `tag` which you want to be created")
+	createCmd.Flags().StringVarP(&tagName, "tag", "t", "", "The new `tag` which you want to be created")
 	createCmd.Flags().StringVarP(&refBranchName, "head", "H", "", "The `branch` from which you want to use as reference")
 	createCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "The `repository` names for which you want to create the tag. If not provided, it will create for all the repositories in the organization")
 	createCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from creating the tag")
@@ -165,7 +165,7 @@ func DeleteCommand(ctx *context.Context) *cobra.Command {
 		},
 	}
 
-	deleteCmd.Flags().StringVarP(&tagName, "tag", "T", "", "The `tag` which you want to be deleted")
+	deleteCmd.Flags().StringVarP(&tagName, "tag", "t", "", "The `tag` which you want to be deleted")
 	deleteCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	deleteCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "The `repository` names which you want to exclude from deleting the tag")
 

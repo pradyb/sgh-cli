@@ -89,7 +89,7 @@ func NewPostReleaseCommand(ctx *context.Context) *cobra.Command {
 	postReleaseCmd.Flags().StringArrayVarP(&excludeRepos, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	postReleaseCmd.Flags().StringVarP(&ref, "ref", "R", "", "source `branch` to create the hotfix branch and/or tag from")
 	postReleaseCmd.Flags().StringVarP(&branchName, "branch", "b", "", "name of the hotfix `branch` to create")
-	postReleaseCmd.Flags().StringVarP(&tagName, "tag", "T", "", "name of the release `tag` to create")
+	postReleaseCmd.Flags().StringVarP(&tagName, "tag", "t", "", "name of the release `tag` to create")
 	postReleaseCmd.Flags().StringVarP(&message, "message", "m", "", "tag annotation message (defaults to tag name if omitted)")
 
 	postReleaseCmd.MarkFlagRequired("ref")
