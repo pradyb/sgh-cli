@@ -154,7 +154,7 @@ Default fetches all open Pull Requests, use -a flag to fetches all Pull Requests
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
-	listCmd.Flags().BoolVarP(&allPullRequests, "all", "A", false, "fetch all pull requests including closed and merged (default: open only)")
+	listCmd.Flags().BoolVar(&allPullRequests, "all", false, "fetch all pull requests including closed and merged (default: open only)")
 	listCmd.Flags().Bool("all-status", false, "alias for --all (deprecated)")
 	listCmd.Flags().MarkHidden("all-status")
 	listCmd.Flags().StringVarP(&baseRef, "base", "B", "", "The `branch` into which you want your code merged")
