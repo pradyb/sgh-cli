@@ -84,7 +84,8 @@ func StyledStatus(status string) string {
 	return lipgloss.NewStyle().Foreground(StatusColor(status)).Render(status)
 }
 
-// StatusIcon returns a small glyph representing a conclusion/status.
+// StatusIcon returns a small glyph representing a conclusion/status, or ""
+// for unrecognised values so callers can skip rendering an icon.
 func StatusIcon(conclusion string) string {
 	switch conclusion {
 	case "success":
@@ -100,7 +101,7 @@ func StatusIcon(conclusion string) string {
 	case "queued":
 		return lipgloss.NewStyle().Foreground(Yellow).Render("◌")
 	default:
-		return lipgloss.NewStyle().Foreground(Subtle).Render("·")
+		return ""
 	}
 }
 

@@ -52,15 +52,30 @@ func (m *contentModel) setData(command string, columns []string, rows [][]string
 	m.sortAscending = true
 }
 
+// filterExcludedColumns lists column names that carry enum/badge values and
+// should not be matched by the text search filter (to avoid e.g. typing "m"
+// instantly matching every "Merged" PR row).
+var filterExcludedColumns = map[string]bool{
+	"Status":     true,
+	"State":      true,
+	"Conclusion": true,
+	"Protected":  true,
+	"Enforce":    true,
+}
+
 func (m *contentModel) filteredRows() []int {
 	indices := make([]int, 0, len(m.rows))
+	lower := strings.ToLower(m.filter)
 	for i, row := range m.rows {
 		if m.filter == "" {
 			indices = append(indices, i)
 			continue
 		}
-		for _, cell := range row {
-			if strings.Contains(strings.ToLower(cell), strings.ToLower(m.filter)) {
+		for ci, cell := range row {
+			if ci < len(m.columns) && filterExcludedColumns[m.columns[ci]] {
+				continue
+			}
+			if strings.Contains(strings.ToLower(cell), lower) {
 				indices = append(indices, i)
 				break
 			}
