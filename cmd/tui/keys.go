@@ -74,7 +74,7 @@ type prKeyMap struct {
 
 var prKeys = prKeyMap{
 	Approve:      key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
-	Merge:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
+	Merge:        key.NewBinding(key.WithKeys("ctrl+m"), key.WithHelp("ctrl+m", "merge")),
 	ApproveMerge: key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "approve+merge")),
 	Close:        key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "close PR")),
 }

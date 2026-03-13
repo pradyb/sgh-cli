@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 type contentModel struct {
@@ -275,11 +276,42 @@ func (m contentModel) view() string {
 	}
 
 	if m.noData {
+		msg := "No data found"
+		hint := "Try different repos or refresh with 'r'"
+		switch m.command {
+		case "pr":
+			msg = "No pull requests found"
+			hint = "Try changing the filter with 's' or select more repos"
+		case "issue":
+			msg = "No issues found"
+			hint = "Try changing the filter with 's' or select more repos"
+		case "wf":
+			msg = "No workflow runs found"
+			hint = "Try changing the filter with 's' or select more repos"
+		case "branch":
+			msg = "No branches found"
+			hint = "Select repos and refresh with 'r'"
+		case "tag":
+			msg = "No tags found"
+			hint = "Select repos and refresh with 'r'"
+		case "commit":
+			msg = "No commits in the last 14 days"
+			hint = "Select repos and refresh with 'r'"
+		case "team":
+			msg = "No teams found"
+			hint = "Check org permissions or refresh with 'r'"
+		case "pb":
+			msg = "No protected branches found"
+			hint = "Select repos and refresh with 'r'"
+		case "audit":
+			msg = "No audit log entries found"
+			hint = "Check org permissions or refresh with 'r'"
+		}
 		return contentRowDimStyle.Render(strings.Join([]string{
 			"",
-			"  ∅ No data found",
+			"  ∅ " + msg,
 			"",
-			"  Try different repos or refresh with 'r'",
+			"  " + hint,
 			"",
 		}, "\n"))
 	}
@@ -289,8 +321,8 @@ func (m contentModel) view() string {
 		b.WriteString("\n")
 	}
 
-	colWidths := m.computeColumnWidths()
-	header := m.renderHeader(colWidths)
+	colWidths, visibleCols := m.computeColumnWidths()
+	header := m.renderHeader(colWidths, visibleCols)
 	b.WriteString(header)
 	b.WriteString("\n")
 	b.WriteString(separatorStyle.Render(strings.Repeat("─", max(1, m.width-6))))
@@ -315,7 +347,7 @@ func (m contentModel) view() string {
 		isCursor := m.focused && vi == m.cursor
 		isAlt := vi%2 != 0
 
-		line := m.renderRow(rowIdx, row, colWidths, isCursor, isAlt)
+		line := m.renderRow(rowIdx, row, colWidths, visibleCols, isCursor, isAlt)
 
 		// Scrollbar logic
 		scrollChar := ""
@@ -363,86 +395,194 @@ func (m contentModel) view() string {
 	return b.String()
 }
 
-func (m contentModel) computeColumnWidths() []int {
+// columnDropPriority defines columns to drop (last = first dropped) when
+// the content panel is too narrow to fit all columns at minimum width.
+// Columns not listed are always kept (they are the "anchor" columns).
+var columnDropPriority = map[string][]string{
+	"pr":     {"Updated", "Author"},
+	"wf":     {"Updated", "Branch", "Conclusion"},
+	"commit": {"Date", "Author"},
+	"issue":  {"Updated", "Comments", "Labels", "Author"},
+	"branch": {"Protected", "SHA"},
+	"pb":     {"Enforce", "Approvals"},
+	"tag":    {"SHA"},
+	"audit":  {"Repo", "Time"},
+}
+
+// minColWidth and maxColWidth by column name category.
+func colMinMax(col string) (min_, max_ int) {
+	switch col {
+	case "Title", "Message", "Workflow", "Description":
+		return 14, 60
+	case "Repo", "Branch", "Tag", "Team", "Author", "Actor", "Action":
+		return 10, 30
+	default:
+		return 8, 20
+	}
+}
+
+// computeColumnWidths returns widths only for columns that fit at minimum
+// width. Low-priority columns are dropped first when space is tight.
+func (m contentModel) computeColumnWidths() ([]int, []int) {
 	if len(m.columns) == 0 {
-		return nil
-	}
-	available := m.width - 4 - (len(m.columns)-1)*2
-	if available < len(m.columns)*4 {
-		available = len(m.columns) * 4
+		return nil, nil
 	}
 
-	// Measure actual content widths
-	widths := make([]int, len(m.columns))
-	minWidths := make([]int, len(m.columns))
-	maxWidths := make([]int, len(m.columns))
+	dropList := columnDropPriority[m.command]
 
+	// Build drop-priority index (higher index = dropped first).
+	dropRank := make(map[string]int, len(dropList))
+	for i, c := range dropList {
+		dropRank[c] = i + 1 // 1-based; 0 means "never drop"
+	}
+
+	// Column metadata
+	type colMeta struct {
+		origIdx int
+		min_    int
+		max_    int
+		ideal   int // header width to start with
+		rank    int // drop rank (0 = keep always)
+	}
+	metas := make([]colMeta, len(m.columns))
 	for i, col := range m.columns {
-		// Start with header width
-		widths[i] = len(col)
-		minWidths[i] = 8
-
-		// Set max widths based on content type
-		switch col {
-		case "Title", "Message", "Workflow", "Description":
-			maxWidths[i] = 60
-		case "Repo", "Branch", "Tag", "Team", "Author":
-			maxWidths[i] = 30
-		default:
-			maxWidths[i] = 20
-		}
+		mn, mx := colMinMax(col)
+		metas[i] = colMeta{origIdx: i, min_: mn, max_: mx, ideal: len(col), rank: dropRank[col]}
 	}
 
-	// Sample up to 50 rows to measure actual content widths
+	// Sample rows to set ideal widths
 	sampleSize := min(len(m.rows), 50)
 	for rowIdx := 0; rowIdx < sampleSize; rowIdx++ {
 		row := m.rows[rowIdx]
-		for colIdx := 0; colIdx < len(m.columns) && colIdx < len(row); colIdx++ {
-			cellLen := len(row[colIdx])
-			if cellLen > widths[colIdx] {
-				widths[colIdx] = min(cellLen, maxWidths[colIdx])
+		for ci := range metas {
+			if ci < len(row) && len(row[ci]) > metas[ci].ideal {
+				metas[ci].ideal = min(len(row[ci]), metas[ci].max_)
 			}
 		}
 	}
 
-	// Ensure minimum widths
-	totalRequired := 0
-	for i := range widths {
-		if widths[i] < minWidths[i] {
-			widths[i] = minWidths[i]
-		}
-		totalRequired += widths[i]
+	// Available width: 4 for cursor prefix + padding, 2 per gap between cols
+	// We iterate dropping the lowest-priority column until everything fits.
+	active := make([]bool, len(m.columns))
+	for i := range active {
+		active[i] = true
 	}
 
-	// If we exceed available space, scale down proportionally
-	if totalRequired > available {
-		scale := float64(available) / float64(totalRequired)
-		for i := range widths {
-			widths[i] = max(minWidths[i], int(float64(widths[i])*scale))
+	fits := func() (int, bool) {
+		n := 0
+		for i := range active {
+			if active[i] {
+				n++
+			}
+		}
+		if n == 0 {
+			return 0, true
+		}
+		avail := m.width - 4 - (n-1)*2
+		total := 0
+		for i := range metas {
+			if active[i] {
+				total += metas[i].min_
+			}
+		}
+		return avail, avail >= total
+	}
+
+	// Drop columns in priority order (highest rank first) until they fit
+	for {
+		avail, ok := fits()
+		if ok || avail < 0 {
+			break
+		}
+		// Find the highest-rank active column to drop
+		bestRank, bestIdx := 0, -1
+		for i := range metas {
+			if active[i] && metas[i].rank > bestRank {
+				bestRank = metas[i].rank
+				bestIdx = i
+			}
+		}
+		if bestIdx < 0 {
+			break // nothing left to drop
+		}
+		active[bestIdx] = false
+	}
+
+	// Compute active count and available space
+	n := 0
+	for i := range active {
+		if active[i] {
+			n++
+		}
+	}
+	avail := m.width - 4 - (n-1)*2
+	if avail < n*4 {
+		avail = n * 4
+	}
+
+	// Set widths = ideal, clamped to [min, max]
+	widths := make([]int, len(m.columns))
+	total := 0
+	for i := range metas {
+		if active[i] {
+			w := metas[i].ideal
+			if w < metas[i].min_ {
+				w = metas[i].min_
+			}
+			if w > metas[i].max_ {
+				w = metas[i].max_
+			}
+			widths[i] = w
+			total += w
 		}
 	}
 
-	// If we have extra space, distribute it proportionally
-	if totalRequired < available {
-		extra := available - totalRequired
-		totalWeight := 0
-		for i := range widths {
-			totalWeight += widths[i]
-		}
-		for i := range widths {
-			addition := (extra * widths[i]) / totalWeight
-			widths[i] += addition
+	// Shrink proportionally if over budget
+	if total > avail {
+		scale := float64(avail) / float64(total)
+		for i := range metas {
+			if active[i] {
+				widths[i] = max(metas[i].min_, int(float64(widths[i])*scale))
+			}
 		}
 	}
 
-	return widths
+	// Distribute extra space proportionally among active columns
+	total = 0
+	for i := range metas {
+		if active[i] {
+			total += widths[i]
+		}
+	}
+	if extra := avail - total; extra > 0 {
+		weight := total
+		if weight == 0 {
+			weight = 1
+		}
+		for i := range metas {
+			if active[i] {
+				widths[i] += (extra * widths[i]) / weight
+			}
+		}
+	}
+
+	// Build the list of active column original indices
+	visibleCols := make([]int, 0, n)
+	for i := range metas {
+		if active[i] {
+			visibleCols = append(visibleCols, i)
+		}
+	}
+
+	return widths, visibleCols
 }
 
-func (m contentModel) renderHeader(widths []int) string {
-	parts := make([]string, len(m.columns))
+func (m contentModel) renderHeader(widths []int, visibleCols []int) string {
+	parts := make([]string, 0, len(visibleCols))
 	hasOverflow := false
-	sortIndicator := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700")).Bold(true)
-	for i, col := range m.columns {
+	sortIndicator := lipgloss.NewStyle().Foreground(ui.Yellow).Bold(true)
+	for _, i := range visibleCols {
+		col := m.columns[i]
 		w := 8
 		if i < len(widths) {
 			w = widths[i]
@@ -463,7 +603,7 @@ func (m contentModel) renderHeader(widths []int) string {
 			}
 			label = string(r) + "›"
 		}
-		parts[i] = contentHeaderStyle.Width(w).Render(label)
+		parts = append(parts, contentHeaderStyle.Width(w).Render(label))
 	}
 	header := strings.Join(parts, "  ")
 	if hasOverflow {
@@ -472,9 +612,23 @@ func (m contentModel) renderHeader(widths []int) string {
 	return header
 }
 
-func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor bool, isAlt bool) string {
-	parts := make([]string, len(m.columns))
-	for i := range m.columns {
+// highlightFilterMatch wraps the matching substring in a yellow bold style.
+func highlightFilterMatch(cell, filter string) string {
+	if filter == "" {
+		return cell
+	}
+	lower := strings.ToLower(cell)
+	idx := strings.Index(lower, strings.ToLower(filter))
+	if idx < 0 {
+		return cell
+	}
+	hlStyle := lipgloss.NewStyle().Foreground(ui.Yellow).Bold(true).Underline(true)
+	return cell[:idx] + hlStyle.Render(cell[idx:idx+len(filter)]) + cell[idx+len(filter):]
+}
+
+func (m contentModel) renderRow(rowIdx int, row []string, widths []int, visibleCols []int, isCursor bool, isAlt bool) string {
+	parts := make([]string, 0, len(visibleCols))
+	for _, i := range visibleCols {
 		w := 8
 		if i < len(widths) {
 			w = widths[i]
@@ -491,9 +645,13 @@ func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor
 		if isCursor {
 			style = contentCursorStyle
 		} else if m.rowColors != nil && rowIdx < len(m.rowColors) && i < len(m.rowColors[rowIdx]) && m.rowColors[rowIdx][i] != "" {
+			icon := ui.StatusIcon(cell)
+			if icon != "" {
+				cell = icon + " " + cell
+			}
 			style = lipgloss.NewStyle().Foreground(m.rowColors[rowIdx][i])
 			if isAlt {
-				style = style.Background(lipgloss.Color("#1E1E2E"))
+				style = style.Background(lipgloss.ANSIColor(236))
 			}
 		} else if isAlt {
 			if i > 0 {
@@ -504,7 +662,13 @@ func (m contentModel) renderRow(rowIdx int, row []string, widths []int, isCursor
 		} else if i > 0 {
 			style = contentRowDimStyle
 		}
-		parts[i] = style.Width(w).Render(cell)
+
+		// Highlight filter matches (skip on cursor row — inverted bg makes it hard to read)
+		if !isCursor && m.filter != "" {
+			cell = highlightFilterMatch(cell, m.filter)
+		}
+
+		parts = append(parts, style.Width(w).Render(cell))
 	}
 
 	prefix := "  "

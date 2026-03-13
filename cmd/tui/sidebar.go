@@ -6,6 +6,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 type commandDef struct {
@@ -18,11 +21,11 @@ var commands = []commandDef{
 	{"Pull Requests", "pr", []string{"Repo", "#", "Title", "Author", "Status", "Updated"}},
 	{"Workflows", "wf", []string{"Repo", "Workflow", "Status", "Conclusion", "Branch", "Updated"}},
 	{"Commits", "commit", []string{"Repo", "Message", "Author", "Date"}},
-	{"Teams", "team", []string{"Team", "Members", "Repos"}},
 	{"Prot. Branches", "pb", []string{"Repo", "Branch", "Approvals", "Enforce"}},
 	{"Issues", "issue", []string{"Repo", "#", "Title", "Author", "State", "Labels", "Comments", "Updated"}},
 	{"Branches", "branch", []string{"Repo", "Branch", "SHA", "Protected"}},
 	{"Tags", "tag", []string{"Repo", "Tag", "SHA"}},
+	{"Teams", "team", []string{"Team", "Members", "Repos"}},
 	{"Audit Log", "audit", []string{"Time", "Actor", "Action", "Repo"}},
 }
 
@@ -86,22 +89,32 @@ func (m *sidebarModel) activeCommand() *commandDef {
 func (m sidebarModel) view() string {
 	var b strings.Builder
 
+	numStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+	numActiveStyle := lipgloss.NewStyle().Foreground(ui.Cyan).Bold(true)
+
 	for i, cmd := range commands {
 		style := commandNormalStyle
-		marker := "   "
+		isActive := i == m.active
+		isCursor := m.focused && i == m.cursor
 
-		if i == m.active && m.focused && i == m.cursor {
-			style = commandCursorStyle
-			marker = " > "
-		} else if i == m.active {
-			style = commandActiveStyle
-			marker = " > "
-		} else if m.focused && i == m.cursor {
-			style = commandCursorStyle
-			marker = " > "
+		numStr := fmt.Sprintf("%d", i+1)
+		if isActive || isCursor {
+			numStr = numActiveStyle.Render(numStr)
+		} else {
+			numStr = numStyle.Render(numStr)
 		}
 
-		b.WriteString(fmt.Sprintf("%s%s", marker, style.Render(cmd.name)))
+		cursor := " "
+		if isActive || isCursor {
+			cursor = "▸"
+			if isCursor {
+				style = commandCursorStyle
+			} else {
+				style = commandActiveStyle
+			}
+		}
+
+		b.WriteString(fmt.Sprintf(" %s %s %s", numStr, cursor, style.Render(cmd.name)))
 		if i < len(commands)-1 {
 			b.WriteString("\n")
 		}

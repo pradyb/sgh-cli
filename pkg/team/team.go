@@ -47,7 +47,8 @@ type TeamQuery struct {
 					} `graphql:"repositories(first: 1)"`
 				}
 			}
-		} `graphql:"teams(first: 10, query: $teamName)"`
+			PageInfo model.PageInfo
+		} `graphql:"teams(first: $teamPageSize, after: $teamCursor, query: $teamName)"`
 	} `graphql:"organization(login: $orgName)"`
 }
 
@@ -56,6 +57,8 @@ func GetTeamAndMembers(ctx *context.Context, req TeamMembersRequest) ([]model.Or
 		"orgName":      githubv4.String(req.OrgName),
 		"noOfMembers":  githubv4.Int(req.NoOfMembers),
 		"teamName":     githubv4.String(req.TeamName),
+		"teamPageSize": githubv4.Int(100),
+		"teamCursor":   (*githubv4.String)(nil),
 		"memberCursor": (*githubv4.String)(nil),
 	}
 
@@ -88,10 +91,20 @@ func GetTeamAndMembers(ctx *context.Context, req TeamMembersRequest) ([]model.Or
 				currentMembers = make([]model.OrgTeamMember, 0)
 			}
 		}
-		if currentTeamNextPage == "" {
+
+		if currentTeamNextPage != "" {
+			// Paginating members within a team — keep team cursor unchanged
+			variables["memberCursor"] = githubv4.String(currentTeamNextPage)
+			continue
+		}
+
+		// Advance to next page of teams if available
+		if q.Organization.Teams.PageInfo.HasNextPage {
+			variables["teamCursor"] = githubv4.String(q.Organization.Teams.PageInfo.EndCursor)
+			variables["memberCursor"] = (*githubv4.String)(nil)
+		} else {
 			break
 		}
-		variables["memberCursor"] = githubv4.String(currentTeamNextPage)
 	}
 	return teams, nil
 }

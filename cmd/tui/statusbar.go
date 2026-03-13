@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/prady-lab/sgh-cli/pkg/ui"
 )
 
 type statusBarModel struct {
@@ -28,6 +29,7 @@ type statusBarModel struct {
 	filteredCount int
 	totalCount    int
 	loadingMsg    string
+	activeFilter  string // e.g. "open", "merged"
 }
 
 func newStatusBar(orgName string) statusBarModel {
@@ -46,12 +48,15 @@ func (m statusBarModel) view() string {
 
 	if m.command != "" {
 		cmdText := fmt.Sprintf("cmd: %s", m.command)
+		if m.activeFilter != "" {
+			pillStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#000000")).
+				Background(ui.Cyan).
+				Padding(0, 1)
+			cmdText += " " + pillStyle.Render(m.activeFilter)
+		}
 		if m.filteredCount > 0 && m.filteredCount < m.totalCount {
-			cmdText += fmt.Sprintf(" (%s%d/%d%s)",
-				statusBarCountStyle.Render(""),
-				m.filteredCount,
-				m.totalCount,
-				statusBarCountStyle.Render(""))
+			cmdText += " " + statusBarCountStyle.Render(fmt.Sprintf("%d/%d", m.filteredCount, m.totalCount))
 		}
 		leftParts = append(leftParts, cmdText)
 	}

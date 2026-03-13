@@ -40,37 +40,34 @@ var (
 	repoSelectedCursorStyle = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
 
 	commandActiveStyle = lipgloss.NewStyle().
-				Foreground(ui.CrayolaGreen).
-				Bold(true)
+			Foreground(ui.Cyan).
+			Bold(true)
 	commandNormalStyle = lipgloss.NewStyle().
-				Foreground(ui.White)
+			Foreground(ui.White)
 	commandCursorStyle = lipgloss.NewStyle().
-				Foreground(ui.Cyan).
-				Bold(true)
+			Foreground(ui.Cyan).
+			Bold(true)
 
 	contentHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(ui.Subtle)
+			Foreground(ui.Subtle)
 
 	contentRowStyle       = lipgloss.NewStyle().Foreground(ui.White)
 	contentRowDimStyle    = lipgloss.NewStyle().Foreground(ui.Dimmed)
-	contentRowAltStyle    = lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.Color("#1E1E2E"))
-	contentRowDimAltStyle = lipgloss.NewStyle().Foreground(ui.Dimmed).Background(lipgloss.Color("#1E1E2E"))
+	contentRowAltStyle    = lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.ANSIColor(236))
+	contentRowDimAltStyle = lipgloss.NewStyle().Foreground(ui.Dimmed).Background(lipgloss.ANSIColor(236))
 	contentCursorStyle    = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#000000")).
 				Background(ui.Cyan).
 				Bold(true)
 
 	detailLabelStyle = lipgloss.NewStyle().
-				Foreground(ui.Subtle).
-				Bold(true)
+			Foreground(ui.Subtle)
 
 	detailValueStyle = lipgloss.NewStyle().
-				Foreground(ui.White)
+			Foreground(ui.White)
 
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(ui.Dimmed).
-			Italic(true).
 			Padding(0, 1)
 
 	statusHintKeyStyle  = lipgloss.NewStyle().Foreground(ui.Green).Bold(true)
@@ -91,8 +88,7 @@ var (
 				Bold(true)
 
 	badgeStyle = lipgloss.NewStyle().
-			Foreground(ui.Green).
-			Bold(true)
+			Foreground(ui.Green)
 
 	spinnerStyle = lipgloss.NewStyle().
 			Foreground(ui.Cyan)
@@ -144,10 +140,10 @@ func panelTitleStyle(focused bool) lipgloss.Style {
 	return panelTitleUnfocusedStyle
 }
 
-// renderBorderedPanel renders a bordered box. w is inner content width, h is inner body height
-// (excluding the title line). The title is rendered as the first line inside the border.
+// renderBorderedPanel renders a bordered box. w is inner content width, h is body height
+// (excluding the title line). The title is the first line rendered inside the border.
 func renderBorderedPanel(title string, body string, w, h int, focused bool) string {
-	totalH := h + 1 // +1 for the title line
+	totalH := h + 1 // +1 for the title line inside the border
 	style := panelStyle(focused).
 		Width(w).
 		Height(totalH).

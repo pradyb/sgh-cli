@@ -234,10 +234,15 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case dataLoadedMsg:
 		m.content.setData(msg.command, msg.columns, msg.rows, msg.colors, msg.raw)
-		m.content.noRepos = len(m.selectedRepos) == 0 && msg.command != "team"
+		m.content.noRepos = len(m.selectedRepos) == 0 && msg.command != "team" && msg.command != "audit"
 		m.statusBar.loading = false
 		m.statusBar.command = msg.command
 		m.statusBar.cacheAge = m.cache.age(m.cacheKeyFor(msg.command))
+		if f, ok := m.cmdFilters[msg.command]; ok {
+			m.statusBar.activeFilter = f.value()
+		} else {
+			m.statusBar.activeFilter = ""
+		}
 		m.statusBar.totalCount = len(msg.rows)
 		// Restore saved filter for this command
 		if savedFilter, ok := m.contentFilters[msg.command]; ok {
@@ -494,7 +499,7 @@ func (m *rootModel) applyFocus() {
 		if cmd := m.sidebar.activeCommand(); cmd != nil {
 			switch cmd.key {
 			case "pr":
-				hint += " d:diff m:menu"
+				hint += " d:diff A:approve ctrl+m:merge m:menu"
 			case "wf":
 				hint += " m:menu"
 			case "issue", "branch", "tag":
@@ -579,7 +584,12 @@ func (m *rootModel) handleRepoSelectorKey(msg tea.KeyMsg) tea.Cmd {
 		m.repoSelector.filter = ""
 	case key.Matches(msg, keys.Enter):
 		m.clearAllFocus()
-		m.focus = focusCommandMenu
+		// If a command is already loaded and repos are selected, jump straight to content
+		if m.content.command != "" && len(m.selectedRepos) > 0 {
+			m.focus = focusContent
+		} else {
+			m.focus = focusCommandMenu
+		}
 		m.applyFocus()
 	}
 	return nil
@@ -656,6 +666,7 @@ func (m *rootModel) handleContentKey(msg tea.KeyMsg) tea.Cmd {
 		if cmd != nil {
 			if f, ok := m.cmdFilters[cmd.key]; ok {
 				f.cycle()
+				m.statusBar.activeFilter = f.value()
 				m.cache.invalidate(cmd.key)
 				m.content.loading = true
 				m.statusBar.loading = true
@@ -930,7 +941,7 @@ func (m *rootModel) buildContextMenu(cmdKey string) {
 	case "pr":
 		m.menuItems = []menuItem{
 			{"Approve PR (A)", func() tea.Cmd { return m.prAction("APPROVE", "Approve this PR?") }},
-			{"Merge PR (m)", func() tea.Cmd { return m.prAction("merge", "Merge this PR?") }},
+			{"Merge PR (ctrl+m)", func() tea.Cmd { return m.prAction("merge", "Merge this PR?") }},
 			{"Approve & Merge (M)", func() tea.Cmd { return m.prAction("approve+merge", "Approve and merge this PR?") }},
 			{"Close PR (c)", func() tea.Cmd { return m.prAction("close", "Close this PR?") }},
 			{"Diff Preview (d)", func() tea.Cmd { return m.loadPRDiff() }},
@@ -1098,22 +1109,45 @@ func (m *rootModel) getSelectedURL() string {
 	return ""
 }
 
+// effectiveSidebarWidth computes the sidebar inner content width based on
+// the longest repo name, clamped between 24 and 42, with a tighter cap on
+// narrow/compact terminals.
+func (m rootModel) effectiveSidebarWidth() int {
+	maxRepoLen := 0
+	for _, r := range m.repoSelector.repos {
+		if len(r.name) > maxRepoLen {
+			maxRepoLen = len(r.name)
+		}
+	}
+	w := maxRepoLen + 10
+	if w < 24 {
+		w = 24
+	}
+	if w > 42 {
+		w = 42
+	}
+	if m.narrowMode || m.width < 110 {
+		if w > 28 {
+			w = 28
+		}
+	}
+	return w
+}
+
 func (m *rootModel) relayout() {
 	// renderBorderedPanel(title, body, w, h): outer width = w+4, outer height = h+3
-	// where h is body height (excludes title line), +1 title +2 border = +3 total
+	// h = body height (excludes title line); +1 title +2 border = +3 total
 	widthOH := 4 // 2 border chars + 2 padding chars
 	panelOH := 3 // 1 title line + 2 border lines (top+bottom)
 
 	availH := m.height - 1 // 1 line for status bar
 
-	// Narrow mode: collapse to a single-column layout when terminal is very narrow
-	m.narrowMode = m.width < 100
+	// Two-tier responsive layout:
+	//   narrowMode    (< 80):  detail becomes overlay, sidebar slightly narrower
+	//   compactSidebar (< 110): sidebar reduced but detail still side-by-side
+	m.narrowMode = m.width < 80
 
-	// Sidebar column — use a narrower sidebar in narrow mode
-	effectiveSidebarW := sidebarWidth
-	if m.narrowMode {
-		effectiveSidebarW = 22
-	}
+	effectiveSidebarW := m.effectiveSidebarWidth()
 	sbOuterW := effectiveSidebarW + widthOH
 	cmdBodyH := len(commands)
 	cmdOuterH := cmdBodyH + panelOH
@@ -1130,20 +1164,18 @@ func (m *rootModel) relayout() {
 
 	// In narrow mode the detail panel floats as an overlay; content gets full main width
 	if m.detail.visible && !m.narrowMode {
-		detailOuterW := mainW * 2 / 5
+		detailOuterW := mainW / 3 // 33% for detail, 67% for content
 		contentOuterW := mainW - detailOuterW
 		m.detail.width = detailOuterW - widthOH
 		m.content.width = contentOuterW - widthOH
 	} else {
 		m.content.width = mainW - widthOH
 		// Keep a usable detail width for the overlay
-		if m.narrowMode {
-			overlayW := m.width - 8
-			if overlayW < 30 {
-				overlayW = 30
-			}
-			m.detail.width = overlayW - widthOH
+		overlayW := m.width - 8
+		if overlayW < 30 {
+			overlayW = 30
 		}
+		m.detail.width = overlayW - widthOH
 	}
 	if m.content.width < 10 {
 		m.content.width = 10
@@ -1152,11 +1184,12 @@ func (m *rootModel) relayout() {
 		m.detail.width = 10
 	}
 	m.content.height = mainBodyH
-	m.detail.height = mainBodyH - 4 // slightly shorter for overlay padding
-	if m.detail.height < 5 {
-		m.detail.height = 5
-	}
-	if !m.narrowMode {
+	if m.narrowMode {
+		m.detail.height = mainBodyH - 4 // slightly shorter for overlay padding
+		if m.detail.height < 5 {
+			m.detail.height = 5
+		}
+	} else {
 		m.detail.height = mainBodyH
 	}
 	m.statusBar.width = m.width
@@ -2007,10 +2040,6 @@ func (m rootModel) View() string {
 		return "\n  Loading sgh TUI..."
 	}
 
-	if m.showHelp {
-		return m.fullHelpView()
-	}
-
 	if m.ctx.HttpClient != nil {
 		m.statusBar.apiCalls = int(m.ctx.HttpClient.APICallCount())
 	}
@@ -2041,6 +2070,9 @@ func (m rootModel) View() string {
 	}
 	if m.showDiff {
 		view = m.renderDiffOverlay(view)
+	}
+	if m.showHelp {
+		view = m.renderHelpOverlay(view)
 	}
 
 	return view
@@ -2196,10 +2228,13 @@ func (m rootModel) renderDiffOverlay(base string) string {
 	addStyle := lipgloss.NewStyle().Foreground(ui.Green)
 	delStyle := lipgloss.NewStyle().Foreground(ui.Red)
 	dimStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
+	fileHeaderStyle := lipgloss.NewStyle().Foreground(ui.Cyan).Bold(true)
 
 	var lines []string
 	for _, l := range m.diffLines[m.diffScroll:end] {
 		switch {
+		case strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ "):
+			lines = append(lines, fileHeaderStyle.Render(l))
 		case strings.HasPrefix(l, "+"):
 			lines = append(lines, addStyle.Render(l))
 		case strings.HasPrefix(l, "-"):
@@ -2254,13 +2289,10 @@ func (m *rootModel) loadPRDiff() tea.Cmd {
 }
 
 func (m rootModel) renderSidebar() string {
-	panelOH := 3
+	panelOH := 3 // 1 title line + 2 border lines
 	availH := m.height - 1
 
-	effectiveSidebarW := sidebarWidth
-	if m.narrowMode {
-		effectiveSidebarW = 22
-	}
+	effectiveSidebarW := m.effectiveSidebarWidth()
 
 	cmdBodyH := len(commands)
 	cmdOuterH := cmdBodyH + panelOH
@@ -2356,12 +2388,25 @@ func (m rootModel) renderNarrowDetailOverlay(base string) string {
 
 // -- help --
 
+func (m rootModel) renderHelpOverlay(base string) string {
+	content := m.fullHelpView()
+	overlayWidth := 64
+	if m.width-8 < overlayWidth {
+		overlayWidth = m.width - 8
+	}
+	box := panelFocusedStyle.
+		Width(overlayWidth).
+		BorderTop(true).BorderBottom(true).BorderLeft(true).BorderRight(true).
+		Render(content)
+	return lipgloss.Place(m.width, m.height-1, lipgloss.Center, lipgloss.Center, box)
+}
+
 func (m rootModel) fullHelpView() string {
 	var b strings.Builder
 
-	b.WriteString(helpOverlayTitleStyle.Render("  sgh TUI — Keyboard Shortcuts"))
+	b.WriteString(helpOverlayTitleStyle.Render("sgh TUI — Keyboard Shortcuts"))
 	b.WriteString("\n")
-	b.WriteString(separatorStyle.Render("  " + strings.Repeat("─", 40)))
+	b.WriteString(separatorStyle.Render(strings.Repeat("─", 44)))
 	b.WriteString("\n")
 
 	sections := []struct {
@@ -2400,7 +2445,7 @@ func (m rootModel) fullHelpView() string {
 		}},
 		{"PR Actions", []struct{ key, desc string }{
 			{"A", "Approve PR"},
-			{"m", "Merge PR"},
+			{"ctrl+m", "Merge PR"},
 			{"M", "Approve + Merge"},
 			{"c", "Close PR"},
 		}},
@@ -2419,10 +2464,10 @@ func (m rootModel) fullHelpView() string {
 	}
 
 	for _, sec := range sections {
-		b.WriteString(helpOverlaySectionStyle.Render("  " + sec.title))
+		b.WriteString(helpOverlaySectionStyle.Render(sec.title))
 		b.WriteString("\n")
 		for _, bind := range sec.binds {
-			b.WriteString(fmt.Sprintf("    %s %s\n",
+			b.WriteString(fmt.Sprintf("  %s %s\n",
 				helpOverlayKeyStyle.Render(bind.key),
 				helpOverlayDescStyle.Render(bind.desc),
 			))
@@ -2430,7 +2475,7 @@ func (m rootModel) fullHelpView() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(cachedStyle.Render("  Press any key to close"))
+	b.WriteString(cachedStyle.Render("Press any key to close"))
 	b.WriteString("\n")
 
 	return b.String()

@@ -211,11 +211,6 @@ func (m detailModel) view() string {
 		b.WriteString("\n")
 	}
 
-	if len(m.fields) > visible {
-		scrollInfo := fmt.Sprintf(" (%d-%d of %d)", m.scroll+1, end, len(m.fields))
-		b.WriteString(cachedStyle.Render(scrollInfo))
-	}
-
 	return b.String()
 }
 
