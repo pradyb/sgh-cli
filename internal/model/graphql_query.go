@@ -390,3 +390,98 @@ type ReviewPullRequestQuery struct {
 		} `graphql:"pullRequest(number: $prNumber)"`
 	} `graphql:"repository(owner: $owner, name: $repoName)"`
 }
+
+type SearchIssuesQuery struct {
+	Search struct {
+		IssueCount int
+		PageInfo   struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+		Edges []struct {
+			Node struct {
+				Issue struct {
+					Number     int
+					Title      string
+					Url        string
+					Body       string
+					State      string
+					CreatedAt  string
+					UpdatedAt  string
+					Author     ActorFragment
+					Repository SimpleRepositoryFragment
+					Assignees  AssigneesFragment `graphql:"assignees(first: 3)"`
+					Labels     struct {
+						TotalCount int
+						Edges      []struct {
+							Node struct {
+								Name string
+							}
+						}
+					} `graphql:"labels(first: 5)"`
+					Comments struct {
+						TotalCount int
+					}
+				} `graphql:"... on Issue"`
+			}
+		}
+	} `graphql:"search(query: $queryString, type: ISSUE, last: $lastCount, after: $issueCursor)"`
+}
+
+type SearchBranchesQuery struct {
+	Search struct {
+		RepositoryCount int
+		PageInfo        struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+		Edges []struct {
+			Node struct {
+				Repository struct {
+					Name string
+					Refs struct {
+						TotalCount int
+						Edges      []struct {
+							Node struct {
+								Name               string
+								Target             struct { Oid string }
+								BranchProtectionRule struct {
+									IsAdminEnforced bool
+									Pattern         string
+								}
+							}
+						}
+					} `graphql:"refs(query: $branchFilter, refPrefix: \"refs/heads/\", first: 50)"`
+				} `graphql:"... on Repository"`
+			}
+		}
+	} `graphql:"search(query: $queryString, type: REPOSITORY, first: 50, after: $branchCursor)"`
+}
+
+type SearchTagsQuery struct {
+	Search struct {
+		RepositoryCount int
+		PageInfo        struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+		Edges []struct {
+			Node struct {
+				Repository struct {
+					Name string
+					Refs struct {
+						TotalCount int
+						Edges      []struct {
+							Node struct {
+								Name   string
+								Target struct {
+									Oid string
+								}
+							}
+						}
+					} `graphql:"refs(query: $tagFilter, refPrefix: \"refs/tags/\", first: 50)"`
+				} `graphql:"... on Repository"`
+			}
+		}
+	} `graphql:"search(query: $queryString, type: REPOSITORY, first: 50, after: $tagCursor)"`
+}

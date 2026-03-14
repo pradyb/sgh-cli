@@ -56,8 +56,8 @@ var (
 	contentRowAltStyle    = lipgloss.NewStyle().Foreground(ui.White).Background(lipgloss.ANSIColor(236))
 	contentRowDimAltStyle = lipgloss.NewStyle().Foreground(ui.Dimmed).Background(lipgloss.ANSIColor(236))
 	contentCursorStyle    = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#000000")).
-				Background(ui.Cyan).
+				Foreground(ui.Cyan).
+				Background(lipgloss.Color("#1a1a1a")).
 				Bold(true)
 
 	detailLabelStyle = lipgloss.NewStyle().

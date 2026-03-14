@@ -50,6 +50,10 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
+			if ctx.JSON {
+				ui.PrintJSON(branchResponses)
+				return
+			}
 			ui.PrintProtectedBranches(branchResponses)
 		},
 	}

@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 // BranchListRequest contains parameters for listing branches.
@@ -132,30 +135,80 @@ func ListBranches(ctx *context.Context, req BranchListRequest) []model.BranchRes
 		}
 	}
 
-	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListBranches,
-		func(ctx *context.Context, orgName, repoName string) ([]model.BranchResponse, error) {
-			branches, err := service.ListBranches(ctx, orgName, repoName)
-			if err != nil {
-				return nil, err
-			}
-			for i := range branches {
-				branches[i].RepositoryName = repoName
-			}
-			return branches, nil
-		},
-		func(repoName string, result processor.RepoOperationResult[[]model.BranchResponse]) {
-			for _, b := range result.Result {
-				if filterRegex == nil || filterRegex.MatchString(b.Name) {
-					responses = append(responses, b)
+	if len(req.RepoNames) <= 1 {
+		// Invoke via GraphQL
+		logger.Flog.Info().Msgf("Invoking GraphQL to list branches for %s", req.OrgName)
+
+		queryString := buildBranchSearchQuery(ctx, req)
+		variables := map[string]any{
+			"queryString":  githubv4.String(queryString),
+			"branchFilter": githubv4.String(""),
+			"branchCursor": (*githubv4.String)(nil),
+		}
+
+		var branchQuery model.SearchBranchesQuery
+		err := service.Query(ctx, &branchQuery, variables)
+		if err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in listing branches via GraphQL")
+			return responses
+		}
+
+		for _, edge := range branchQuery.Search.Edges {
+			repo := edge.Node.Repository
+			for _, refEdge := range repo.Refs.Edges {
+				branch := refEdge.Node
+				branchResponse := model.BranchResponse{
+					RepositoryName: repo.Name,
+					Name:           branch.Name,
+					Protected:      branch.BranchProtectionRule.IsAdminEnforced,
+				}
+				branchResponse.Commit.SHA = branch.Target.Oid
+
+				if filterRegex == nil || filterRegex.MatchString(branch.Name) {
+					responses = append(responses, branchResponse)
 				}
 			}
-		},
-		func(repoName string, err error) {
-			responses = append(responses, model.BranchResponse{
-				RepositoryName: repoName,
-				Name:           fmt.Sprintf("error: %v", err),
+		}
+		return responses
+	} else {
+		processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListBranches,
+			func(ctx *context.Context, orgName, repoName string) ([]model.BranchResponse, error) {
+				branches, err := service.ListBranches(ctx, orgName, repoName)
+				if err != nil {
+					return nil, err
+				}
+				for i := range branches {
+					branches[i].RepositoryName = repoName
+				}
+				return branches, nil
+			},
+			func(repoName string, result processor.RepoOperationResult[[]model.BranchResponse]) {
+				for _, b := range result.Result {
+					if filterRegex == nil || filterRegex.MatchString(b.Name) {
+						responses = append(responses, b)
+					}
+				}
+			},
+			func(repoName string, err error) {
+				responses = append(responses, model.BranchResponse{
+					RepositoryName: repoName,
+					Name:           fmt.Sprintf("error: %v", err),
+				})
 			})
-		})
 
-	return responses
+		return responses
+	}
+}
+
+func buildBranchSearchQuery(ctx *context.Context, req BranchListRequest) string {
+	queryString := "org:" + req.OrgName
+
+	if len(req.RepoNames) == 1 {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, req.RepoNames)
+		if len(actualRepoNames) > 0 {
+			queryString = "repo:" + req.OrgName + "/" + actualRepoNames[0]
+		}
+	}
+
+	return queryString
 }

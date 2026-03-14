@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/shurcooL/githubv4"
+
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/internal/service"
 	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
 // TagListRequest contains parameters for listing tags.
@@ -84,32 +87,81 @@ func ListTags(ctx *context.Context, req TagListRequest) []model.TagResponse {
 		}
 	}
 
-	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListTags,
-		func(ctx *context.Context, orgName, repoName string) ([]model.TagResponse, error) {
-			tags, err := service.ListTags(ctx, orgName, repoName)
-			if err != nil {
-				return nil, err
-			}
-			for i := range tags {
-				tags[i].RepositoryName = repoName
-			}
-			return tags, nil
-		},
-		func(repoName string, result processor.RepoOperationResult[[]model.TagResponse]) {
-			for _, t := range result.Result {
-				if filterRegex == nil || filterRegex.MatchString(t.Name) {
-					responses = append(responses, t)
+	if len(req.RepoNames) <= 1 {
+		// Invoke via GraphQL
+		logger.Flog.Info().Msgf("Invoking GraphQL to list tags for %s", req.OrgName)
+
+		queryString := buildTagSearchQuery(ctx, req)
+		variables := map[string]any{
+			"queryString": githubv4.String(queryString),
+			"tagFilter":   githubv4.String(""),
+			"tagCursor":   (*githubv4.String)(nil),
+		}
+
+		var tagQuery model.SearchTagsQuery
+		err := service.Query(ctx, &tagQuery, variables)
+		if err != nil {
+			logger.Glog.Error().Err(err).Msg("Error in listing tags via GraphQL")
+			return responses
+		}
+
+		for _, edge := range tagQuery.Search.Edges {
+			repo := edge.Node.Repository
+			for _, refEdge := range repo.Refs.Edges {
+				tag := refEdge.Node
+				tagResponse := model.TagResponse{
+					RepositoryName: repo.Name,
+					Name:           tag.Name,
+				}
+				tagResponse.Commit.SHA = tag.Target.Oid
+
+				if filterRegex == nil || filterRegex.MatchString(tag.Name) {
+					responses = append(responses, tagResponse)
 				}
 			}
-		},
-		func(repoName string, err error) {
-			responses = append(responses, model.TagResponse{
-				RepositoryName: repoName,
-				Name:           fmt.Sprintf("error: %v", err),
+		}
+		return responses
+	} else {
+		processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListTags,
+			func(ctx *context.Context, orgName, repoName string) ([]model.TagResponse, error) {
+				tags, err := service.ListTags(ctx, orgName, repoName)
+				if err != nil {
+					return nil, err
+				}
+				for i := range tags {
+					tags[i].RepositoryName = repoName
+				}
+				return tags, nil
+			},
+			func(repoName string, result processor.RepoOperationResult[[]model.TagResponse]) {
+				for _, t := range result.Result {
+					if filterRegex == nil || filterRegex.MatchString(t.Name) {
+						responses = append(responses, t)
+					}
+				}
+			},
+			func(repoName string, err error) {
+				responses = append(responses, model.TagResponse{
+					RepositoryName: repoName,
+					Name:           fmt.Sprintf("error: %v", err),
+				})
 			})
-		})
 
-	return responses
+		return responses
+	}
+}
+
+func buildTagSearchQuery(ctx *context.Context, req TagListRequest) string {
+	queryString := "org:" + req.OrgName
+
+	if len(req.RepoNames) == 1 {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, req.RepoNames)
+		if len(actualRepoNames) > 0 {
+			queryString = "repo:" + req.OrgName + "/" + actualRepoNames[0]
+		}
+	}
+
+	return queryString
 }
 
 func DeleteTags(ctx *context.Context, req TagDeleteRequest) []model.RefUIResponse {

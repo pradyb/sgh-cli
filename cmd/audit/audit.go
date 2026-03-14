@@ -58,6 +58,10 @@ Requires the organization to have an audit log enabled (GitHub Enterprise or Git
 				fmt.Fprintln(os.Stderr, "Error: "+resp.ErrorMessage)
 				os.Exit(1)
 			}
+			if ctx.JSON {
+				ui.PrintJSON(resp.Entries)
+				return
+			}
 			ui.PrintAuditLog(resp.Entries, compact)
 		},
 	}
