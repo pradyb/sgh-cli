@@ -90,22 +90,19 @@ func ListProtectedBranches(ctx *context.Context, orgName string, repoNames []str
 		}
 
 	} else {
-		processor.ProcessRepositoriesOperation(ctx, orgName, repoNames, excludeRepoNames, processor.OperationListProtectedBranch,
-			func(ctx *context.Context, orgName, repoName string) (model.ProtectedBranch, error) {
-				req := ProtectedBranchDetailsRequest{
-					OrgName:    orgName,
-					RepoName:   repoName,
-					BranchName: branchName,
-					RepoCursor: githubv4.String(""),
-				}
-				return getProtectedBranchDetails(ctx, req), nil
-			},
-			func(repoName string, result processor.RepoOperationResult[model.ProtectedBranch]) {
-				responses = append(responses, result.Result)
-			},
-			func(repoName string, err error) {
-				responses = append(responses, model.ProtectedBranch{RepositoryName: repoName, ErrorMessage: fmt.Sprintf("failed to list protected branches: %v", err)})
-			})
+		// For multiple repos, we'll fetch details for each repo and collect all protected branches
+		resolvedRepos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+
+		for _, repoName := range resolvedRepos {
+			req := ProtectedBranchDetailsRequest{
+				OrgName:    orgName,
+				RepoName:   repoName,
+				BranchName: branchName,
+				RepoCursor: githubv4.String(""),
+			}
+			branchDetails := getProtectedBranchDetails(ctx, req)
+			responses = append(responses, branchDetails...)
+		}
 	}
 	return responses
 }
@@ -126,7 +123,7 @@ func getQueryString(ctx *context.Context, orgName string, repoName string) strin
 	return queryString
 }
 
-func getProtectedBranchDetails(ctx *context.Context, req ProtectedBranchDetailsRequest) model.ProtectedBranch {
+func getProtectedBranchDetails(ctx *context.Context, req ProtectedBranchDetailsRequest) []model.ProtectedBranch {
 	queryString := getQueryString(ctx, req.OrgName, req.RepoName)
 	variables := map[string]interface{}{
 		"queryString": githubv4.String(queryString),
@@ -138,13 +135,21 @@ func getProtectedBranchDetails(ctx *context.Context, req ProtectedBranchDetailsR
 	err := service.Query(ctx, &searchProtectedBranchesQuery, variables)
 	if err != nil {
 		logger.Glog.Error().Err(err).Msg("Error in listing protected branches")
-		return model.ProtectedBranch{RepositoryName: req.RepoName, ErrorMessage: fmt.Sprintf("failed to get protected branch details: %v", err)}
+		return []model.ProtectedBranch{{RepositoryName: req.RepoName, ErrorMessage: fmt.Sprintf("failed to get protected branch details: %v", err)}}
 	}
+
 	branches, _ := transformToProtectedBranch(searchProtectedBranchesQuery, req.BranchName)
 	if len(branches) > 0 {
-		return branches[0]
+		return branches
 	}
-	return model.ProtectedBranch{RepositoryName: req.RepoName, ErrorMessage: "No protected branch found"}
+
+	// Return "NA" type when no protected branch found
+	if req.BranchName != "" {
+		return []model.ProtectedBranch{{RepositoryName: req.RepoName, Type: "NA"}}
+	}
+
+	// When no branch name specified and no protected branches found, return empty slice
+	return []model.ProtectedBranch{}
 }
 
 func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtectedBranchesQuery, branchName string) ([]model.ProtectedBranch, string) {
@@ -152,15 +157,31 @@ func transformToProtectedBranch(searchProtectedBranchesQuery model.SearchProtect
 	responses := make([]model.ProtectedBranch, 0)
 	for _, edge := range searchProtectedBranchesQuery.Search.Edges {
 		if edge.Node.Repository.Refs.TotalCount != 0 {
-			node := getSelectedBranchRef(edge.Node.Repository, branchName)
-			selectedBranchName = node.Name
+			// If branchName is provided, get only that specific branch
+			// If branchName is empty, get all protected branches
+			if branchName != "" {
+				node := getSelectedBranchRef(edge.Node.Repository, branchName)
+				selectedBranchName = node.Name
 
-			if node.BranchProtectionRule.Pattern != "" {
-				responses = append(responses, transformBranchProtectionRuleToProtectedBranch(node, edge.Node.Repository.Name))
-			} else if node.Rules.TotalCount != 0 {
-				responses = append(responses, transformRuleSetToProtectedBranch(node, edge.Node.Repository.Name))
+				if node.BranchProtectionRule.Pattern != "" {
+					responses = append(responses, transformBranchProtectionRuleToProtectedBranch(node, edge.Node.Repository.Name))
+				} else if node.Rules.TotalCount != 0 {
+					responses = append(responses, transformRuleSetToProtectedBranch(node, edge.Node.Repository.Name))
+				} else {
+					responses = append(responses, model.ProtectedBranch{RepositoryName: edge.Node.Repository.Name, Type: "NA"})
+				}
 			} else {
-				responses = append(responses, model.ProtectedBranch{RepositoryName: edge.Node.Repository.Name, Type: "NA"})
+				// Return all protected branches for this repository
+				for _, refEdge := range edge.Node.Repository.Refs.Edges {
+					node := refEdge.Node
+					if node.BranchProtectionRule.Pattern != "" || node.Rules.TotalCount != 0 {
+						if node.BranchProtectionRule.Pattern != "" {
+							responses = append(responses, transformBranchProtectionRuleToProtectedBranch(node, edge.Node.Repository.Name))
+						} else if node.Rules.TotalCount != 0 {
+							responses = append(responses, transformRuleSetToProtectedBranch(node, edge.Node.Repository.Name))
+						}
+					}
+				}
 			}
 		}
 	}

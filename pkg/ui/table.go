@@ -683,7 +683,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		return
 	}
 	rows, failedRows := getProtectedBranches(pbResponses)
-	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(rows))})
+	rows = append(rows, []string{"Total Protected Branches", "", "", strconv.Itoa(len(rows))})
 
 	fmt.Println()
 	t := table.New().
@@ -692,9 +692,13 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), 0, true)
+			// Apply red color if Enforce Admins (column 3) is "false"
+			if col == 3 && row != -1 && row < len(rows)-1 && len(rows[row]) > 3 && rows[row][3] == "false" {
+				style = style.Foreground(Red)
+			}
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Type", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users", "Rule set names").
+		Headers(repositoryNameDisplayName, "Branch", "Type", "Enforce Admins", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users", "Rule set names").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -746,12 +750,16 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 			if pb.Type == "NA" {
 				return []string{
 					pb.RepositoryName,
+					pb.Name,
 					pb.Type,
+					"",
 				}
 			} else {
 				return []string{
 					pb.RepositoryName,
+					pb.Name,
 					pb.Type,
+					strconv.FormatBool(pb.EnforceAdmins),
 					strconv.Itoa(pb.RequiredPullRequestReviews.RequiredApprovingReviewCount),
 					strconv.FormatBool(pb.RequiredPullRequestReviews.RequireCodeOwnerReviews),
 					strconv.FormatBool(pb.RequiredPullRequestReviews.RequireLastPushApproval),
