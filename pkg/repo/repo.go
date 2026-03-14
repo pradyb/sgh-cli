@@ -8,6 +8,7 @@ package repo
 import (
 	"fmt"
 	"sort"
+	"slices"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/service"
@@ -193,36 +194,39 @@ func SetRepoVisibility(ctx *context.Context, orgName string, repoNames, excludeR
 	return responses
 }
 
-// resolveRepoList returns the list of repos to process: if repoNames is non-empty, filter
-// it through exclude; otherwise use all configured repos for the org.
-func resolveRepoList(ctx *context.Context, orgName string, repoNames, excludeRepoNames []string) []string {
-	excl := make(map[string]bool, len(excludeRepoNames))
-	for _, n := range excludeRepoNames {
-		excl[n] = true
+// resolveRepoList returns the list of repos to process, applying the same fuzzy
+// resolution and config-based filtering used by PR/branch operations.
+func resolveRepoList(ctx *context.Context, orgName string, repos, excludeRepos []string) []string {
+	repoNames := make([]string, 0)
+	if len(repos) == 0 {
+		orgRepoNames, err := GetSelectedRepoNames(ctx, orgName)
+		if err != nil {
+			logger.Glog.Error().Err(err).Str("org", orgName).Msg("failed to resolve repository names")
+			return nil
+		}
+		repoNames = append(repoNames, orgRepoNames...)
+	} else {
+		repoNames = append(repoNames, ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repos)...)
 	}
 
-	if len(repoNames) > 0 {
-		out := make([]string, 0, len(repoNames))
-		for _, n := range repoNames {
-			if !excl[n] {
-				out = append(out, n)
-			}
+	// Apply config include/exclude patterns.
+	patternFiltered := make([]string, 0, len(repoNames))
+	for _, repoName := range repoNames {
+		if ctx.Config.CanSelectRepositoryForProcessing(orgName, repoName) {
+			patternFiltered = append(patternFiltered, repoName)
 		}
-		return out
 	}
+	repoNames = patternFiltered
 
-	all, err := GetSelectedRepoNames(ctx, orgName)
-	if err != nil {
-		logger.Glog.Error().Err(err).Str("org", orgName).Msg("failed to resolve repository names")
-		return nil
-	}
-	out := make([]string, 0, len(all))
-	for _, n := range all {
-		if !excl[n] {
-			out = append(out, n)
+	// Apply explicit --exclude-repo with fuzzy resolution.
+	filteredRepoNames := make([]string, 0, len(repoNames))
+	actualExcludeRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, excludeRepos)
+	for _, repoName := range repoNames {
+		if !slices.Contains(actualExcludeRepoNames, repoName) {
+			filteredRepoNames = append(filteredRepoNames, repoName)
 		}
 	}
-	return out
+	return filteredRepoNames
 }
 
 // saveRepositoryNamesForFuzzySearch saves repository names for fuzzy search in config.

@@ -9,6 +9,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
+	"github.com/prady-lab/sgh-cli/internal/processor"
 	"github.com/prady-lab/sgh-cli/pkg/context"
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 	"github.com/prady-lab/sgh-cli/pkg/repo"
@@ -170,12 +171,17 @@ func ArchiveCommand(ctx *context.Context) *cobra.Command {
 			archive := !unarchive
 
 			if ctx.DryRun {
+				resolved, err := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				if err != nil {
+					fmt.Fprintln(cmd.ErrOrStderr(), ui.ErrorMessage("failed to resolve repositories: %v", err))
+					return
+				}
 				ui.PrintDryRunBanner()
 				action := "Archive"
 				if !archive {
 					action = "Unarchive"
 				}
-				ui.PrintDryRunActions(action+" Repositories", orgName, repoNames, nil)
+				ui.PrintDryRunActions(action+" Repositories", orgName, resolved, nil)
 				return
 			}
 
@@ -219,8 +225,13 @@ func VisibilityCommand(ctx *context.Context) *cobra.Command {
 			}
 
 			if ctx.DryRun {
+				resolved, err := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				if err != nil {
+					fmt.Fprintln(cmd.ErrOrStderr(), ui.ErrorMessage("failed to resolve repositories: %v", err))
+					return
+				}
 				ui.PrintDryRunBanner()
-				ui.PrintDryRunActions("Set Visibility", orgName, repoNames, map[string]string{"Visibility": visibility})
+				ui.PrintDryRunActions("Set Visibility", orgName, resolved, map[string]string{"Visibility": visibility})
 				return
 			}
 
