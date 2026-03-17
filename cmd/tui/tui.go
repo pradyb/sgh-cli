@@ -1164,7 +1164,13 @@ func (m *rootModel) relayout() {
 
 	// In narrow mode the detail panel floats as an overlay; content gets full main width
 	if m.detail.visible && !m.narrowMode {
-		detailOuterW := mainW / 3 // 33% for detail, 67% for content
+		detailOuterW := mainW * 2 / 5 // 40% for detail, 60% for content
+		if detailOuterW < 44 {
+			detailOuterW = 44
+		}
+		if detailOuterW > mainW-40 {
+			detailOuterW = mainW - 40
+		}
 		contentOuterW := mainW - detailOuterW
 		m.detail.width = detailOuterW - widthOH
 		m.content.width = contentOuterW - widthOH

@@ -48,6 +48,24 @@ func (m *detailModel) clear() {
 	m.scroll = 0
 }
 
+// visibleLines returns the number of scrollable body lines available.
+func (m *detailModel) visibleLines() int {
+	v := m.height - 1
+	if v < 1 {
+		v = 1
+	}
+	return v
+}
+
+// maxScroll returns the max scroll offset given the rendered line count.
+func (m *detailModel) maxScroll(totalLines int) int {
+	ms := totalLines - m.visibleLines()
+	if ms < 0 {
+		return 0
+	}
+	return ms
+}
+
 func (m *detailModel) scrollUp() {
 	if m.scroll > 0 {
 		m.scroll--
@@ -55,15 +73,8 @@ func (m *detailModel) scrollUp() {
 }
 
 func (m *detailModel) scrollDown() {
-	visible := m.height - 1
-	if visible < 1 {
-		visible = 1
-	}
-	maxScroll := len(m.fields) - visible
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll < maxScroll {
+	// Use a generous upper bound; view() will clamp properly.
+	if m.scroll < len(m.fields)*4 {
 		m.scroll++
 	}
 }
@@ -73,41 +84,19 @@ func (m *detailModel) goTop() {
 }
 
 func (m *detailModel) goBottom() {
-	visible := m.height - 1
-	if visible < 1 {
-		visible = 1
-	}
-	maxScroll := len(m.fields) - visible
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	m.scroll = maxScroll
+	// Set a large value; view() clamps to actual maxScroll.
+	m.scroll = len(m.fields) * 4
 }
 
 func (m *detailModel) pageUp() {
-	visible := m.height - 1
-	if visible < 1 {
-		visible = 1
-	}
-	m.scroll -= visible
+	m.scroll -= m.visibleLines()
 	if m.scroll < 0 {
 		m.scroll = 0
 	}
 }
 
 func (m *detailModel) pageDown() {
-	visible := m.height - 1
-	if visible < 1 {
-		visible = 1
-	}
-	maxScroll := len(m.fields) - visible
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	m.scroll += visible
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
+	m.scroll += m.visibleLines()
 }
 
 func (m detailModel) view() string {
@@ -115,84 +104,113 @@ func (m detailModel) view() string {
 		return ""
 	}
 
-	var b strings.Builder
-
-	visible := m.height - 1
-	if visible < 1 {
-		visible = 1
-	}
-	end := m.scroll + visible
-	if end > len(m.fields) {
-		end = len(m.fields)
-	}
+	// Total lines the panel body can show. Reserve 1 line for the
+	// scroll indicator when content overflows, so it never pushes rows out.
+	totalVisible := m.visibleLines()
 
 	labelWidth := 0
 	for _, f := range m.fields {
-		if len(f.label) > labelWidth {
-			labelWidth = len(f.label)
+		if lw := lipgloss.Width(f.label); lw > labelWidth {
+			labelWidth = lw
 		}
 	}
-	labelWidth += 2
+	labelWidth += 2 // room for ": "
 
-	for i := m.scroll; i < end; i++ {
-		f := m.fields[i]
+	// Value column width: panel inner width minus label, leading space, separator.
+	maxValueWidth := m.width - labelWidth - 3
+	if maxValueWidth < 8 {
+		maxValueWidth = 8
+	}
 
-		// Calculate max value width
-		maxValueWidth := m.width - labelWidth - 6 // account for padding and border
-		if maxValueWidth < 10 {
-			maxValueWidth = 10
-		}
-
-		line := ""
+	// Pre-render all fields into a flat slice of display lines.
+	// Each field produces exactly ONE line (values are truncated, not wrapped)
+	// except for body/comment fields that contain explicit "\n" — those are
+	// split into multiple lines, one per paragraph.
+	allLines := make([]string, 0, len(m.fields))
+	for _, f := range m.fields {
 		if f.label == "" {
-			val := highlightURLs(f.value)
-			// Use lipgloss.Width for display-width-aware truncation, rune slice to avoid breaking multi-byte chars
-			if lipgloss.Width(f.value) > maxValueWidth {
-				r := []rune(f.value)
-				if maxValueWidth-1 < len(r) {
-					r = r[:maxValueWidth-1]
-				}
-				val = highlightURLs(string(r)) + "…"
+			if f.value == "" {
+				allLines = append(allLines, "")
+				continue
 			}
-			line = fmt.Sprintf(" %s%s", strings.Repeat(" ", labelWidth+1), val)
+			// Value-only lines (file list, body continuation, etc.).
+			// Split on explicit newlines but truncate each segment — no extra wrapping.
+			for _, seg := range strings.Split(f.value, "\n") {
+				seg = truncateToWidth(seg, m.width-3)
+				allLines = append(allLines, " "+strings.Repeat(" ", labelWidth+1)+
+					detailValueStyle.Render(highlightURLs(seg)))
+			}
 		} else {
 			label := detailLabelStyle.Width(labelWidth).Render(f.label + ":")
-			value := ""
+			var valuePart string
 			if f.color != "" {
-				pillStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#000000")).Background(f.color).Padding(0, 1)
-				val := f.value
-				if lipgloss.Width(val) > maxValueWidth-4 {
-					r := []rune(val)
-					if maxValueWidth-5 > 0 && maxValueWidth-5 < len(r) {
-						r = r[:maxValueWidth-5]
-					}
-					val = string(r) + "…"
-				}
-				value = pillStyle.Render(" " + val + " ")
+				pillStyle := lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#000000")).
+					Background(f.color).
+					Padding(0, 1)
+				val := truncateToWidth(f.value, maxValueWidth-4)
+				valuePart = pillStyle.Render(" " + val + " ")
+				allLines = append(allLines, fmt.Sprintf(" %s %s", label, valuePart))
 			} else {
-				val := f.value
-				if lipgloss.Width(val) > maxValueWidth {
-					r := []rune(val)
-					if maxValueWidth-1 < len(r) {
-						r = r[:maxValueWidth-1]
+				// Split on explicit newlines (e.g. body text); truncate each part.
+				parts := strings.Split(f.value, "\n")
+				for pi, part := range parts {
+					part = truncateToWidth(part, maxValueWidth)
+					if pi == 0 {
+						allLines = append(allLines, fmt.Sprintf(" %s %s",
+							label,
+							detailValueStyle.Render(highlightURLs(part))))
+					} else {
+						// Continuation: indent under value column.
+						allLines = append(allLines, fmt.Sprintf(" %s %s",
+							strings.Repeat(" ", labelWidth),
+							detailValueStyle.Render(highlightURLs(part))))
 					}
-					val = string(r) + "…"
 				}
-				value = detailValueStyle.Render(highlightURLs(val))
 			}
-			line = fmt.Sprintf(" %s %s", label, value)
 		}
+	}
 
+	totalLines := len(allLines)
+	ms := m.maxScroll(totalLines)
+
+	// Clamp scroll (goBottom intentionally sets a large value).
+	scroll := m.scroll
+	if scroll > ms {
+		scroll = ms
+	}
+
+	// When content overflows, reserve the last body line for the indicator.
+	scrollable := totalVisible
+	needsIndicator := totalLines > totalVisible
+	if needsIndicator {
+		scrollable = totalVisible - 1
+		if scrollable < 1 {
+			scrollable = 1
+		}
+	}
+
+	end := scroll + scrollable
+	if end > totalLines {
+		end = totalLines
+	}
+
+	var b strings.Builder
+	for li := scroll; li < end; li++ {
+		line := allLines[li]
+
+		// Scrollbar thumb/track on the right edge.
 		scrollChar := ""
-		if len(m.fields) > visible {
-			pct := float64(m.scroll) / float64(len(m.fields)-visible)
-			if m.scroll == 0 {
-				pct = 0
-			} else if end == len(m.fields) {
+		if totalLines > scrollable {
+			pct := 0.0
+			if ms > 0 {
+				pct = float64(scroll) / float64(ms)
+			}
+			if end >= totalLines {
 				pct = 1
 			}
-			scrollPos := int(pct * float64(visible-1))
-			if i-m.scroll == scrollPos {
+			scrollPos := int(pct * float64(scrollable-1))
+			if li-scroll == scrollPos {
 				scrollChar = "█"
 			} else {
 				scrollChar = "│"
@@ -201,13 +219,28 @@ func (m detailModel) view() string {
 
 		b.WriteString(line)
 		if scrollChar != "" {
-			lineWidth := lipgloss.Width(line)
-			pad := m.width - 2 - lineWidth
+			lw := lipgloss.Width(line)
+			pad := m.width - 2 - lw
 			if pad > 0 {
 				b.WriteString(strings.Repeat(" ", pad))
 			}
 			b.WriteString(separatorStyle.Render(scrollChar))
 		}
+		b.WriteString("\n")
+	}
+
+	// Scroll position indicator — occupies the reserved last line.
+	if needsIndicator {
+		pct := 0
+		if ms > 0 {
+			pct = (scroll * 100) / ms
+		}
+		if end >= totalLines {
+			pct = 100
+		}
+		indicator := separatorStyle.Render(
+			fmt.Sprintf("  ─ %d–%d / %d  (%d%%)  j/k to scroll ─", scroll+1, end, totalLines, pct))
+		b.WriteString(indicator)
 		b.WriteString("\n")
 	}
 

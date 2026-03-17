@@ -641,6 +641,25 @@ func highlightFilterMatch(cell, filter string) string {
 	return cell[:idx] + hlStyle.Render(cell[idx:idx+len(filter)]) + cell[idx+len(filter):]
 }
 
+// truncateToWidth truncates s to fit within maxW terminal columns (rune-safe),
+// appending "…" when a truncation occurs.
+func truncateToWidth(s string, maxW int) string {
+	if maxW <= 0 {
+		return ""
+	}
+	if lipgloss.Width(s) <= maxW {
+		return s
+	}
+	runes := []rune(s)
+	for n := len(runes) - 1; n >= 0; n-- {
+		candidate := string(runes[:n]) + "…"
+		if lipgloss.Width(candidate) <= maxW {
+			return candidate
+		}
+	}
+	return "…"
+}
+
 func (m contentModel) renderRow(rowIdx int, row []string, widths []int, visibleCols []int, isCursor bool, isAlt bool) string {
 	parts := make([]string, 0, len(visibleCols))
 	for _, i := range visibleCols {
@@ -652,31 +671,40 @@ func (m contentModel) renderRow(rowIdx int, row []string, widths []int, visibleC
 		if i < len(row) {
 			cell = row[i]
 		}
-		if lipgloss.Width(cell) > w {
-			cell = cell[:w-1] + "…"
-		}
 
 		style := contentRowStyle
 		if isCursor {
 			style = contentCursorStyle
 		} else if m.rowColors != nil && rowIdx < len(m.rowColors) && i < len(m.rowColors[rowIdx]) && m.rowColors[rowIdx][i] != "" {
+			// Prepend icon before truncation so the total width budget is respected.
 			icon := ui.StatusIcon(cell)
 			if icon != "" {
+				iconW := lipgloss.Width(icon) + 1 // +1 for the space separator
+				available := w - iconW
+				if available < 1 {
+					available = 1
+				}
+				cell = truncateToWidth(cell, available)
 				cell = icon + " " + cell
 			}
 			style = lipgloss.NewStyle().Foreground(m.rowColors[rowIdx][i])
 			if isAlt {
 				style = style.Background(lipgloss.ANSIColor(236))
 			}
-		} else if isAlt {
-			if i > 0 {
-				style = contentRowDimAltStyle
-			} else {
-				style = contentRowAltStyle
+		} else {
+			if isAlt {
+				if i > 0 {
+					style = contentRowDimAltStyle
+				} else {
+					style = contentRowAltStyle
+				}
+			} else if i > 0 {
+				style = contentRowDimStyle
 			}
-		} else if i > 0 {
-			style = contentRowDimStyle
 		}
+
+		// Truncate to column budget (using rune-safe helper).
+		cell = truncateToWidth(cell, w)
 
 		// Highlight filter matches (skip on cursor row — inverted bg makes it hard to read)
 		if !isCursor && m.filter != "" {
