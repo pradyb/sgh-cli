@@ -833,137 +833,150 @@ func PrintPostReleaseResponses(responses []model.PostReleaseResponse) {
 	printErrorMessageMap(errorMessageMap)
 }
 
-func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCommits bool) {
+func PrintCommitResponses(commitResponses []model.CommitResponse, includeMergeCommits bool, sortBy string, compact bool) {
 	if len(commitResponses) == 0 {
 		PrintNoDataMessage("No Commits found.",
-			"Hint: try a wider date range with --since and --until.")
+			"Hint: try a wider date range with -n (e.g. -n 7).")
 		return
 	}
-	rows, failedRows := getCommitResponses(commitResponses, includeMergeCommits)
 
-	fmt.Println()
-	t := table.New().
-		Width(TerminalWidth()).
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(BorderStyle).
-		BorderRow(true).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := defaultTableStyle(row, col, len(rows), 0, true)
+	SortCommits(commitResponses, sortBy)
 
-			if col == 1 && row != -1 && row != len(rows)-1 {
-				style = style.UnsetForeground()
-			}
-			if col == 0 && row != -1 && row != len(rows)-1 {
-				style = style.Foreground(Green)
-			}
-			if row >= 0 {
-				switch col {
-				case 5:
-					style = style.Align(lipgloss.Center)
-				case 4:
-					style = style.Align(lipgloss.Right)
-				}
-			}
-
-			return style
-		}).
-		Headers(repositoryNameDisplayName, "Author Name", "Author Date", "Message", "Comment Count", "Url").
-		Rows(rows...)
-
-	fmt.Println(t)
-
-	if len(failedRows) > 0 {
-		fmt.Println()
-		fmt.Println("Failed to fetch details the following repositories")
-		t = table.New().
-			Border(lipgloss.RoundedBorder()).
-			BorderStyle(BorderStyle).
-			BorderRow(true).
-			StyleFunc(func(row, col int) lipgloss.Style {
-				var style lipgloss.Style
-				if col == 1 && row != -1 {
-					style = style.Foreground(Red)
-				}
-				return style
-			}).
-			Headers(repositoryNameDisplayName, errorMessageDisplayName).
-			Rows(failedRows...)
-
-		fmt.Println(t)
-	}
-}
-
-func getCommitResponses(commitResponses []model.CommitResponse, includeMergeCommits bool) ([][]string, [][]string) {
-	rows := make([][]string, 0, len(commitResponses))
-	failedRows := make([][]string, 0)
-	sort.Slice(commitResponses, func(i, j int) bool {
-		dateI, _ := time.Parse(time.RFC3339, commitResponses[i].Commit.Author.Date)
-		dateJ, _ := time.Parse(time.RFC3339, commitResponses[j].Commit.Author.Date)
-		return dateI.After(dateJ)
-	})
+	errorMessageMap := map[string][]string{}
+	rows := make([][]string, 0, len(commitResponses)+1)
 	for _, commit := range commitResponses {
-		if includeMergeCommits || !includeMergeCommits && commit.Commit.Committer.Name != "GitHub" {
-			if commit.ErrorMessage != "" {
-				failedRows = append(failedRows, []string{commit.RepositoryName, commit.ErrorMessage})
-			} else {
-				// Commit messages can contain newlines; take only the first line
-				msg := commit.Commit.Message
-				if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
-					msg = msg[:idx]
-				}
-				rows = append(rows, []string{
-					commit.RepoName(),
-					commit.Commit.Author.Name,
-					RelativeTime(commit.Commit.Author.Date),
-					msg,
-					strconv.Itoa(commit.Commit.CommentCount),
-					fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Link"),
-				})
-			}
+		if commit.ErrorMessage != "" {
+			errorMessageMap[commit.ErrorMessage] = append(errorMessageMap[commit.ErrorMessage], commit.RepositoryName)
+			continue
+		}
+		if !includeMergeCommits && commit.Commit.Committer.Name == "GitHub" {
+			continue
+		}
+		msg := commit.Commit.Message
+		if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
+			msg = msg[:idx]
+		}
+		rows = append(rows, []string{
+			commit.RepoName(),
+			ShortSHA(commit.Sha),
+			commit.Commit.Author.Name,
+			RelativeTime(commit.Commit.Author.Date),
+			truncateText(msg, 60),
+			fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, "Open"),
+		})
+	}
+
+	if len(rows) > 0 {
+		headers := []string{"Repository", "SHA", "Author", "Date", "Message", "URL"}
+		if compact {
+			PrintCompactTable(headers, rows)
+		} else {
+			rows = append(rows, []string{"Total Commits", strconv.Itoa(len(rows)), "", "", "", ""})
+			fmt.Println()
+			t := table.New().
+				Width(TerminalWidth()).
+				Border(lipgloss.RoundedBorder()).
+				BorderStyle(BorderStyle).
+				BorderRow(true).
+				StyleFunc(func(row, col int) lipgloss.Style {
+					style := defaultTableStyle(row, col, len(rows), 0, true)
+					if row >= 0 && row < len(rows)-1 {
+						switch col {
+						case 1:
+							style = style.Foreground(Dimmed).Italic(true)
+						case 5:
+							style = style.Align(lipgloss.Center)
+						}
+					}
+					return style
+				}).
+				Headers(
+					SortIndicator(repositoryNameDisplayName, sortBy, "repo"),
+					"SHA",
+					SortIndicator("Author", sortBy, "author"),
+					SortIndicator("Date", sortBy, "date"),
+					"Message",
+					"URL",
+				).
+				Rows(rows...)
+			fmt.Println(t)
 		}
 	}
-	rows = append(rows, []string{"Total Commits", strconv.Itoa(len(commitResponses))})
-	return rows, failedRows
+
+	printErrorMessageMap(errorMessageMap)
 }
 
-func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool) {
+func SortCommits(commits []model.CommitResponse, sortBy string) {
+	switch strings.ToLower(sortBy) {
+	case "repo":
+		sort.Slice(commits, func(i, j int) bool { return commits[i].RepositoryName < commits[j].RepositoryName })
+	case "author":
+		sort.Slice(commits, func(i, j int) bool { return commits[i].Commit.Author.Name < commits[j].Commit.Author.Name })
+	default: // "date" or anything else — newest first
+		sort.Slice(commits, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, commits[i].Commit.Author.Date)
+			tj, _ := time.Parse(time.RFC3339, commits[j].Commit.Author.Date)
+			return ti.After(tj)
+		})
+	}
+}
+
+func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeCommits bool, sortBy string) {
 	if len(commitResponses) == 0 {
 		PrintNoDataMessage("No Commits found.",
-			"Hint: try a wider date range with --since and --until.")
+			"Hint: try a wider date range with -n (e.g. -n 7).")
 		return
 	}
+
+	errorMessageMap := map[string][]string{}
+	for _, c := range commitResponses {
+		if c.ErrorMessage != "" {
+			errorMessageMap[c.ErrorMessage] = append(errorMessageMap[c.ErrorMessage], c.RepositoryName)
+		}
+	}
+
 	repoCommits := getRepoCommitsMap(commitResponses, includeMergeCommits)
 	keys := make([]string, 0, len(repoCommits))
 	for k := range repoCommits {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
 	rows := make([][]string, 0, len(repoCommits)+1)
 	for _, repo := range keys {
 		commits := repoCommits[repo]
-		t := table.New().Border(lipgloss.HiddenBorder())
-		t.StyleFunc(func(row, col int) lipgloss.Style {
-			var style lipgloss.Style
-			style.Padding(1)
-			if col != 0 {
-				style = style.Italic(true)
-			} else {
-				style = style.Bold(true)
-			}
-			return style
-		})
+		SortCommits(commits, sortBy)
+		inner := table.New().
+			Border(lipgloss.HiddenBorder()).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				switch col {
+				case 0:
+					return CellStyle.Foreground(White)
+				case 1:
+					return CellStyle.Foreground(Subtle).Italic(true)
+				case 2:
+					return CellStyle.Foreground(Dimmed).Italic(true)
+				default:
+					return CellStyle.Foreground(Dimmed)
+				}
+			})
 		commitsRows := make([][]string, 0, len(commits))
 		for _, commit := range commits {
+			msg := commit.Commit.Message
+			if idx := strings.IndexByte(msg, '\n'); idx >= 0 {
+				msg = msg[:idx]
+			}
 			commitsRows = append(commitsRows, []string{
-				commit.Commit.Message,
+				truncateText(msg, 60),
 				commit.Commit.Author.Name,
 				RelativeTime(commit.Commit.Author.Date),
-				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, ShortSHA(commit.Commit.Tree.Sha)),
+				fmt.Sprintf(HyperLinkFormat, commit.HtmlUrl, ShortSHA(commit.Sha)),
 			})
 		}
-		t.Rows(commitsRows...)
-		rows = append(rows, []string{repo, strconv.Itoa(len(commits)), t.Render()})
+		inner.Rows(commitsRows...)
+		rows = append(rows, []string{repo, strconv.Itoa(len(commits)), inner.Render()})
 	}
+	rows = append(rows, []string{"Total Commits", strconv.Itoa(len(commitResponses)), ""})
 
 	fmt.Println()
 	t := table.New().
@@ -971,23 +984,25 @@ func PrintCommitSummary(commitResponses []model.CommitResponse, includeMergeComm
 		BorderStyle(BorderStyle).
 		BorderRow(true).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			var style lipgloss.Style
 			if row == -1 {
 				return HeaderStyle
 			}
+			if row == len(rows)-1 {
+				return FooterStyle
+			}
 			switch col {
 			case 0:
-				style = CellStyle.Foreground(Subtle).AlignVertical(lipgloss.Center)
+				return CellStyle.Foreground(Green).AlignVertical(lipgloss.Center)
 			case 1:
-				style = CellStyle.Foreground(Subtle).Align(lipgloss.Center, lipgloss.Center)
+				return CellStyle.Foreground(Subtle).Align(lipgloss.Center, lipgloss.Center)
 			}
-
-			return style
+			return CellStyle
 		}).
-		Headers(repositoryNameDisplayName, "Total", "Commit Messages").
+		Headers(SortIndicator(repositoryNameDisplayName, sortBy, "repo"), "Total", "Commits").
 		Rows(rows...)
 
 	fmt.Println(t)
+	printErrorMessageMap(errorMessageMap)
 }
 
 func getRepoCommitsMap(commitResponses []model.CommitResponse, includeMergeCommits bool) map[string][]model.CommitResponse {

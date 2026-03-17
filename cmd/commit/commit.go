@@ -33,6 +33,8 @@ var (
 	noOfDays            int
 	details             bool
 	includeMergeCommits bool
+	sortBy              string
+	compact             bool
 )
 
 func ListCommand(ctx *context.Context) *cobra.Command {
@@ -70,10 +72,10 @@ If --branch is omitted, each repository's default branch is used.`,
 			}
 			if details {
 				logger.Flog.Info().Msgf("Printing commit responses for past %d days", noOfDays)
-				ui.PrintCommitResponses(responses, includeMergeCommits)
+				ui.PrintCommitResponses(responses, includeMergeCommits, sortBy, compact)
 			} else {
 				logger.Flog.Info().Msgf("Printing commit summary for past %d days", noOfDays)
-				ui.PrintCommitSummary(responses, includeMergeCommits)
+				ui.PrintCommitSummary(responses, includeMergeCommits, sortBy)
 			}
 		},
 	}
@@ -84,6 +86,8 @@ If --branch is omitted, each repository's default branch is used.`,
 	listCmd.Flags().IntVarP(&noOfDays, "days", "n", 3, "number of days to fetch commits")
 	listCmd.Flags().BoolVarP(&details, "details", "d", false, "show detailed commit information")
 	listCmd.Flags().BoolVarP(&includeMergeCommits, "include-merge-commits", "m", false, "include merge commits")
+	listCmd.Flags().StringVarP(&sortBy, "sort", "s", "date", "sort commits by: date, repo, author")
+	listCmd.Flags().BoolVarP(&compact, "compact", "c", false, "compact tab-separated output (useful for piping)")
 
 	return listCmd
 }

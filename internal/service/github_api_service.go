@@ -489,10 +489,10 @@ func DeleteProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchNam
 }
 
 func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, noOfDays int) ([]model.CommitResponse, error) {
-	currentTime := time.Now()
-	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.Local)
+	currentTime := time.Now().UTC()
+	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.UTC)
 	midnight = midnight.AddDate(0, 0, -noOfDays)
-	since := midnight.Format("2006-01-02T15:04:05Z")
+	since := midnight.Format(time.RFC3339)
 
 	var allCommits []model.CommitResponse
 	url := fmt.Sprintf("%s/repos/%s/%s/commits?per_page=100&since=%s&sha=%s", GITHUB_BASE_URL, orgName, repoName, since, branchName)
