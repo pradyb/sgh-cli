@@ -112,9 +112,12 @@ func checkGitHubAPIConnectivity(ctx *context.Context) error {
 }
 
 func checkAuthentication(ctx *context.Context) error {
-	token := os.Getenv("GITHUB_TOKEN")
+	token := os.Getenv("SGH_TOKEN")
 	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN environment variable not set")
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+	if token == "" {
+		return fmt.Errorf("SGH_TOKEN environment variable not set")
 	}
 
 	req, err := http.NewRequest("GET", "https://api.github.com/user", nil)

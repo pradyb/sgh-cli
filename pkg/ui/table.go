@@ -1761,7 +1761,7 @@ func PrintOrganizations(orgs []model.OrgDetail) {
 func PrintWhoAmI(u *model.UserInfo) {
 	if u == nil {
 		PrintNoDataMessage("Could not fetch user info.",
-			"Hint: verify GITHUB_TOKEN is set and valid.")
+			"Hint: verify SGH_TOKEN is set and valid.")
 		return
 	}
 

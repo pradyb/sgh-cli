@@ -50,7 +50,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 1. **Set your GitHub token:**
    ```bash
-   export GITHUB_TOKEN=your_token_here
+   export SGH_TOKEN=your_token_here
    ```
 
 2. **Optionally set default org and worker count:**
@@ -119,20 +119,20 @@ sgh version
 
 **Linux/Mac:**
 ```bash
-export GITHUB_TOKEN=your_token_here
+export SGH_TOKEN=your_token_here
 # Add to ~/.bashrc or ~/.zshrc for persistence
-echo 'export GITHUB_TOKEN=your_token_here' >> ~/.bashrc
+echo 'export SGH_TOKEN=your_token_here' >> ~/.bashrc
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$env:GITHUB_TOKEN="your_token_here"
+$env:SGH_TOKEN="your_token_here"
 # For persistence, add to PowerShell profile
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-set GITHUB_TOKEN=your_token_here
+set SGH_TOKEN=your_token_here
 ```
 
 ### Token Requirements
@@ -832,7 +832,7 @@ sgh pr create --org my-org --title "Update" --head feature --base main --workers
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token (**required**) | - |
+| `SGH_TOKEN` | GitHub Personal Access Token (**required**) | - |
 | `SGH_ORG` | Default organization name | - |
 | `SGH_WORKERS` | Default number of concurrent workers | `5` |
 | `SGH_TIMEOUT` | HTTP client timeout (e.g. `60s`) | `30s` |
@@ -867,7 +867,7 @@ sgh config add pattern archived-* --org my-primary-org --exclude
 ### Rate Limit Management
 ```bash
 # Check current rate limit status
-curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+curl -H "Authorization: token $SGH_TOKEN" https://api.github.com/rate_limit
 
 # Reduce workers if hitting limits
 sgh pr create --org my-org --workers 2 --title "Update"
@@ -883,7 +883,7 @@ sgh branch create --org my-org --new feature --ref main -r specific-repo
 **Rate Limiting:**
 ```bash
 # Check rate limit status
-curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/rate_limit
+curl -H "Authorization: token $SGH_TOKEN" https://api.github.com/rate_limit
 
 # Reduce worker count to avoid rate limits
 sgh pr create --org my-org --workers 2 --title "Update"

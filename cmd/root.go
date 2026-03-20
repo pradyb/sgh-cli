@@ -60,7 +60,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 
 			🔧 Configuration:
 			  Environment Variables:
-			    GITHUB_TOKEN    Your GitHub Personal Access Token (required)
+			    SGH_TOKEN        Your GitHub Personal Access Token (required)
 			    SGH_ORG         Default organization name (optional)
 			    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
 			    NO_COLOR        Disable colored output (optional)
@@ -71,7 +71,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			    Mac:     ~/.config/sgh/sgh.json
 
 			🎯 Quick Start:
-			    1. Set your GitHub token: export GITHUB_TOKEN=your_token_here
+			    1. Set your GitHub token: export SGH_TOKEN=your_token_here
 			    2. List repositories: sgh repo list --org your-org
 			    3. Create branches: sgh branch create --org your-org --new feature-branch --ref main
 			    4. Bulk PR creation: sgh pr create --org your-org --title "Feature update" --head feature-branch --base main

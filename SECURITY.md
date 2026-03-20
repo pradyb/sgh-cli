@@ -35,7 +35,7 @@ Please provide as much of the following information as possible:
 
 ### GitHub Token Handling
 
-sgh-cli **never** stores your GitHub token to disk. The token is read exclusively from the `GITHUB_TOKEN` environment variable at runtime. We validate token format on startup to detect accidental misuse.
+sgh-cli **never** stores your GitHub token to disk. The token is read exclusively from the `SGH_TOKEN` environment variable at runtime. We validate token format on startup to detect accidental misuse.
 
 ### Token Permissions
 

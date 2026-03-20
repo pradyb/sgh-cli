@@ -20,7 +20,7 @@ func NewWhoAmICommand(ctx *context.Context) *cobra.Command {
 		Long: heredoc.Doc(`
 			Display profile information for the currently authenticated GitHub user.
 
-			Calls GET /user using the configured GITHUB_TOKEN and shows:
+			Calls GET /user using the configured SGH_TOKEN and shows:
 			  login, name, email, company, location, bio, public repos,
 			  followers, following, profile URL, and member-since date.
 

@@ -56,7 +56,7 @@ golangci-lint run
 ### Environment Variables
 
 ```bash
-export GITHUB_TOKEN=your_personal_access_token
+export SGH_TOKEN=your_personal_access_token
 export SGH_ORG=your-test-org   # optional, for integration tests
 ```
 

@@ -239,7 +239,7 @@ func (c *HttpClient) handleError(response *http.Response, err error) (*http.Resp
 	if githubErr, ok := err.(*apperrors.GitHubError); ok {
 		// Enhance GitHub error with additional context
 		if githubErr.StatusCode == 401 {
-			return response, fmt.Errorf("authentication failed: %w (check your GITHUB_TOKEN)", githubErr)
+			return response, fmt.Errorf("authentication failed: %w (check your SGH_TOKEN)", githubErr)
 		} else if githubErr.StatusCode == 403 {
 			return response, fmt.Errorf("permission denied: %w (check your token permissions)", githubErr)
 		} else if githubErr.StatusCode == 404 {

@@ -34,9 +34,9 @@ func TestGitHubAPIIntegration(t *testing.T) {
 	defer mockServer.Close()
 
 	// Set up test environment
-	originalToken := os.Getenv("GITHUB_TOKEN")
-	defer os.Setenv("GITHUB_TOKEN", originalToken)
-	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	originalToken := os.Getenv("SGH_TOKEN")
+	defer os.Setenv("SGH_TOKEN", originalToken)
+	os.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
 
 	// Create test context with mock server URL
 	ctx := createTestContext(t, mockServer.URL())
@@ -165,14 +165,14 @@ func TestGitHubAPIIntegrationWithTimeout(t *testing.T) {
 	defer mockServer.Close()
 
 	// Set up test environment with restoration
-	originalToken := os.Getenv("GITHUB_TOKEN")
+	originalToken := os.Getenv("SGH_TOKEN")
 	defer func() {
-		if err := os.Setenv("GITHUB_TOKEN", originalToken); err != nil {
-			t.Logf("Warning: failed to restore GITHUB_TOKEN: %v", err)
+		if err := os.Setenv("SGH_TOKEN", originalToken); err != nil {
+			t.Logf("Warning: failed to restore SGH_TOKEN: %v", err)
 		}
 	}()
 
-	if err := os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456"); err != nil {
+	if err := os.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456"); err != nil {
 		t.Fatalf("Failed to set test token: %v", err)
 	}
 
@@ -206,9 +206,9 @@ func TestGraphQLIntegration(t *testing.T) {
 	defer mockServer.Close()
 
 	// Set up test environment
-	originalToken := os.Getenv("GITHUB_TOKEN")
-	defer os.Setenv("GITHUB_TOKEN", originalToken)
-	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	originalToken := os.Getenv("SGH_TOKEN")
+	defer os.Setenv("SGH_TOKEN", originalToken)
+	os.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
 
 	// Set a very short rate limit reset time for testing (1 second)
 	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))
@@ -325,9 +325,9 @@ func BenchmarkListBranches(b *testing.B) {
 	defer mockServer.Close()
 
 	// Set up test environment
-	originalToken := os.Getenv("GITHUB_TOKEN")
-	defer os.Setenv("GITHUB_TOKEN", originalToken)
-	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	originalToken := os.Getenv("SGH_TOKEN")
+	defer os.Setenv("SGH_TOKEN", originalToken)
+	os.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
 
 	// Set a very short rate limit reset time for testing
 	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))
@@ -350,9 +350,9 @@ func BenchmarkCreateNewBranch(b *testing.B) {
 	defer mockServer.Close()
 
 	// Set up test environment
-	originalToken := os.Getenv("GITHUB_TOKEN")
-	defer os.Setenv("GITHUB_TOKEN", originalToken)
-	os.Setenv("GITHUB_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	originalToken := os.Getenv("SGH_TOKEN")
+	defer os.Setenv("SGH_TOKEN", originalToken)
+	os.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
 
 	// Set a very short rate limit reset time for testing
 	mockServer.SetRateLimit(5000, 5000, time.Now().Add(time.Second))

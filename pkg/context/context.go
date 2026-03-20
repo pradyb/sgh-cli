@@ -36,15 +36,21 @@ type Context struct {
 }
 
 func Init() (*Context, error) {
-	// Validate GitHub token
-	token := os.Getenv("GITHUB_TOKEN")
+	// Validate GitHub token — prefer SGH_TOKEN, fall back to GITHUB_TOKEN
+	token := os.Getenv("SGH_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required. Please set your GitHub Personal Access Token")
+		if fallback := os.Getenv("GITHUB_TOKEN"); fallback != "" {
+			fmt.Fprintln(os.Stderr, "Warning: GITHUB_TOKEN is deprecated, please use SGH_TOKEN instead")
+			token = fallback
+		}
+	}
+	if token == "" {
+		return nil, fmt.Errorf("SGH_TOKEN environment variable is required. Please set your GitHub Personal Access Token")
 	}
 
 	// Enhanced token validation
 	if err := validateGitHubToken(token); err != nil {
-		return nil, fmt.Errorf("invalid GITHUB_TOKEN: %w", err)
+		return nil, fmt.Errorf("invalid SGH_TOKEN: %w", err)
 	}
 
 	config, err := config.Init()

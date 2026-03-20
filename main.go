@@ -78,9 +78,9 @@ func handleInitializationError(err error) {
 
 	// Provide specific guidance based on error type
 	switch {
-	case strings.Contains(err.Error(), "GITHUB_TOKEN"):
+	case strings.Contains(err.Error(), "SGH_TOKEN"):
 		printGitHubTokenHelp()
-	case strings.Contains(err.Error(), "invalid GITHUB_TOKEN"):
+	case strings.Contains(err.Error(), "invalid SGH_TOKEN"):
 		printTokenValidationHelp()
 	case strings.Contains(err.Error(), "failed to initialize config"):
 		printConfigHelp()
@@ -96,8 +96,8 @@ func printGitHubTokenHelp() {
 	fmt.Fprintln(os.Stderr, "      • Click 'Generate new token (classic)'")
 	fmt.Fprintln(os.Stderr, "      • Select scopes: repo, admin:org")
 	fmt.Fprintln(os.Stderr, "   2. Set the token as an environment variable:")
-	fmt.Fprintln(os.Stderr, "      Linux/Mac: export GITHUB_TOKEN=your_token_here")
-	fmt.Fprintln(os.Stderr, "      Windows: set GITHUB_TOKEN=your_token_here")
+	fmt.Fprintln(os.Stderr, "      Linux/Mac: export SGH_TOKEN=your_token_here")
+	fmt.Fprintln(os.Stderr, "      Windows: set SGH_TOKEN=your_token_here")
 	fmt.Fprintln(os.Stderr, "   3. For persistence, add to your shell profile")
 }
 
