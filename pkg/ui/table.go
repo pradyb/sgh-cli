@@ -690,6 +690,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		Border(lipgloss.RoundedBorder()).
 		BorderStyle(BorderStyle).
 		BorderRow(true).
+		Width(TerminalWidth()).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			style := defaultTableStyle(row, col, len(rows), 0, true)
 			// Apply red color if Enforce Admins (column 3) is "false"
@@ -698,7 +699,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 			}
 			return style
 		}).
-		Headers(repositoryNameDisplayName, "Branch", "Type", "Enforce Admins", "Reviewers", "Code Owner Reviews", "Last Push Approval", "Dismiss Stale reviews", "Status Checks", "Lock branch", "Bypass allowed Users", "Restrictions Users", "Rule set names").
+		Headers(repositoryNameDisplayName, "Branch", "Type", "Enforce Admins", "Reviewers", "Code Owner", "Last Push", "Dismiss Stale", "Status Checks", "Locked", "Bypass Users", "Push Users", "Rulesets").
 		Rows(rows...)
 
 	fmt.Println(t)
@@ -752,7 +753,7 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 					pb.RepositoryName,
 					pb.Name,
 					pb.Type,
-					"", "", "", "", "", "", "", "", "", "", "",
+					"", "", "", "", "", "", "", "", "", "",
 				}
 			} else {
 				return []string{

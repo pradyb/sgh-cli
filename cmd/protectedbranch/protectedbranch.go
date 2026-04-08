@@ -89,9 +89,11 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			// Resolve repo names once so fuzzy matching and its warning appear only once
+			resolvedRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
-				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
+				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, resolvedRepoNames, excludeRepoNames)
 				details := map[string]string{"Branch": branchName}
 				if lock {
 					details["Lock"] = "true"
@@ -114,9 +116,9 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 				ui.PrintDryRunActions("Update Protected Branch", orgName, repos, details)
 				return
 			}
-			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: repoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatusChecks, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
+			pb.UpdateProtectedBranch(ctx, pb.ProtectedBranchRequest{OrgName: orgName, RepoNames: resolvedRepoNames, BranchName: branchName, Lock: lock, RemoveStatus: removeStatusChecks, AddBypassUsers: addBypassUsers, RemoveBypassUsers: removeBypassUsers, AddPushUsers: addPushUsers, RemovePushUsers: removePushUsers}, excludeRepoNames)
 			fmt.Println()
-			branchResponses := pb.ListProtectedBranches(ctx, orgName, repoNames, excludeRepoNames, branchName)
+			branchResponses := pb.ListProtectedBranches(ctx, orgName, resolvedRepoNames, excludeRepoNames, branchName)
 			ui.PrintProtectedBranches(branchResponses)
 		},
 	}
