@@ -683,7 +683,7 @@ func PrintProtectedBranches(pbResponses []model.ProtectedBranch) {
 		return
 	}
 	rows, failedRows := getProtectedBranches(pbResponses)
-	rows = append(rows, []string{"Total Protected Branches", "", "", strconv.Itoa(len(rows))})
+	rows = append(rows, []string{"Total Protected Branches", strconv.Itoa(len(rows)), "", "", "", "", "", "", "", "", "", "", ""})
 
 	fmt.Println()
 	t := table.New().
@@ -752,7 +752,7 @@ func getProtectedBranches(pbResponses []model.ProtectedBranch) ([][]string, [][]
 					pb.RepositoryName,
 					pb.Name,
 					pb.Type,
-					"",
+					"", "", "", "", "", "", "", "", "", "", "",
 				}
 			} else {
 				return []string{
