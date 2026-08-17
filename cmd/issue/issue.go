@@ -22,6 +22,7 @@ var (
 	issueState       string
 	labels           string
 	assignee         string
+	author           string
 	creator          string
 	lastCount        int
 	sortBy           string
@@ -46,7 +47,7 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 		Use:   "list",
 		Short: "List issues across repositories",
 		Long: `List issues for given repos or all selected repos in the organization.
-Supports filtering by state (open, closed, all), labels, assignee, and creator.
+Supports filtering by state (open, closed, all), labels, assignee, and author.
 By default fetches open issues.`,
 		Aliases: []string{"ls"},
 		Example: heredoc.Doc(`
@@ -56,12 +57,17 @@ By default fetches open issues.`,
 			$ sgh issue list --org sample-org -r sample-repo1 -r sample-repo2
 			$ sgh issue list --org sample-org --label "bug,enhancement"
 			$ sgh issue list --org sample-org --assignee "john-doe"
-			$ sgh issue list --org sample-org --creator "jane-doe"
+			$ sgh issue list --org sample-org --author "jane-doe"
+			$ sgh issue list --org sample-org -A jane-doe -a john-doe
 			$ sgh issue list --org sample-org --sort state
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			// support the deprecated --creator alias
+			if author == "" && creator != "" {
+				author = creator
+			}
 			req := issue.IssueListRequest{
 				OrgName:          orgName,
 				RepoNames:        repoNames,
@@ -69,7 +75,7 @@ By default fetches open issues.`,
 				State:            issueState,
 				Labels:           labels,
 				Assignee:         assignee,
-				Creator:          creator,
+				Author:           author,
 				LastCount:        lastCount,
 			}
 			issues := issue.ListIssues(ctx, req)
@@ -90,7 +96,9 @@ By default fetches open issues.`,
 	listCmd.Flags().StringVarP(&issueState, "state", "s", "open", "filter by `state`: open, closed, all")
 	listCmd.Flags().StringVarP(&labels, "label", "l", "", "filter by `label` name (comma-separated for multiple)")
 	listCmd.Flags().StringVarP(&assignee, "assignee", "a", "", "filter by `assignee` login")
-	listCmd.Flags().StringVar(&creator, "creator", "", "filter by `creator` login")
+	listCmd.Flags().StringVarP(&author, "author", "A", "", "filter by `author` login")
+	listCmd.Flags().StringVar(&creator, "creator", "", "alias for --author (deprecated)")
+	listCmd.Flags().MarkHidden("creator")
 	listCmd.Flags().IntVar(&lastCount, "last", 30, "max issues to fetch per repo (use global --limit to cap combined output)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, title, author, state, created")
 

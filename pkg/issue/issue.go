@@ -22,7 +22,7 @@ type IssueListRequest struct {
 	State            string
 	Labels           string
 	Assignee         string
-	Creator          string
+	Author           string
 	LastCount        int
 }
 
@@ -91,9 +91,9 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 
 		queryString := buildIssueSearchQuery(ctx, req)
 		variables := map[string]any{
-			"queryString":  githubv4.String(queryString),
-			"issueCursor":  (*githubv4.String)(nil),
-			"lastCount":    githubv4.Int(req.LastCount),
+			"queryString": githubv4.String(queryString),
+			"issueCursor": (*githubv4.String)(nil),
+			"lastCount":   githubv4.Int(req.LastCount),
 		}
 
 		var issueQuery model.SearchIssuesQuery
@@ -134,7 +134,8 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 	} else {
 		processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListIssues,
 			func(ctx *context.Context, orgName, repoName string) ([]model.IssueResponse, error) {
-				issues, err := service.ListIssues(ctx, orgName, repoName, req.State, req.Labels, req.Assignee, req.Creator, req.LastCount)
+				// The REST endpoint calls the issue author "creator".
+				issues, err := service.ListIssues(ctx, orgName, repoName, req.State, req.Labels, req.Assignee, req.Author, req.LastCount)
 				if err != nil {
 					return nil, err
 				}
@@ -162,8 +163,15 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 }
 
 func buildIssueSearchQuery(ctx *context.Context, req IssueListRequest) string {
-	var queryString string
-	queryString = "org:" + req.OrgName + " is:issue"
+	scope := "org:" + req.OrgName
+	if len(req.RepoNames) == 1 {
+		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, req.RepoNames)
+		if len(actualRepoNames) > 0 {
+			scope = "repo:" + req.OrgName + "/" + actualRepoNames[0]
+		}
+	}
+
+	queryString := scope + " is:issue"
 
 	if req.State != "" && req.State != "all" {
 		queryString += " state:" + req.State
@@ -177,15 +185,8 @@ func buildIssueSearchQuery(ctx *context.Context, req IssueListRequest) string {
 		queryString += " assignee:" + req.Assignee
 	}
 
-	if req.Creator != "" {
-		queryString += " creator:" + req.Creator
-	}
-
-	if len(req.RepoNames) == 1 {
-		actualRepoNames := ctx.Config.ActualRepositoryNamesUsingFzf(req.OrgName, req.RepoNames)
-		if len(actualRepoNames) > 0 {
-			queryString = "repo:" + req.OrgName + "/" + actualRepoNames[0] + " is:issue " + queryString[len("org:"+req.OrgName)+1:]
-		}
+	if req.Author != "" {
+		queryString += " author:" + req.Author
 	}
 
 	return queryString
