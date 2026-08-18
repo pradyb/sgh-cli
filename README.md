@@ -6,6 +6,8 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 [![Go Version](https://img.shields.io/badge/Go-1.26.1+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+> **Disclaimer:** This project is an independent, community-built tool and is not affiliated with, endorsed by, or sponsored by GitHub, Inc. "GitHub" is a trademark of GitHub, Inc.
+
 ## 📋 Table of Contents
 
 - [✨ Key Features](#-key-features)
@@ -21,6 +23,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 - [⚡ Performance Tips](#-performance-tips)
 - [🐛 Troubleshooting](#-troubleshooting)
 - [🧪 Testing & Development](#-testing--development)
+- [🔒 Security](#-security)
 - [📄 License](#-license)
 - [🤝 Contributing](#-contributing)
 
@@ -1120,11 +1123,22 @@ sgh-cli/
 └── utils/                 # Utility functions
 ```
 
+## 🔒 Security
+
+To report a security vulnerability, **do not open a public GitHub issue**. Please read the [Security Policy](SECURITY.md) for responsible disclosure instructions.
+
+**Token safety reminders:**
+- The config file (`~/sgh.json`) stores tokens in plain text — keep it out of version control
+- Prefer fine-grained PATs scoped to specific repositories
+- Rotate tokens immediately if you suspect exposure
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 Copyright (c) 2024 Pradeep Kumar Balakrishnan
+
+> This project is not affiliated with, endorsed by, or sponsored by GitHub, Inc.
 
 ## 🤝 Contributing
 

@@ -132,6 +132,8 @@ Please open an issue using the **Bug Report** template and include:
 - Expected vs actual behaviour
 - Any relevant logs (run with `--verbose` flag)
 
+**Security vulnerabilities** must not be reported as public issues. See [SECURITY.md](SECURITY.md) for the responsible disclosure process.
+
 ## Requesting Features
 
 Open an issue using the **Feature Request** template. Describe:
