@@ -310,6 +310,7 @@ Commands are organized into groups:
 
 **Issue Workflows:**
 - `issue list --org <org>` - List open issues across repositories
+- `issue list --org <org> [--state open|closed|all] [-A <author>] [-a <assignee>] [-l <label>]` - Filter issues
 - `issue view --org <org> -r <repo> --issue <num>` - View issue details
 - `issue create --org <org> -r <repo> --title <title> [--body <body>] [--assignee <user>] [--label <label>]` - Create an issue
 
@@ -431,6 +432,10 @@ sgh issue list --org my-org
 
 # List issues for specific repos
 sgh issue list --org my-org -r my-app -r other-service
+
+# Filter by author, assignee, label, or state
+sgh issue list --org my-org -A jane-doe
+sgh issue list --org my-org -a john-doe --label bug --state all
 
 # View a specific issue
 sgh issue view --org my-org -r my-app --issue 42
@@ -721,7 +726,7 @@ Single-letter shorthands follow one consistent rule across the entire CLI:
 |-----------|------|---------|-------------------|
 | `-B` | `--base` | `pr create/list` | `-b` = `--body` |
 | `-H` | `--head` | `pr create/list`, `tag create` | `-h` = help (reserved by Cobra) |
-| `-A` | `--author` | `pr list` | `-a` = `--assignee` |
+| `-A` | `--author` | `pr list`, `issue list` | `-a` = `--assignee` |
 | `-R` | `--reviewer` | `pr list` | `-r` = `--repository` |
 | `-R` | `--run` | `workflow view/rerun/cancel` | `-r` = `--repository` |
 | `-R` | `--ref` | `post-release` | `-r` = `--repository` |
@@ -740,6 +745,8 @@ Some list commands support additional flags:
 - `--all` - Include all members (on `team list`)
 - `--workflow <name>` - Workflow name filter with partial match (on `workflow list`)
 - `-l, --label <name>` - Filter/add labels (on `pr list`, `pr create`, `issue list`, `issue create`)
+- `-A, --author <login>` - Filter by the user who opened the item (on `pr list`, `issue list`)
+- `-a, --assignee <login>` - Filter/set assignee (on `pr list`, `issue list`, `issue create`)
 - `--since <YYYY-MM-DD>` - Filter PRs created on or after date (on `pr list`)
 - `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
 - `--branch <name>` - Filter by branch name (on `workflow list`)
