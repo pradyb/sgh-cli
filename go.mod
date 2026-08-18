@@ -2,6 +2,8 @@ module github.com/prady-lab/sgh-cli
 
 go 1.26.1
 
+toolchain go1.26.6
+
 require (
 	github.com/MakeNowJust/heredoc v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -39,8 +41,8 @@ require (
 	github.com/shurcooL/graphql v0.0.0-20240915155400-7ee5256398cf // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
