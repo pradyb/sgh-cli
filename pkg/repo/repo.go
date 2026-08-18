@@ -18,6 +18,30 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// ownerQualifier returns "user" or "org" for the given owner name.
+// It checks the config cache first; on a miss it calls the GitHub API and
+// writes the result back to config so subsequent calls are free.
+func ownerQualifier(ctx *context.Context, orgName string) string {
+	if cached := ctx.Config.OwnerTypeFor(orgName); cached != "" {
+		if cached == "User" {
+			return "user"
+		}
+		return "org"
+	}
+	ownerType, err := service.GetOwnerType(ctx, orgName)
+	if err != nil {
+		return "org"
+	}
+	ctx.Config.SetOwnerType(orgName, ownerType)
+	if saveErr := ctx.Config.Save(); saveErr != nil {
+		logger.Glog.Warn().Err(saveErr).Msg("failed to cache owner type")
+	}
+	if ownerType == "User" {
+		return "user"
+	}
+	return "org"
+}
+
 // GetReposForOrg retrieves repositories for the given organization, optionally filtering by config.
 // If all is true, returns all repositories; otherwise, applies config-based filtering.
 func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Repository, error) {
@@ -26,7 +50,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 	// injecting a single include pattern directly into the GitHub search query
 	// was incorrect (patterns are regex, not globs) and only worked for exactly
 	// one pattern, causing inconsistent behaviour.
-	queryString := "org:" + orgName
+	queryString := ownerQualifier(ctx, orgName) + ":" + orgName
 
 	variables := map[string]interface{}{
 		"queryString": githubv4.String(queryString),
@@ -80,7 +104,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 
 // SearchRepos searches repositories within an organization using GitHub's search qualifiers.
 func SearchRepos(ctx *context.Context, orgName, query, language, topic string) ([]model.Repository, error) {
-	queryString := "org:" + orgName
+	queryString := ownerQualifier(ctx, orgName) + ":" + orgName
 
 	if query != "" {
 		queryString += " " + query + " in:name,description"

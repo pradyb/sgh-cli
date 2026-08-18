@@ -338,10 +338,14 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			Set a scalar configuration value for an organization.
 
 			Valid keys:
-			  tagger-name   Git commit tagger display name  (requires --org)
-			  tagger-email  Git commit tagger email address  (requires --org)
+			  token          Per-org GitHub token (fine-grained PAT)  (requires --org)
+			  owner-type     Owner type: "Organization" or "User"  (requires --org)
+			  tagger-name    Git commit tagger display name  (requires --org)
+			  tagger-email   Git commit tagger email address  (requires --org)
 		`),
 		Example: heredoc.Doc(`
+			$ sgh config set token github_pat_xxx --org my-org
+			$ sgh config set owner-type User --org pradyb
 			$ sgh config set tagger-name "Jane Doe" --org my-org
 			$ sgh config set tagger-email "jane@example.com" --org my-org
 		`),
@@ -351,8 +355,14 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			}
 			key := strings.ToLower(args[0])
 			orgName, _ := cmd.Flags().GetString("org")
-			if (key == "tagger-name" || key == "tagger-email") && orgName == "" {
+			if (key == "token" || key == "owner-type" || key == "tagger-name" || key == "tagger-email") && orgName == "" {
 				return fmt.Errorf("key %q requires --org <organization>", args[0])
+			}
+			if key == "owner-type" {
+				v := args[1]
+				if v != "Organization" && v != "User" {
+					return fmt.Errorf("owner-type must be \"Organization\" or \"User\", got %q", v)
+				}
 			}
 			return nil
 		},
@@ -362,6 +372,15 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			orgName, _ := cmd.Flags().GetString("org")
 
 			switch strings.ToLower(key) {
+			case "token":
+				warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow)
+				fmt.Println(warnStyle.Render("  ⚠ Token stored in plain text in the config file."))
+				fmt.Println(warnStyle.Render("    Keep the config file out of version control."))
+				config.SetToken(ctx, orgName, value)
+				fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Token set for %s", orgName)))
+			case "owner-type":
+				config.SetOwnerType(ctx, orgName, value)
+				fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Owner type for %s set to %q", orgName, value)))
 			case "tagger-name":
 				config.SetTaggerName(ctx, orgName, value)
 			case "tagger-email":
@@ -369,7 +388,7 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			default:
 				ui.PrintCLIError(
 					fmt.Sprintf("Unknown key %q", key),
-					"Valid keys: tagger-name, tagger-email",
+					"Valid keys: token, owner-type, tagger-name, tagger-email",
 				)
 				logger.Flog.Warn().Str("key", key).Msg("Unknown config set key")
 			}

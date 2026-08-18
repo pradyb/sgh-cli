@@ -78,10 +78,7 @@ A powerful command-line tool for managing GitHub repositories at scale. Perform 
 
 ### Prerequisites
 - **Go 1.24.0 or higher** (for building from source)
-- **GitHub Personal Access Token** with appropriate permissions:
-  - `repo` - Full repository access
-  - `admin:org` - Organization administration (for team operations)
-  - `delete_repo` - Repository deletion (if needed)
+- **GitHub Personal Access Token** — fine-grained PAT (recommended) or classic PAT
 
 ### Option 1: From Source (Recommended)
 ```bash
@@ -111,11 +108,49 @@ sgh version
 
 ## 🔐 Authentication
 
-### Create a GitHub Personal Access Token:
-1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
-2. Click "Generate new token" (classic)
-3. Select the required scopes (see Prerequisites above)
-4. Copy the token and set it as an environment variable:
+### Option A: Fine-Grained PAT (Recommended)
+
+Fine-grained PATs give least-privilege access and work for both personal accounts and organizations.
+
+1. Go to **Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Under **Resource owner**, select the org or your personal account (`pradyb`)
+4. Under **Repository access**, choose **All repositories** or select specific ones
+5. Grant the permissions below based on the features you need
+
+#### Required Permissions
+
+| Permission | Access | Features |
+|---|---|---|
+| **Contents** | Read & Write | Branch/tag create & delete, clone, commit list |
+| **Metadata** | Read-only | Auto-required — repo listing and search |
+| **Pull requests** | Read & Write | PR list, create, merge, approve, review, assignees |
+| **Issues** | Read & Write | Issue list, assignees |
+| **Actions** | Read & Write | Workflow run list, rerun, cancel |
+| **Secret scanning alerts** | Read & Write | Security alert list and dismiss |
+| **Administration** | Read & Write | Protected branch config, repo archive/visibility |
+| **Commit statuses** | Read-only | Commit check-runs (used in post-release) |
+
+**For org-level features** (audit log, teams — only when using an organization):
+
+| Permission | Access | Features |
+|---|---|---|
+| **Organization Members** | Read-only | Team list and members |
+| **Organization Administration** | Read-only | Audit log |
+
+> **Minimum for read-only usage:** Contents (Read), Metadata (Read), Pull requests (Read), Issues (Read), Actions (Read), Secret scanning alerts (Read).
+
+### Option B: Classic PAT
+
+Classic PATs cover all orgs and your personal account with a single token — simpler but broader scope.
+
+1. Go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**
+2. Click **Generate new token**
+3. Select scopes: `repo`, `admin:org`, `read:audit_log`
+
+> **Note:** GitHub is moving toward fine-grained PATs. Classic PATs still work but may be deprecated in the future.
+
+### Set the Token
 
 **Linux/Mac:**
 ```bash
@@ -139,7 +174,7 @@ set SGH_TOKEN=your_token_here
 - Must be at least 20 characters long
 - Must start with: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, or `github_pat_`
 - Cannot contain spaces
-- Test tokens (starting with 'ghp_test_') are not allowed
+- Test tokens (starting with `ghp_test_`) are not allowed
 
 ## ⚙️ Configuration
 
@@ -172,7 +207,37 @@ sgh config add pattern ".*-deprecated$" --org my-org --exclude
 # Set tagger identity (used by tag create)
 sgh config set tagger-name "John Doe" --org my-org
 sgh config set tagger-email "john@example.com" --org my-org
+
+# Set per-org token (fine-grained PAT for that owner)
+sgh config set token github_pat_xxx --org my-org
 ```
+
+### Per-Owner Tokens (Multiple Orgs / Personal Account)
+
+If you work across multiple organizations or want to use your personal GitHub account alongside an org, you can store a dedicated fine-grained token per owner directly in the config. `sgh` will automatically use the right token based on the `--org` flag — no manual token switching needed.
+
+```json
+{
+  "organizations": [
+    { "name": "my-org",  "token": "github_pat_orgtoken..." },
+    { "name": "pradyb",  "token": "github_pat_personaltoken..." }
+  ]
+}
+```
+
+Token resolution order:
+1. `token` field in config for the active `--org` owner
+2. `SGH_TOKEN` environment variable
+3. `GITHUB_TOKEN` environment variable (deprecated fallback)
+
+**Owner type auto-detection:** When you first run a command against an owner, `sgh` automatically detects whether it is a GitHub organization or a personal account and caches the result in `owner_type` — so subsequent runs skip the lookup entirely and use zero extra API calls. You can also pre-set it manually to avoid the first-run detection:
+
+```bash
+sgh config set owner-type User --org pradyb        # personal account
+sgh config set owner-type Organization --org my-org # organization
+```
+
+> **Security note:** The config file is stored in your user home directory (`~/sgh.json` on Windows, `~/.config/sgh/sgh.json` on Linux/Mac) with restricted permissions. It is **not** inside any repository. Keep it out of version control — never copy it into a project folder.
 
 ### Sample Configuration File
 ```json
@@ -181,6 +246,7 @@ sgh config set tagger-email "john@example.com" --org my-org
   "organizations": [
     {
       "name": "my-org",
+      "token": "github_pat_xxx",
       "repositories": ["api-gateway", "service-auth", "service-billing"],
       "repo_patterns": {
         "include": ["^api-", "^service-"],
@@ -191,13 +257,18 @@ sgh config set tagger-email "john@example.com" --org my-org
         "name": "Release Bot",
         "email": "release@my-org.com"
       }
+    },
+    {
+      "name": "pradyb",
+      "token": "github_pat_yyy"
     }
   ]
 }
 ```
 
 > **Note:** Patterns are **Go regular expressions**, not globs.  
-> Use `^api-` (not `api-*`) to match repos starting with `api-`.
+> Use `^api-` (not `api-*`) to match repos starting with `api-`.  
+> The `token` field is optional — omit it to use the global `SGH_TOKEN` env var.
 
 ### Repository Include / Exclude Filtering
 

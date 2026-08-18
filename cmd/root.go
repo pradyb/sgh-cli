@@ -340,6 +340,12 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 	limit, _ := cmd.Flags().GetInt("limit")
 	ctx.Limit = limit
 
+	if orgName, _ := cmd.Flags().GetString("org"); orgName != "" {
+		if token := ctx.Config.TokenForOwner(orgName); token != "" {
+			ctx.SwitchToken(token)
+		}
+	}
+
 	output, _ := cmd.Flags().GetString("output")
 	compact, _ := cmd.Flags().GetBool("compact")
 	jsonOutput, _ := cmd.Flags().GetBool("json")

@@ -83,6 +83,21 @@ type refResponse struct {
 	} `json:"object"`
 }
 
+// GetOwnerType returns "Organization" or "User" for the given GitHub login.
+func GetOwnerType(ctx *appcontext.Context, login string) (string, error) {
+	body, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/users/%s", GITHUB_BASE_URL, login), nil)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+	return result.Type, nil
+}
+
 // UpdateRepoArchived sets the archived state of a repository (true = archive, false = unarchive).
 func UpdateRepoArchived(ctx *appcontext.Context, orgName, repoName string, archived bool) error {
 	payload := map[string]interface{}{"archived": archived}

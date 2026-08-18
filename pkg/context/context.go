@@ -145,6 +145,32 @@ func validateGitHubToken(token string) error {
 	return nil
 }
 
+// SwitchToken rebuilds the HTTP and GraphQL clients using the given token.
+// Called when a per-org token is configured, overriding the global SGH_TOKEN.
+func (c *Context) SwitchToken(token string) {
+	httpClient := client.NewHttpClient(c.HttpClient.Client.Timeout, token)
+	if httpClient == nil {
+		return
+	}
+	httpClient.Verbose = c.HttpClient.Verbose
+	httpClient.LogResponse = c.HttpClient.LogResponse
+
+	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	octx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{
+		Timeout:   c.HttpClient.Client.Timeout,
+		Transport: httpClient.Client.Transport,
+	})
+	gqlClient := githubv4.NewClient(oauth2.NewClient(octx, src))
+
+	c.HttpClient = httpClient
+	c.GraphqlClient = &client.GraphqlClient{
+		Client:         gqlClient,
+		RateLimiter:    httpClient.RateLimiter,
+		RetryConfig:    httpClient.RetryConfig,
+		CircuitBreaker: httpClient.CircuitBreaker,
+	}
+}
+
 func (c *Context) SetVerbose(verbose bool) {
 	c.Verbose = verbose
 	c.HttpClient.Verbose = verbose

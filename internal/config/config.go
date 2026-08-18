@@ -31,6 +31,8 @@ type Config struct {
 
 type Organization struct {
 	Name                 string                `json:"name"`
+	Token                string                `json:"token,omitempty"`
+	OwnerType            string                `json:"owner_type,omitempty"`
 	Repositories         []string              `json:"repositories,omitempty"`
 	RepoPatterns         IncludeExcludePattern `json:"repo_patterns,omitempty"`
 	PullRequestAssignees []string              `json:"pull_request_assignees,omitempty"`
@@ -155,6 +157,43 @@ func (config *Config) ProtectedBranchDetail(orgName string) ProtectedBranch {
 		return ProtectedBranch{}
 	}
 	return org.ProtectedBranch
+}
+
+// OwnerTypeFor returns the cached owner type ("Organization" or "User") for the given name,
+// or "" if it has not been detected yet.
+func (config *Config) OwnerTypeFor(orgName string) string {
+	if config == nil || config.orgData == nil {
+		return ""
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ""
+	}
+	return org.OwnerType
+}
+
+// SetOwnerType caches the detected owner type for the given name.
+func (config *Config) SetOwnerType(orgName, ownerType string) {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			config.Organizations[i].OwnerType = ownerType
+			config.rebuildOrgData()
+			return
+		}
+	}
+	config.Organizations = append(config.Organizations, Organization{Name: orgName, OwnerType: ownerType})
+	config.rebuildOrgData()
+}
+
+func (config *Config) TokenForOwner(orgName string) string {
+	if config == nil || config.orgData == nil {
+		return ""
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ""
+	}
+	return org.Token
 }
 
 func (config *Config) IsOrganizationPresent(orgName string) bool {
@@ -471,6 +510,18 @@ func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string)
 
 	// Rule 4: only exclude patterns configured, repo didn't match any — include it
 	return true
+}
+
+func (config *Config) SetToken(orgName, token string) {
+	for i, org := range config.Organizations {
+		if strings.EqualFold(org.Name, orgName) {
+			config.Organizations[i].Token = token
+			config.rebuildOrgData()
+			return
+		}
+	}
+	config.Organizations = append(config.Organizations, Organization{Name: orgName, Token: token})
+	config.rebuildOrgData()
 }
 
 func (config *Config) SetTaggerName(orgName, taggerName string) {

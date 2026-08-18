@@ -67,6 +67,16 @@ func SaveRepositoryNamesForFuzzySearch(ctx *context.Context, orgName string, rep
 	saveConfig(ctx)
 }
 
+func SetToken(ctx *context.Context, orgName, token string) {
+	ctx.Config.SetToken(orgName, token)
+	saveConfig(ctx)
+}
+
+func SetOwnerType(ctx *context.Context, orgName, ownerType string) {
+	ctx.Config.SetOwnerType(orgName, ownerType)
+	saveConfig(ctx)
+}
+
 func SetTaggerName(ctx *context.Context, orgName, taggerName string) {
 	ctx.Config.SetTaggerName(orgName, taggerName)
 	saveConfig(ctx)
