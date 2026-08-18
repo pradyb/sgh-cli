@@ -4,15 +4,21 @@
 package async
 
 import (
+	"slices"
 	"sync"
 	"testing"
 	"time"
 )
 
+// Start blocks until its workers have drained the job channel and both consumer
+// goroutines have finished, so it returns only once every result and error
+// handler has been invoked. Waiting on it is exact; the tests below run it in a
+// goroutine and wait on `done` rather than sleeping for a guessed duration.
+//
+// Results arrive in worker-completion order, which is not the order jobs were
+// submitted. Assertions therefore compare sorted values.
+
 func TestAsyncJobQueueBasicProcessing(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing-sensitive test in short mode")
-	}
 	queue := NewAsyncJobQueue[int, int](3)
 	var results []int
 	var errors []error
@@ -34,40 +40,35 @@ func TestAsyncJobQueueBasicProcessing(t *testing.T) {
 		mu.Unlock()
 	}
 
-	go queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	}()
 
 	for i := 1; i <= 5; i++ {
 		queue.AddJob(AsyncJob[int]{ID: i, JobData: i})
 	}
 
 	queue.Close()
-
-	// Wait a bit for processing to complete
-	time.Sleep(100 * time.Millisecond)
-
-	if len(results) != 5 {
-		t.Errorf("Expected 5 results, got %d", len(results))
-	}
+	<-done
 
 	if len(errors) != 0 {
-		t.Errorf("Expected 0 errors, got %d", len(errors))
+		t.Errorf("Expected 0 errors, got %d: %v", len(errors), errors)
 	}
 
-	// Check that results are doubled
-	for i, result := range results {
-		expected := (i + 1) * 2
-		if result != expected {
-			t.Errorf("Expected result %d, got %d", expected, result)
-		}
+	// Every job should have been doubled, in whatever order the workers finished.
+	slices.Sort(results)
+	want := []int{2, 4, 6, 8, 10}
+	if !slices.Equal(results, want) {
+		t.Errorf("Expected results %v, got %v", want, results)
 	}
 }
 
 func TestAsyncJobQueueMultipleWorkers(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing-sensitive test in short mode")
-	}
 	queue := NewAsyncJobQueue[int, int](10)
 	var results []int
+	var errors []error
 	var mu sync.Mutex
 
 	jobHandler := func(job AsyncJob[int]) (int, error) {
@@ -82,29 +83,37 @@ func TestAsyncJobQueueMultipleWorkers(t *testing.T) {
 	}
 
 	errorHandler := func(err AsyncJobError[int]) {
-		// No errors expected
+		mu.Lock()
+		errors = append(errors, err.Error)
+		mu.Unlock()
 	}
 
-	go queue.Start(jobHandler, resultHandler, errorHandler, 3)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		queue.Start(jobHandler, resultHandler, errorHandler, 3)
+	}()
 
 	for i := 1; i <= 10; i++ {
 		queue.AddJob(AsyncJob[int]{ID: i, JobData: i})
 	}
 
 	queue.Close()
+	<-done
 
-	// Wait for processing to complete
-	time.Sleep(200 * time.Millisecond)
+	if len(errors) != 0 {
+		t.Errorf("Expected 0 errors, got %d: %v", len(errors), errors)
+	}
 
-	if len(results) != 10 {
-		t.Errorf("Expected 10 results, got %d", len(results))
+	// No job may be dropped or processed twice when spread across 3 workers.
+	slices.Sort(results)
+	want := []int{2, 4, 6, 8, 10, 12, 14, 16, 18, 20}
+	if !slices.Equal(results, want) {
+		t.Errorf("Expected results %v, got %v", want, results)
 	}
 }
 
 func TestAsyncJobQueueErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing-sensitive test in short mode")
-	}
 	queue := NewAsyncJobQueue[int, int](5)
 	var results []int
 	var errors []error
@@ -129,49 +138,53 @@ func TestAsyncJobQueueErrorHandling(t *testing.T) {
 		mu.Unlock()
 	}
 
-	go queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	}()
 
 	for i := 1; i <= 6; i++ {
 		queue.AddJob(AsyncJob[int]{ID: i, JobData: i})
 	}
 
 	queue.Close()
+	<-done
 
-	// Wait for processing to complete
-	time.Sleep(100 * time.Millisecond)
-
-	// Should have 3 results (odd numbers) and 3 errors (even numbers)
-	if len(results) != 3 {
-		t.Errorf("Expected 3 results, got %d", len(results))
+	// Odd jobs produce results, even jobs produce errors.
+	slices.Sort(results)
+	want := []int{2, 6, 10}
+	if !slices.Equal(results, want) {
+		t.Errorf("Expected results %v, got %v", want, results)
 	}
 
 	if len(errors) != 3 {
-		t.Errorf("Expected 3 errors, got %d", len(errors))
-	}
-
-	// Check that only odd numbers produced results
-	for _, result := range results {
-		if result%4 != 2 {
-			t.Errorf("Expected result to be odd number * 2, got %d", result)
-		}
+		t.Errorf("Expected 3 errors, got %d: %v", len(errors), errors)
 	}
 }
 
 func TestAsyncJobQueueEmptyQueue(t *testing.T) {
 	queue := NewAsyncJobQueue[int, int](0)
-	jobHandler := func(job AsyncJob[int]) (int, error) { return job.JobData, nil }
-	resultHandler := func(result AsyncJobResult[int, int]) {
-		// Should not be called
-	}
-	errorHandler := func(err AsyncJobError[int]) {
-		// Should not be called
-	}
+	var resultCount, errorCount int
 
-	go queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	jobHandler := func(job AsyncJob[int]) (int, error) { return job.JobData, nil }
+	resultHandler := func(result AsyncJobResult[int, int]) { resultCount++ }
+	errorHandler := func(err AsyncJobError[int]) { errorCount++ }
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		queue.Start(jobHandler, resultHandler, errorHandler, 2)
+	}()
+
 	queue.Close()
 
-	// Should complete without issues
-	time.Sleep(50 * time.Millisecond)
+	// Closing an empty queue must let Start return rather than hang.
+	<-done
+
+	if resultCount != 0 || errorCount != 0 {
+		t.Errorf("Expected no handler calls, got %d results and %d errors", resultCount, errorCount)
+	}
 }
 
 type testError struct {
