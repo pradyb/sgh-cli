@@ -148,6 +148,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringP("org", "o", defaultOrg, "organization name (env: SGH_ORG)")
+	rootCmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return ctx.Config.OrganizationNames(), cobra.ShellCompDirectiveNoFileComp
+	})
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolP("log-response", "L", false, "log HTTP response")
 	rootCmd.PersistentFlags().IntP("workers", "w", defaultWorkers, "number of workers (env: SGH_WORKERS)")

@@ -83,8 +83,9 @@ func ListCommand(ctx *context.Context) *cobra.Command {
 				ui.PrintRepositories(repositories)
 			} else {
 				ui.PrintNoDataMessage("No repositories found for "+orgName+".",
-					"Hint: use the --all flag to include all repositories.",
-					"Hint: verify the organization name is correct.")
+					"Hint: use the --all flag to list all repositories without config filtering.",
+					"Hint: if this owner is missing from config, add it: sgh config add org "+orgName,
+					"Hint: verify the organization/username is correct.")
 			}
 		},
 	}

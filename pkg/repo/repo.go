@@ -99,6 +99,7 @@ func GetReposForOrg(ctx *context.Context, orgName string, all bool) ([]model.Rep
 		saveRepositoryNamesForFuzzySearch(ctx, orgName, filteredRepo)
 		return filteredRepo, err
 	}
+	logger.Glog.Warn().Str("org", orgName).Msg("owner not in config — add it with: sgh config add org " + orgName)
 	return make([]model.Repository, 0), nil
 }
 

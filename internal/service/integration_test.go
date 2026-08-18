@@ -309,9 +309,9 @@ func TestGraphQLIntegration(t *testing.T) {
 // createTestContext creates a test context with the mock server URL
 func createTestContext(t *testing.T, mockServerURL string) *appcontext.Context {
 	// Override the GitHub API base URL for testing
-	originalBaseURL := GITHUB_BASE_URL
-	GITHUB_BASE_URL = mockServerURL
-	t.Cleanup(func() { GITHUB_BASE_URL = originalBaseURL })
+	originalBaseURL := githubBaseURL
+	githubBaseURL = mockServerURL
+	t.Cleanup(func() { githubBaseURL = originalBaseURL })
 
 	ctx, err := appcontext.Init()
 	require.NoError(t, err)

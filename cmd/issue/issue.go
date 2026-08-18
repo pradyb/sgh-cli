@@ -16,17 +16,12 @@ import (
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
-var (
-	repoNames        []string
-	excludeRepoNames []string
-	issueState       string
-	labels           string
-	assignee         string
-	author           string
-	creator          string
-	lastCount        int
-	sortBy           string
-)
+func repoCompletionFn(ctx *context.Context) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		orgName, _ := cmd.Root().PersistentFlags().GetString("org")
+		return ctx.Config.RepositoriesNames(orgName), cobra.ShellCompDirectiveNoFileComp
+	}
+}
 
 func NewIssueCommand(ctx *context.Context) *cobra.Command {
 	issueCmd := &cobra.Command{
@@ -43,6 +38,16 @@ func NewIssueCommand(ctx *context.Context) *cobra.Command {
 }
 
 func ListCommand(ctx *context.Context) *cobra.Command {
+	var repoNames []string
+	var excludeRepoNames []string
+	var issueState string
+	var labels string
+	var assignee string
+	var author string
+	var creator string
+	var lastCount int
+	var sortBy string
+
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List issues across repositories",
@@ -93,6 +98,7 @@ By default fetches open issues.`,
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names to include")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.RegisterFlagCompletionFunc("repository", repoCompletionFn(ctx))
 	listCmd.Flags().StringVarP(&issueState, "state", "s", "open", "filter by `state`: open, closed, all")
 	listCmd.Flags().StringVarP(&labels, "label", "l", "", "filter by `label` name (comma-separated for multiple)")
 	listCmd.Flags().StringVarP(&assignee, "assignee", "a", "", "filter by `assignee` login")

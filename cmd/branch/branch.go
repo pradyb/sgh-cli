@@ -17,6 +17,13 @@ import (
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
+func repoCompletionFn(ctx *context.Context) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		orgName, _ := cmd.Root().PersistentFlags().GetString("org")
+		return ctx.Config.RepositoriesNames(orgName), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	branchCmd := &cobra.Command{
 		Use:     "branch <command>",
@@ -32,17 +39,11 @@ func NewBranchCommand(ctx *context.Context) *cobra.Command {
 	return branchCmd
 }
 
-var (
-	branchName       string
-	refBranchName    string
-	commitSHA        string
-	repoNames        []string
-	excludeRepoNames []string
-	filter           string
-	sortBy           string
-)
-
 func ListCommand(ctx *context.Context) *cobra.Command {
+	var repoNames []string
+	var excludeRepoNames []string
+	var filter string
+	var sortBy string
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List branches across repositories",
@@ -80,11 +81,18 @@ Supports filtering by branch name using partial match or regex pattern.`,
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
 	listCmd.Flags().StringVarP(&filter, "filter", "f", "", "filter branches by `name` (partial match or regex)")
 	listCmd.Flags().StringVar(&sortBy, "sort", "", "sort results by: repo, name, protected")
+	listCmd.RegisterFlagCompletionFunc("repository", repoCompletionFn(ctx))
 
 	return listCmd
 }
 
 func CreateCommand(ctx *context.Context) *cobra.Command {
+	var branchName string
+	var refBranchName string
+	var commitSHA string
+	var repoNames []string
+	var excludeRepoNames []string
+
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a new branch from a existing branch",
@@ -160,6 +168,8 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 
 func RenameCommand(ctx *context.Context) *cobra.Command {
 	var oldName, newName string
+	var repoNames []string
+	var excludeRepoNames []string
 
 	renameCmd := &cobra.Command{
 		Use:     "rename",
@@ -204,6 +214,10 @@ func RenameCommand(ctx *context.Context) *cobra.Command {
 }
 
 func DeleteCommand(ctx *context.Context) *cobra.Command {
+	var branchName string
+	var repoNames []string
+	var excludeRepoNames []string
+
 	deleteCmd := &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a branch across repositories.",

@@ -5,6 +5,7 @@ package commit
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/prady-lab/sgh-cli/internal/model"
 	"github.com/prady-lab/sgh-cli/internal/processor"
@@ -19,6 +20,8 @@ type CommitListRequest struct {
 	ExcludeRepos []string
 	BranchName   string
 	NoOfDays     int
+	Since        string // ISO date YYYY-MM-DD; overrides NoOfDays when set
+	Until        string // ISO date YYYY-MM-DD; exclusive upper bound
 }
 
 // CommitInfoRequest contains parameters for getting commit information.
@@ -36,11 +39,20 @@ type CommitCheckRunsRequest struct {
 }
 
 func ListCommits(ctx *context.Context, req CommitListRequest) []model.CommitResponse {
-	responses := make([]model.CommitResponse, 0)
+	since := req.Since
+	if since == "" {
+		n := req.NoOfDays
+		if n <= 0 {
+			n = 3
+		}
+		midnight := time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, -n)
+		since = midnight.Format(time.RFC3339)
+	}
 
+	responses := make([]model.CommitResponse, 0)
 	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepos, processor.OperationListCommits,
 		func(ctx *context.Context, orgName, repoName string) ([]model.CommitResponse, error) {
-			return service.ListCommits(ctx, orgName, repoName, req.BranchName, req.NoOfDays)
+			return service.ListCommits(ctx, orgName, repoName, req.BranchName, since, req.Until)
 		},
 		func(repoName string, result processor.RepoOperationResult[[]model.CommitResponse]) {
 			for i := range result.Result {

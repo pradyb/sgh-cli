@@ -20,6 +20,13 @@ import (
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
+func repoCompletionFn(ctx *context.Context) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		orgName, _ := cmd.Root().PersistentFlags().GetString("org")
+		return ctx.Config.RepositoriesNames(orgName), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 	workflowCmd := &cobra.Command{
 		Use:     "workflow <command>",
@@ -80,20 +87,17 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 	return workflowCmd
 }
 
-var (
-	repoNames        []string
-	excludeRepoNames []string
-	status           string
-	branch           string
-	lastCount        int
-	running          bool
-	queued           bool
-	failed           bool
-	sortBy           string
-	workflowName     string
-)
-
 func ListCommand(ctx *context.Context) *cobra.Command {
+	var repoNames []string
+	var excludeRepoNames []string
+	var status string
+	var branch string
+	var lastCount int
+	var running bool
+	var queued bool
+	var failed bool
+	var sortBy string
+	var workflowName string
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List workflow runs across repositories",
@@ -150,6 +154,7 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.RegisterFlagCompletionFunc("repository", repoCompletionFn(ctx))
 	listCmd.Flags().StringVarP(&status, "status", "s", "", "filter by status: completed, in_progress, queued, failure, success, cancelled")
 	listCmd.Flags().BoolVar(&running, "running", false, "show only in-progress workflow runs")
 	listCmd.Flags().BoolVar(&queued, "queued", false, "show only queued workflow runs")
@@ -163,17 +168,11 @@ Supports filtering by status and branch name. Use shorthand flags for common fil
 	return listCmd
 }
 
-var (
-	repoName string
-	runID    int
-)
-
-var (
-	watch         bool
-	watchInterval int
-)
-
 func ViewCommand(ctx *context.Context) *cobra.Command {
+	var repoName string
+	var runID int
+	var watch bool
+	var watchInterval int
 	viewCmd := &cobra.Command{
 		Use:   "view",
 		Short: "View details of a workflow run including jobs and steps",
@@ -221,7 +220,7 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 				return
 			}
 
-			runWatchLoop(ctx, req, detail)
+			runWatchLoop(ctx, req, detail, watchInterval)
 		},
 	}
 
@@ -304,7 +303,7 @@ func (m watchModel) fetchDetail() tea.Msg {
 	return watchDataMsg{detail: detail}
 }
 
-func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail) {
+func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) {
 	interval := time.Duration(watchInterval) * time.Second
 	m := newWatchModel(ctx, req, interval, initial)
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -319,6 +318,9 @@ func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial
 }
 
 func rerunCommand(ctx *context.Context) *cobra.Command {
+	var repoName string
+	var runID int
+
 	rerunCmd := &cobra.Command{
 		Use:   "rerun",
 		Short: "Rerun a workflow run",
@@ -365,6 +367,9 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 }
 
 func cancelCommand(ctx *context.Context) *cobra.Command {
+	var repoName string
+	var runID int
+
 	cancelCmd := &cobra.Command{
 		Use:   "cancel",
 		Short: "Cancel a workflow run",

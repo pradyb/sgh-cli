@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
@@ -27,6 +28,7 @@ type Config struct {
 	Organizations    []Organization            `json:"organizations"`
 	orgData          map[string]Organization   `json:"-"`
 	compiledPatterns map[string]*regexp.Regexp `json:"-"`
+	ownerTypeMu      sync.Mutex                `json:"-"`
 }
 
 type Organization struct {
@@ -162,6 +164,8 @@ func (config *Config) ProtectedBranchDetail(orgName string) ProtectedBranch {
 // OwnerTypeFor returns the cached owner type ("Organization" or "User") for the given name,
 // or "" if it has not been detected yet.
 func (config *Config) OwnerTypeFor(orgName string) string {
+	config.ownerTypeMu.Lock()
+	defer config.ownerTypeMu.Unlock()
 	if config == nil || config.orgData == nil {
 		return ""
 	}
@@ -174,6 +178,8 @@ func (config *Config) OwnerTypeFor(orgName string) string {
 
 // SetOwnerType caches the detected owner type for the given name.
 func (config *Config) SetOwnerType(orgName, ownerType string) {
+	config.ownerTypeMu.Lock()
+	defer config.ownerTypeMu.Unlock()
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
 			config.Organizations[i].OwnerType = ownerType
@@ -785,7 +791,7 @@ func isValidGitHubUsername(username string) bool {
 
 	// GitHub usernames can contain alphanumeric characters and single hyphens
 	// Cannot start or end with hyphen, and cannot have consecutive hyphens
-	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-_]*[a-zA-Z0-9])?$`
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`
 	matched, _ := regexp.MatchString(pattern, username)
 
 	if !matched {

@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/shurcooL/githubv4"
 
@@ -20,7 +19,7 @@ import (
 	"github.com/prady-lab/sgh-cli/pkg/logger"
 )
 
-var GITHUB_BASE_URL = "https://api.github.com"
+var githubBaseURL = "https://api.github.com"
 
 const (
 	UPDATE_REF_URI       = "%s/repos/%s/%s/git/refs"
@@ -85,7 +84,7 @@ type refResponse struct {
 
 // GetOwnerType returns "Organization" or "User" for the given GitHub login.
 func GetOwnerType(ctx *appcontext.Context, login string) (string, error) {
-	body, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/users/%s", GITHUB_BASE_URL, login), nil)
+	body, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/users/%s", githubBaseURL, login), nil)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +105,7 @@ func UpdateRepoArchived(ctx *appcontext.Context, orgName, repoName string, archi
 		return err
 	}
 	_, err = invokeAPI(ctx, "PATCH",
-		fmt.Sprintf("%s/repos/%s/%s", GITHUB_BASE_URL, orgName, repoName),
+		fmt.Sprintf("%s/repos/%s/%s", githubBaseURL, orgName, repoName),
 		bytes.NewReader(jsonBody),
 	)
 	return err
@@ -120,14 +119,14 @@ func UpdateRepoVisibility(ctx *appcontext.Context, orgName, repoName, visibility
 		return err
 	}
 	_, err = invokeAPI(ctx, "PATCH",
-		fmt.Sprintf("%s/repos/%s/%s", GITHUB_BASE_URL, orgName, repoName),
+		fmt.Sprintf("%s/repos/%s/%s", githubBaseURL, orgName, repoName),
 		bytes.NewReader(jsonBody),
 	)
 	return err
 }
 
 func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, refBranchName string) (model.RefResponse, error) {
-	commitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
+	commitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", githubBaseURL, orgName, repoName, refBranchName), nil)
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -142,7 +141,7 @@ func CreateNewBranch(ctx *appcontext.Context, orgName, repoName, newBranchName, 
 	if err != nil {
 		return model.RefResponse{}, err
 	}
-	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
+	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, githubBaseURL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -160,7 +159,7 @@ func CreateNewBranchFromCommit(ctx *appcontext.Context, orgName, repoName, newBr
 	if err != nil {
 		return model.RefResponse{}, err
 	}
-	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
+	branchResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, githubBaseURL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -173,7 +172,7 @@ func CreateNewBranchFromCommit(ctx *appcontext.Context, orgName, repoName, newBr
 }
 
 func DeleteBranch(ctx *appcontext.Context, orgName, repoName, branchName string) (bool, error) {
-	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/heads/%s", GITHUB_BASE_URL, orgName, repoName, branchName), nil)
+	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/heads/%s", githubBaseURL, orgName, repoName, branchName), nil)
 	if err != nil {
 		return false, err
 	}
@@ -188,7 +187,7 @@ func RenameBranch(ctx *appcontext.Context, orgName, repoName, oldName, newName s
 		return err
 	}
 	_, err = invokeAPI(ctx, "POST",
-		fmt.Sprintf("%s/repos/%s/%s/branches/%s/rename", GITHUB_BASE_URL, orgName, repoName, oldName),
+		fmt.Sprintf("%s/repos/%s/%s/branches/%s/rename", githubBaseURL, orgName, repoName, oldName),
 		bytes.NewReader(jsonBody),
 	)
 	return err
@@ -196,7 +195,7 @@ func RenameBranch(ctx *appcontext.Context, orgName, repoName, oldName, newName s
 
 func ListBranches(ctx *appcontext.Context, orgName, repoName string) ([]model.BranchResponse, error) {
 	var allBranches []model.BranchResponse
-	url := fmt.Sprintf("%s/repos/%s/%s/branches?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+	url := fmt.Sprintf("%s/repos/%s/%s/branches?per_page=100", githubBaseURL, orgName, repoName)
 
 	for url != "" {
 		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
@@ -219,7 +218,7 @@ type refTagResponse struct {
 }
 
 func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranchName, message string) (model.RefResponse, error) {
-	refCommitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", GITHUB_BASE_URL, orgName, repoName, refBranchName), nil)
+	refCommitSHAResponse, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", githubBaseURL, orgName, repoName, refBranchName), nil)
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -234,7 +233,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	if err != nil {
 		return model.RefResponse{}, err
 	}
-	tagCommitSHAResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/git/tags", GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
+	tagCommitSHAResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/git/tags", githubBaseURL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -249,7 +248,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 	if err != nil {
 		return model.RefResponse{}, err
 	}
-	tagByteResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(tagByteRequest))
+	tagByteResponse, err := invokeAPI(ctx, "POST", fmt.Sprintf(UPDATE_REF_URI, githubBaseURL, orgName, repoName), bytes.NewReader(tagByteRequest))
 	if err != nil {
 		return model.RefResponse{}, err
 	}
@@ -264,7 +263,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 
 func ListTags(ctx *appcontext.Context, orgName, repoName string) ([]model.TagResponse, error) {
 	var allTags []model.TagResponse
-	url := fmt.Sprintf("%s/repos/%s/%s/tags?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+	url := fmt.Sprintf("%s/repos/%s/%s/tags?per_page=100", githubBaseURL, orgName, repoName)
 
 	for url != "" {
 		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
@@ -283,7 +282,7 @@ func ListTags(ctx *appcontext.Context, orgName, repoName string) ([]model.TagRes
 }
 
 func DeleteTag(ctx *appcontext.Context, orgName, repoName, tagName string) (bool, error) {
-	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/tags/%s", GITHUB_BASE_URL, orgName, repoName, tagName), nil)
+	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf("%s/repos/%s/%s/git/refs/tags/%s", githubBaseURL, orgName, repoName, tagName), nil)
 	if err != nil {
 		return false, err
 	}
@@ -301,7 +300,7 @@ func CreateNewPullRequest(ctx *appcontext.Context, orgName, repoName, title, bod
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
-	prResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls", GITHUB_BASE_URL, orgName, repoName), bytes.NewReader(jsonBody))
+	prResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls", githubBaseURL, orgName, repoName), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
@@ -314,7 +313,7 @@ func CreateNewPullRequest(ctx *appcontext.Context, orgName, repoName, title, bod
 }
 
 func GetPullRequestInfo(ctx *appcontext.Context, orgName, repoName string, prNumber int) (model.PullRequestResponse, error) {
-	prResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
+	prResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", githubBaseURL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
@@ -334,7 +333,7 @@ func AddIssueAssignees(ctx *appcontext.Context, orgName, repoName string, prNumb
 	if err != nil {
 		return nil, err
 	}
-	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/issues/%d/assignees", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/issues/%d/assignees", githubBaseURL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +348,7 @@ func AddReviewers(ctx *appcontext.Context, orgName, repoName string, prNumber in
 	if err != nil {
 		return nil, err
 	}
-	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/requested_reviewers", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/requested_reviewers", githubBaseURL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +356,7 @@ func AddReviewers(ctx *appcontext.Context, orgName, repoName string, prNumber in
 }
 
 func ListPullRequests(ctx *appcontext.Context, orgName, repoName string, baseRef, headRef string, all bool) ([]model.PullRequestResponse, error) {
-	apiURL := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+	apiURL := fmt.Sprintf("%s/repos/%s/%s/pulls?per_page=100", githubBaseURL, orgName, repoName)
 	if baseRef != "" {
 		apiURL = fmt.Sprintf("%s&base=%s", apiURL, baseRef)
 	}
@@ -393,7 +392,7 @@ func UpdatePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
-	prResponseByte, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	prResponseByte, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", githubBaseURL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.PullRequestResponse{}, err
 	}
@@ -406,7 +405,7 @@ func UpdatePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 }
 
 func ListPullRequestReviews(ctx *appcontext.Context, orgName, repoName string, prNumber int) ([]model.ReviewPullRequestResponse, error) {
-	reviewResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
+	reviewResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", githubBaseURL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +418,7 @@ func ListPullRequestReviews(ctx *appcontext.Context, orgName, repoName string, p
 }
 
 func GetPullRequestFiles(ctx *appcontext.Context, orgName, repoName string, prNumber int) ([]model.PullRequestFile, error) {
-	filesResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files", GITHUB_BASE_URL, orgName, repoName, prNumber), nil)
+	filesResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files", githubBaseURL, orgName, repoName, prNumber), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +439,7 @@ func ReviewPullRequest(ctx *appcontext.Context, orgName, repoName string, prNumb
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
-	reviewResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	reviewResponseByte, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", githubBaseURL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.ReviewPullRequestResponse{RepositoryName: repoName, PRNumber: prNumber}, err
 	}
@@ -467,7 +466,7 @@ func MergePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumbe
 	if err != nil {
 		return model.MergeResponse{}, err
 	}
-	mergeResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", GITHUB_BASE_URL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
+	mergeResponseByte, err := invokeAPI(ctx, "PUT", fmt.Sprintf("%s/repos/%s/%s/pulls/%d/merge", githubBaseURL, orgName, repoName, prNumber), bytes.NewReader(jsonBody))
 	if err != nil {
 		return model.MergeResponse{}, err
 	}
@@ -481,7 +480,7 @@ func MergePullRequest(ctx *appcontext.Context, orgName, repoName string, prNumbe
 }
 
 func UpdateProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchName string, payload []byte) (model.ProtectedBranch, error) {
-	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), bytes.NewReader(payload))
+	response, err := invokeAPI(ctx, "PUT", fmt.Sprintf(PROTECTED_BRANCH_URI, githubBaseURL, orgName, repoName, branchName), bytes.NewReader(payload))
 	if err != nil {
 		return model.ProtectedBranch{RepositoryName: repoName}, err
 	}
@@ -496,21 +495,19 @@ func UpdateProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchNam
 }
 
 func DeleteProtectedBranch(ctx *appcontext.Context, orgName, repoName, branchName string) (bool, error) {
-	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf(PROTECTED_BRANCH_URI, GITHUB_BASE_URL, orgName, repoName, branchName), nil)
+	_, err := invokeAPI(ctx, "DELETE", fmt.Sprintf(PROTECTED_BRANCH_URI, githubBaseURL, orgName, repoName, branchName), nil)
 	if err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, noOfDays int) ([]model.CommitResponse, error) {
-	currentTime := time.Now().UTC()
-	midnight := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 0, 0, 0, 0, time.UTC)
-	midnight = midnight.AddDate(0, 0, -noOfDays)
-	since := midnight.Format(time.RFC3339)
-
+func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName, since, until string) ([]model.CommitResponse, error) {
 	var allCommits []model.CommitResponse
-	url := fmt.Sprintf("%s/repos/%s/%s/commits?per_page=100&since=%s&sha=%s", GITHUB_BASE_URL, orgName, repoName, since, branchName)
+	url := fmt.Sprintf("%s/repos/%s/%s/commits?per_page=100&since=%s&sha=%s", githubBaseURL, orgName, repoName, since, branchName)
+	if until != "" {
+		url += "&until=" + until
+	}
 
 	for url != "" {
 		resp, err := invokeAPIFull(context.Background(), ctx, "GET", url, nil)
@@ -529,7 +526,7 @@ func ListCommits(ctx *appcontext.Context, orgName, repoName, branchName string, 
 }
 
 func GetCommitInfo(ctx *appcontext.Context, orgName, repoName, commitSha string) (model.CommitResponse, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s", githubBaseURL, orgName, repoName, commitSha), nil)
 	if err != nil {
 		return model.CommitResponse{}, err
 	}
@@ -542,7 +539,7 @@ func GetCommitInfo(ctx *appcontext.Context, orgName, repoName, commitSha string)
 }
 
 func GetCommitCheckRuns(ctx *appcontext.Context, orgName, repoName, commitSha string) (model.CheckRunResponse, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s/check-runs", GITHUB_BASE_URL, orgName, repoName, commitSha), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/commits/%s/check-runs", githubBaseURL, orgName, repoName, commitSha), nil)
 	if err != nil {
 		return model.CheckRunResponse{}, err
 	}
@@ -555,7 +552,7 @@ func GetCommitCheckRuns(ctx *appcontext.Context, orgName, repoName, commitSha st
 }
 
 func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status string, count int) ([]model.WorkflowRun, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs?per_page=%d", GITHUB_BASE_URL, orgName, repoName, count)
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs?per_page=%d", githubBaseURL, orgName, repoName, count)
 	if branch != "" {
 		url = fmt.Sprintf("%s&branch=%s", url, branch)
 	}
@@ -588,14 +585,14 @@ func DispatchWorkflow(ctx *appcontext.Context, orgName, repoName, workflowID, re
 		return err
 	}
 	_, err = invokeAPI(ctx, "POST",
-		fmt.Sprintf("%s/repos/%s/%s/actions/workflows/%s/dispatches", GITHUB_BASE_URL, orgName, repoName, workflowID),
+		fmt.Sprintf("%s/repos/%s/%s/actions/workflows/%s/dispatches", githubBaseURL, orgName, repoName, workflowID),
 		bytes.NewReader(jsonBody),
 	)
 	return err
 }
 
 func RerunWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {
-	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/rerun", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/rerun", githubBaseURL, orgName, repoName, runID), nil)
 	if err != nil {
 		return false, err
 	}
@@ -603,7 +600,7 @@ func RerunWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID i
 }
 
 func CancelWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {
-	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/cancel", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	_, err := invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/cancel", githubBaseURL, orgName, repoName, runID), nil)
 	if err != nil {
 		return false, err
 	}
@@ -611,7 +608,7 @@ func CancelWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID 
 }
 
 func GetWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (model.WorkflowRun, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d", githubBaseURL, orgName, repoName, runID), nil)
 	if err != nil {
 		return model.WorkflowRun{}, err
 	}
@@ -624,7 +621,7 @@ func GetWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int
 }
 
 func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID int) ([]model.WorkflowJob, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/jobs", GITHUB_BASE_URL, orgName, repoName, runID), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/jobs", githubBaseURL, orgName, repoName, runID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -637,7 +634,7 @@ func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID
 }
 
 func ListSecretScanningAlerts(ctx *appcontext.Context, orgName, repoName, state string) ([]model.SecretScanningAlert, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts?per_page=100", GITHUB_BASE_URL, orgName, repoName)
+	url := fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts?per_page=100", githubBaseURL, orgName, repoName)
 	if state != "" {
 		url = fmt.Sprintf("%s&state=%s", url, state)
 	}
@@ -663,7 +660,7 @@ func ListSecretScanningAlerts(ctx *appcontext.Context, orgName, repoName, state 
 }
 
 func GetSecretScanningAlert(ctx *appcontext.Context, orgName, repoName string, alertNumber int) (model.SecretScanningAlert, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", GITHUB_BASE_URL, orgName, repoName, alertNumber), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", githubBaseURL, orgName, repoName, alertNumber), nil)
 	if err != nil {
 		return model.SecretScanningAlert{}, err
 	}
@@ -693,7 +690,7 @@ func UpdateSecretScanningAlert(ctx *appcontext.Context, orgName, repoName string
 		return model.SecretScanningAlert{}, fmt.Errorf("failed to marshal update payload: %w", err)
 	}
 
-	response, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", GITHUB_BASE_URL, orgName, repoName, alertNumber), bytes.NewBuffer(payloadBytes))
+	response, err := invokeAPI(ctx, "PATCH", fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts/%d", githubBaseURL, orgName, repoName, alertNumber), bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return model.SecretScanningAlert{}, err
 	}
@@ -711,7 +708,7 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 	if perPage <= 0 {
 		perPage = 100
 	}
-	url := fmt.Sprintf("%s/repos/%s/%s/issues?per_page=%d&sort=created&direction=desc", GITHUB_BASE_URL, orgName, repoName, perPage)
+	url := fmt.Sprintf("%s/repos/%s/%s/issues?per_page=%d&sort=created&direction=desc", githubBaseURL, orgName, repoName, perPage)
 	if state != "" {
 		url = fmt.Sprintf("%s&state=%s", url, state)
 	}
@@ -746,7 +743,7 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 }
 
 func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int) (model.IssueResponse, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d", GITHUB_BASE_URL, orgName, repoName, issueNumber), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d", githubBaseURL, orgName, repoName, issueNumber), nil)
 	if err != nil {
 		return model.IssueResponse{}, err
 	}
@@ -778,7 +775,7 @@ func CreateIssue(ctx *appcontext.Context, orgName, repoName, title, body, assign
 		return model.IssueResponse{}, err
 	}
 	response, err := invokeAPI(ctx, "POST",
-		fmt.Sprintf("%s/repos/%s/%s/issues", GITHUB_BASE_URL, orgName, repoName),
+		fmt.Sprintf("%s/repos/%s/%s/issues", githubBaseURL, orgName, repoName),
 		bytes.NewReader(jsonBody),
 	)
 	if err != nil {
@@ -797,14 +794,14 @@ func CreateIssue(ctx *appcontext.Context, orgName, repoName, title, body, assign
 func UpdateIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int, state string) error {
 	body := fmt.Sprintf(`{"state":%q}`, state)
 	_, err := invokeAPI(ctx, "PATCH",
-		fmt.Sprintf("%s/repos/%s/%s/issues/%d", GITHUB_BASE_URL, orgName, repoName, issueNumber),
+		fmt.Sprintf("%s/repos/%s/%s/issues/%d", githubBaseURL, orgName, repoName, issueNumber),
 		bytes.NewBufferString(body),
 	)
 	return err
 }
 
 func ListIssueComments(ctx *appcontext.Context, orgName, repoName string, issueNumber int) ([]model.IssueComment, error) {
-	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments?per_page=100", GITHUB_BASE_URL, orgName, repoName, issueNumber), nil)
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments?per_page=100", githubBaseURL, orgName, repoName, issueNumber), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +819,7 @@ func GetAuditLog(ctx *appcontext.Context, orgName string, phrase, include string
 	if perPage <= 0 {
 		perPage = 100
 	}
-	url := fmt.Sprintf("%s/orgs/%s/audit-log?per_page=%d", GITHUB_BASE_URL, orgName, perPage)
+	url := fmt.Sprintf("%s/orgs/%s/audit-log?per_page=%d", githubBaseURL, orgName, perPage)
 	if phrase != "" {
 		url += "&phrase=" + phrase
 	}
@@ -932,7 +929,7 @@ func ListOrganizations(ctx *appcontext.Context) ([]model.OrgDetail, error) {
 
 // GetCurrentUser fetches the authenticated user's profile via GET /user.
 func GetCurrentUser(ctx *appcontext.Context) (*model.UserInfo, error) {
-	url := fmt.Sprintf("%s/user", GITHUB_BASE_URL)
+	url := fmt.Sprintf("%s/user", githubBaseURL)
 	body, err := invokeAPI(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)

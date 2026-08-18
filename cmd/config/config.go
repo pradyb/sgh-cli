@@ -49,7 +49,7 @@ func listCommand(ctx *context.Context) *cobra.Command {
 		Use:     "list",
 		Short:   "Show current configuration",
 		Long:    `Display the current sgh configuration, including organizations, repositories, patterns, and settings.`,
-		Aliases: []string{"ls", "view"},
+		Aliases: []string{"ls", "view", "show"},
 		Example: heredoc.Doc(`
 			$ sgh config list
 		`),
@@ -373,6 +373,10 @@ func setCommand(ctx *context.Context) *cobra.Command {
 
 			switch strings.ToLower(key) {
 			case "token":
+				if err := context.ValidateGitHubToken(value); err != nil {
+					ui.PrintCLIError(fmt.Sprintf("Invalid token: %s", err), "Expected a GitHub PAT (e.g. github_pat_... or ghp_...)")
+					return
+				}
 				warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow)
 				fmt.Println(warnStyle.Render("  ⚠ Token stored in plain text in the config file."))
 				fmt.Println(warnStyle.Render("    Keep the config file out of version control."))
@@ -475,6 +479,13 @@ func resetCommand(ctx *context.Context) *cobra.Command {
 	return resetCmd
 }
 
+func maskToken(tok string) string {
+	if len(tok) <= 8 {
+		return "***"
+	}
+	return tok[:4] + "***" + tok[len(tok)-4:]
+}
+
 func printConfigTable(ctx *context.Context, orgs []string) {
 	headerStyle := lipgloss.NewStyle().Padding(0, 1).Foreground(ui.Cyan).Bold(true).Align(lipgloss.Center)
 	cellStyle := lipgloss.NewStyle().Padding(0, 1)
@@ -515,6 +526,15 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 			repoCell += "\n" + dimStyle.Render(fmt.Sprintf("(%d, fuzzy-match dict)", len(repos)))
 		}
 
+		tokenCell := dimStyle.Render("—")
+		if tok := ctx.Config.TokenForOwner(orgName); tok != "" {
+			tokenCell = mutedStyle.Render(maskToken(tok))
+		}
+		ownerTypeCell := dimStyle.Render("—")
+		if ot := ctx.Config.OwnerTypeFor(orgName); ot != "" {
+			ownerTypeCell = mutedStyle.Render(ot)
+		}
+
 		rows = append(rows, []string{
 			orgStyle.Render(orgName),
 			bullet(incl, includeStyle),
@@ -522,6 +542,8 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 			repoCell,
 			bullet(assignees, mutedStyle),
 			mutedStyle.Render(tagger),
+			tokenCell,
+			ownerTypeCell,
 		})
 	}
 
@@ -529,7 +551,7 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 	rows = append(rows, []string{
 		lipgloss.NewStyle().Padding(0, 1).Foreground(ui.Cyan).Bold(true).Align(lipgloss.Center).Render("Total"),
 		lipgloss.NewStyle().Padding(0, 1).Foreground(ui.Cyan).Bold(true).Align(lipgloss.Center).Render(fmt.Sprintf("%d orgs", len(orgs))),
-		"", "", "", "",
+		"", "", "", "", "", "",
 	})
 
 	fmt.Println()
@@ -543,7 +565,7 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 			}
 			return lipgloss.NewStyle()
 		}).
-		Headers("Organization", "Include Patterns", "Exclude Patterns", "Repositories (fuzzy dict)", "PR Assignees", "Tagger").
+		Headers("Organization", "Include Patterns", "Exclude Patterns", "Repositories (fuzzy dict)", "PR Assignees", "Tagger", "Token", "Owner Type").
 		Rows(rows...)
 
 	fmt.Println(t)

@@ -368,7 +368,7 @@ Commands are organized into groups:
 - `repo archive --org <org> [-r <repo>...] [--unarchive]` - Archive or unarchive repositories in bulk
 - `repo visibility --org <org> [-r <repo>...] --visibility public|private` - Set repository visibility
 - `clone --org <org> [--branch <branch>]` - Clone multiple repositories
-- `commit list --org <org> [--days <n>]` - Track commits across repositories
+- `commit list --org <org> [--days <n>] [--since <date>] [--until <date>]` - Track commits across repositories
 
 **Branch & Tag Operations:**
 - `branch list --org <org> [--filter <pattern>]` - List branches with optional regex filter
@@ -415,7 +415,7 @@ Commands are organized into groups:
 **Organization & Configuration:**
 - `org list` - List all GitHub organizations the token belongs to (no `--org` needed)
 - `team list --org <org> [--team <name>] [--all]` - List teams and all their members
-- `config list` - Show current configuration
+- `config list` (alias: `show`) - Show current configuration including token status and owner type per org
 - `config validate` - Check configuration for errors
 - `config add <key> <value>` - Add configuration
 - `config reset [--org <name>] [--yes]` - Remove one or all organizations from config
@@ -603,8 +603,11 @@ sgh repo visibility --org my-org -r internal-tool --visibility public
 # Clone repositories with specific branch
 sgh clone --org my-org --branch develop
 
-# Track recent commits
+# Track recent commits (past 7 days)
 sgh commit list --org my-org --days 7 --details --include-merge-commits
+
+# Track commits in a specific date range
+sgh commit list --org my-org --since 2026-08-01 --until 2026-08-15
 ```
 
 ### Workflow Runs (GitHub Actions)
@@ -818,7 +821,8 @@ Some list commands support additional flags:
 - `-l, --label <name>` - Filter/add labels (on `pr list`, `pr create`, `issue list`, `issue create`)
 - `-A, --author <login>` - Filter by the user who opened the item (on `pr list`, `issue list`)
 - `-a, --assignee <login>` - Filter/set assignee (on `pr list`, `issue list`, `issue create`)
-- `--since <YYYY-MM-DD>` - Filter PRs created on or after date (on `pr list`)
+- `--since <YYYY-MM-DD>` - Filter items created on or after date (on `pr list`, `commit list`)
+- `--until <YYYY-MM-DD>` - Filter commits on or before date (on `commit list`)
 - `--running`, `--queued`, `--failed` - Quick status filters (on `workflow list`)
 - `--branch <name>` - Filter by branch name (on `workflow list`)
 - `--watch`, `--interval` - Live monitoring (on `workflow view`)
@@ -894,6 +898,10 @@ sgh completion fish > ~/.config/fish/completions/sgh.fish
 # PowerShell
 sgh completion powershell | Out-String | Invoke-Expression
 ```
+
+Once installed, the following complete from your config automatically:
+- `--org` / `-o` — tab-completes organization names
+- `--repository` / `-r` — tab-completes repository names for the selected org
 
 ### Concurrent Processing
 Adjust worker count for optimal performance:

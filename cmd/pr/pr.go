@@ -20,6 +20,13 @@ import (
 	"github.com/prady-lab/sgh-cli/utils"
 )
 
+func repoCompletionFn(ctx *context.Context) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		orgName, _ := cmd.Root().PersistentFlags().GetString("org")
+		return ctx.Config.RepositoriesNames(orgName), cobra.ShellCompDirectiveNoFileComp
+	}
+}
+
 func NewPRCommand(ctx *context.Context) *cobra.Command {
 	prCmd := &cobra.Command{
 		Use:   "pr <command>",
@@ -38,16 +45,15 @@ func NewPRCommand(ctx *context.Context) *cobra.Command {
 	return prCmd
 }
 
-var (
-	title            string
-	body             string
-	baseRef          string
-	headRef          string
-	repoNames        []string
-	excludeRepoNames []string
-)
-
 func CreateCommand(ctx *context.Context) *cobra.Command {
+	var title string
+	var body string
+	var baseRef string
+	var headRef string
+	var label string
+	var repoNames []string
+	var excludeRepoNames []string
+
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a pull request",
@@ -89,20 +95,21 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 	return createCmd
 }
 
-var (
-	allPullRequests bool
-	prState         string
-	interactive     bool
-	lastCount       int
-	author          string
-	assignee        string
-	reviewer        string
-	label           string
-	since           string
-	prSortBy        string
-)
-
 func ListCommand(ctx *context.Context) *cobra.Command {
+	var allPullRequests bool
+	var prState string
+	var interactive bool
+	var lastCount int
+	var author string
+	var assignee string
+	var reviewer string
+	var label string
+	var since string
+	var prSortBy string
+	var repoNames []string
+	var excludeRepoNames []string
+	var baseRef string
+	var headRef string
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List pull requests",
@@ -163,6 +170,7 @@ By default lists open pull requests. Use --state to filter by state.`,
 
 	listCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names")
 	listCmd.Flags().StringArrayVarP(&excludeRepoNames, utils.EXCLUDE_REPOSITORY_FLAG, "e", []string{}, "repository names to exclude")
+	listCmd.RegisterFlagCompletionFunc("repository", repoCompletionFn(ctx))
 	listCmd.Flags().StringVarP(&prState, "state", "s", "open", "filter by state: open, closed, merged, all")
 	listCmd.Flags().Bool("all", false, "alias for --state all (deprecated)")
 	listCmd.Flags().MarkHidden("all")
@@ -232,18 +240,14 @@ check runs, and reviews.`,
 	return viewCmd
 }
 
-var (
-	prNumber         int
-	action           string
-	repoName         string
-	reviewEvent      string
-	reviewBody       string
-	reviewApprove    bool
-	reviewComment    bool
-	reviewReqChanges bool
-)
-
 func ReviewCommand(ctx *context.Context) *cobra.Command {
+	var prNumber int
+	var repoName string
+	var reviewEvent string
+	var reviewBody string
+	var reviewApprove bool
+	var reviewComment bool
+	var reviewReqChanges bool
 	reviewCmd := &cobra.Command{
 		Use:   "review",
 		Short: "Review a pull request (approve, request changes, or comment)",
@@ -323,6 +327,10 @@ Use exactly one action flag: --approve, --comment, or --request-changes.`,
 }
 
 func UpdateCommand(ctx *context.Context) *cobra.Command {
+	var prNumber int
+	var action string
+	var repoName string
+
 	updateCmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update a pull request",
@@ -369,6 +377,11 @@ func UpdateCommand(ctx *context.Context) *cobra.Command {
 }
 
 func MergeCommand(ctx *context.Context) *cobra.Command {
+	var prNumber int
+	var repoName string
+	var title string
+	var body string
+
 	mergeCmd := &cobra.Command{
 		Use:   "merge",
 		Short: "Merge a pull request",
@@ -413,6 +426,9 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 }
 
 func CloseCommand(ctx *context.Context) *cobra.Command {
+	var prNumber int
+	var repoName string
+
 	closeCmd := &cobra.Command{
 		Use:   "close",
 		Short: "Close a pull request",
@@ -449,6 +465,9 @@ func CloseCommand(ctx *context.Context) *cobra.Command {
 }
 
 func ReopenCommand(ctx *context.Context) *cobra.Command {
+	var prNumber int
+	var repoName string
+
 	reopenCmd := &cobra.Command{
 		Use:     "reopen",
 		Short:   "Reopen a closed pull request",

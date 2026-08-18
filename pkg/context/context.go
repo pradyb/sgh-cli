@@ -107,6 +107,9 @@ func Init() (*Context, error) {
 	}, nil
 }
 
+// ValidateGitHubToken performs comprehensive token validation.
+func ValidateGitHubToken(token string) error { return validateGitHubToken(token) }
+
 // validateGitHubToken performs comprehensive token validation
 func validateGitHubToken(token string) error {
 	if token == "" {
