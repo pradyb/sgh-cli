@@ -7,6 +7,7 @@ Thank you for your interest in contributing to sgh-cli! This document outlines t
 - [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
+- [Testing](#testing)
 - [How to Contribute](#how-to-contribute)
 - [Pull Request Process](#pull-request-process)
 - [Coding Standards](#coding-standards)
@@ -34,7 +35,7 @@ By participating in this project, you agree to be respectful and considerate of 
 
 ### Prerequisites
 
-- **Go 1.24.0 or higher**
+- **Go 1.26.1 or higher**
 - **GitHub Personal Access Token** with `repo` and `admin:org` scopes (for integration tests)
 
 ### Enable the git hooks
@@ -77,6 +78,44 @@ gofmt -l .
 export SGH_TOKEN=your_personal_access_token
 export SGH_ORG=your-test-org   # optional, for integration tests
 ```
+
+## Testing
+
+Run these before opening a pull request:
+
+```bash
+go test ./...        # everything
+go test ./... -race  # what CI runs
+gofmt -l .           # must print nothing
+```
+
+### Coverage expectations
+
+Coverage is measured where it buys something, not everywhere:
+
+| Area | Target | Why |
+|---|---|---|
+| `pkg/**` except `pkg/pr/prompt` | **85%** | Business logic. A bug here quietly does the wrong thing across every repository in an organization at once. |
+| `internal/**` | **85%** | Rate limiting, retry, circuit breaking, config. These fail subtly and usually only under load. |
+| `cmd/**` and `pkg/pr/prompt` | no floor | Cobra wiring and Bubble Tea rendering. Tests there break on every cosmetic change and catch almost nothing. |
+
+Check the areas that carry a target:
+
+```bash
+go test ./pkg/... ./internal/... -coverprofile=coverage.out
+go tool cover -func=coverage.out | tail -1
+go tool cover -html=coverage.out -o coverage.html   # line-by-line view
+```
+
+> **These targets are not met today.** Several packages have no tests at all, and the module total is far below 85%. The targets apply to code you add or change; the existing gaps are being closed package by package. Do not read the current number as the standard.
+
+### What makes a good test here
+
+- **Table-driven** once there is more than a couple of cases.
+- **Assert on what a caller observes**, not on how it is implemented — otherwise every refactor rewrites the tests.
+- **Cover the destructive paths first.** `branch delete`, `tag delete`, `repo visibility` and `protected-branch update` act on every matching repository in one run. These are the ones worth being certain about.
+- **Use the mock server** in `internal/testutils` instead of reaching the real GitHub API. Tests must pass offline.
+- **No sleeps and no ordering assumptions** — CI runs with `-race`, and flaky tests get ignored, which is worse than having none.
 
 ## How to Contribute
 
@@ -137,7 +176,7 @@ docs: update README with new workflow examples
   // Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.devlabs@gmail.com>
   // SPDX-License-Identifier: MIT
   ```
-- Write table-driven tests where appropriate
+- Write table-driven tests where appropriate (see [Testing](#testing) for coverage targets)
 - Do not commit binaries or build artifacts
 
 ## Reporting Bugs

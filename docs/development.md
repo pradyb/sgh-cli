@@ -131,7 +131,10 @@ The layering rule: `cmd/` parses flags and prints, `pkg/` holds logic that could
 
 ## Guidelines
 
-- Add tests for new features and bug fixes; aim for **>80% coverage** on core packages
+- Add tests for new features and bug fixes. The coverage targets are **85% for
+  `pkg/**` (except `pkg/pr/prompt`) and `internal/**`**, with no floor on
+  `cmd/**` — see [CONTRIBUTING](../CONTRIBUTING.md#coverage-expectations) for
+  the reasoning. These targets are not met yet and apply to new work
 - Run `go test ./...` and `gofmt -l .` before opening a pull request
 - Keep `cmd/` packages thin — logic belongs in `pkg/`
 - Anything destructive should support `--dry-run`
