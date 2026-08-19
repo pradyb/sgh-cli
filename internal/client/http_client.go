@@ -15,11 +15,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/circuitbreaker"
-	"github.com/prady-lab/sgh-cli/internal/ratelimit"
-	"github.com/prady-lab/sgh-cli/internal/retry"
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/internal/circuitbreaker"
+	"github.com/pradyb/sgh-cli/internal/ratelimit"
+	"github.com/pradyb/sgh-cli/internal/retry"
+	"github.com/pradyb/sgh-cli/pkg/apperrors"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 	"github.com/shurcooL/githubv4"
 )
 

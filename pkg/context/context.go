@@ -14,9 +14,9 @@ import (
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 
-	"github.com/prady-lab/sgh-cli/internal/client"
-	"github.com/prady-lab/sgh-cli/internal/config"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/internal/client"
+	"github.com/pradyb/sgh-cli/internal/config"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 type Context struct {

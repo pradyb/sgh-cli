@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/client"
-	"github.com/prady-lab/sgh-cli/internal/testutils"
-	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/internal/client"
+	"github.com/pradyb/sgh-cli/internal/testutils"
+	appcontext "github.com/pradyb/sgh-cli/pkg/context"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

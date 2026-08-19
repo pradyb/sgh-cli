@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/apperrors"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 // RateLimitInfo contains GitHub API rate limit information

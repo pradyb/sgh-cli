@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 var urlRegex = regexp.MustCompile(`https?://[^\s]+`)

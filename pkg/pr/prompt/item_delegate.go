@@ -11,10 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/pr"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/pr"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 type delegateKeyMap struct {

@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/prady-lab/sgh-cli/utils"
+	"github.com/pradyb/sgh-cli/utils"
 )
 
 var (

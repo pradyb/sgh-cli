@@ -11,9 +11,9 @@ import (
 
 	"github.com/shurcooL/githubv4"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/pkg/context"
 )
 
 // TeamMembersRequest contains parameters for getting team and members information.

@@ -5,10 +5,10 @@
 package org
 
 import (
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 // ListOrgs returns details for every organization the authenticated token belongs to.

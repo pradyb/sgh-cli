@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/model"
 )
 
 var (

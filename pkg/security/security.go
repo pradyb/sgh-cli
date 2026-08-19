@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/internal/processor"
-	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/processor"
+	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/pkg/context"
 )
 
 type AlertListRequest struct {

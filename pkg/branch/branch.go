@@ -9,11 +9,11 @@ import (
 
 	"github.com/shurcooL/githubv4"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/internal/processor"
-	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/processor"
+	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 // BranchListRequest contains parameters for listing branches.

@@ -1,4 +1,4 @@
-module github.com/prady-lab/sgh-cli
+module github.com/pradyb/sgh-cli
 
 go 1.26.1
 

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 // State represents the circuit breaker state

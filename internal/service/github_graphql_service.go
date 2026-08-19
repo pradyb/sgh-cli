@@ -6,7 +6,7 @@ package service
 import (
 	"context"
 
-	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
+	appcontext "github.com/pradyb/sgh-cli/pkg/context"
 )
 
 func Query(ctx *appcontext.Context, query interface{}, variables map[string]interface{}) error {

@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
+	"github.com/pradyb/sgh-cli/pkg/apperrors"
 )
 
 // GitHubValidator provides validation for GitHub-specific inputs

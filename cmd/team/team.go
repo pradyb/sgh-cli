@@ -9,10 +9,10 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/team"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/team"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 func NewTeamCommand(ctx *context.Context) *cobra.Command {

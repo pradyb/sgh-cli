@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/async"
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/repo"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/internal/async"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/repo"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 type OperationEnum int

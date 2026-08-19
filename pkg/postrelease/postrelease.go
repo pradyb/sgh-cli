@@ -9,10 +9,10 @@ package postrelease
 import (
 	"fmt"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/internal/processor"
-	"github.com/prady-lab/sgh-cli/internal/service"
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/internal/processor"
+	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/pkg/context"
 )
 
 // PostReleaseRequest contains the parameters for a post-release workflow across repositories.

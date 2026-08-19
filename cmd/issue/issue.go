@@ -10,10 +10,10 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/issue"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-	"github.com/prady-lab/sgh-cli/utils"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/issue"
+	"github.com/pradyb/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/utils"
 )
 
 func repoCompletionFn(ctx *context.Context) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {

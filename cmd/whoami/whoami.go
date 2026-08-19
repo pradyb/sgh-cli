@@ -7,9 +7,9 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-	"github.com/prady-lab/sgh-cli/pkg/whoami"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/whoami"
 )
 
 func NewWhoAmICommand(ctx *context.Context) *cobra.Command {

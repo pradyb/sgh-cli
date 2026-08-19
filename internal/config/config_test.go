@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prady-lab/sgh-cli/pkg/validation"
+	"github.com/pradyb/sgh-cli/pkg/validation"
 )
 
 // Test constants to avoid duplication

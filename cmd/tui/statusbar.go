@@ -10,7 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 type statusBarModel struct {

@@ -7,12 +7,12 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	"github.com/prady-lab/sgh-cli/internal/processor"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/tag"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-	"github.com/prady-lab/sgh-cli/utils"
+	"github.com/pradyb/sgh-cli/internal/processor"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/tag"
+	"github.com/pradyb/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/utils"
 )
 
 var (

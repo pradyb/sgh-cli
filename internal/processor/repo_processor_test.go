@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/internal/config"
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/internal/config"
+	"github.com/pradyb/sgh-cli/pkg/context"
 )
 
 const (

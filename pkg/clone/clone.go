@@ -10,11 +10,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/repo"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/internal/model"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/repo"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 func CloneRepositories(ctx *context.Context, orgName string, repos []string, branch string) error {

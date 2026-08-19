@@ -15,10 +15,10 @@ import (
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
-	"github.com/prady-lab/sgh-cli/pkg/validation"
-	"github.com/prady-lab/sgh-cli/utils"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/validation"
+	"github.com/pradyb/sgh-cli/utils"
 )
 
 const DefaultFilename = "sgh.json"

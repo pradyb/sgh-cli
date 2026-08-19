@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/pkg/apperrors"
+	"github.com/pradyb/sgh-cli/pkg/apperrors"
 )
 
 func TestDo_SuccessFirstTry(t *testing.T) {

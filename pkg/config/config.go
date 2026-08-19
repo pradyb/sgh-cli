@@ -8,10 +8,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	internalconfig "github.com/prady-lab/sgh-cli/internal/config"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	internalconfig "github.com/pradyb/sgh-cli/internal/config"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 var (

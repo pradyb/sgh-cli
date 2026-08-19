@@ -12,11 +12,11 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 
-	internalconfig "github.com/prady-lab/sgh-cli/internal/config"
-	"github.com/prady-lab/sgh-cli/pkg/config"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	internalconfig "github.com/pradyb/sgh-cli/internal/config"
+	"github.com/pradyb/sgh-cli/pkg/config"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 func NewConfigCommand(ctx *context.Context) *cobra.Command {

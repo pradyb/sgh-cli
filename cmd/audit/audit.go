@@ -10,9 +10,9 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	pkgaudit "github.com/prady-lab/sgh-cli/pkg/audit"
-	"github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/ui"
+	pkgaudit "github.com/pradyb/sgh-cli/pkg/audit"
+	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/ui"
 )
 
 func NewAuditCommand(ctx *context.Context) *cobra.Command {

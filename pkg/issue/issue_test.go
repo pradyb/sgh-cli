@@ -6,7 +6,7 @@ package issue
 import (
 	"testing"
 
-	"github.com/prady-lab/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/context"
 )
 
 func TestBuildIssueSearchQuery(t *testing.T) {

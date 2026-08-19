@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prady-lab/sgh-cli/cmd"
-	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/cmd"
+	appcontext "github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 func main() {
@@ -124,5 +124,5 @@ func printGeneralHelp() {
 	fmt.Fprintln(os.Stderr, "   • Check your internet connection")
 	fmt.Fprintln(os.Stderr, "   • Verify GitHub API is accessible")
 	fmt.Fprintln(os.Stderr, "   • Run with --verbose flag for detailed logs")
-	fmt.Fprintln(os.Stderr, "   • Check the documentation: https://github.com/prady-lab/sgh-cli")
+	fmt.Fprintln(os.Stderr, "   • Check the documentation: https://github.com/pradyb/sgh-cli")
 }

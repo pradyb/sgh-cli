@@ -14,9 +14,9 @@ import (
 
 	"github.com/shurcooL/githubv4"
 
-	"github.com/prady-lab/sgh-cli/internal/model"
-	appcontext "github.com/prady-lab/sgh-cli/pkg/context"
-	"github.com/prady-lab/sgh-cli/pkg/logger"
+	"github.com/pradyb/sgh-cli/internal/model"
+	appcontext "github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 var githubBaseURL = "https://api.github.com"
