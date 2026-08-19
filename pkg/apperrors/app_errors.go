@@ -176,14 +176,20 @@ func IsRetryable(err error) bool {
 		return githubErr.ShouldRetry()
 	}
 
+	// Context errors are terminal: the caller's deadline has passed, or it
+	// cancelled deliberately. Retrying either one ignores an instruction we
+	// were just given.
+	//
+	// This must be checked BEFORE net.Error. context.DeadlineExceeded
+	// implements net.Error and reports Timeout() == true, so a net.Error
+	// branch placed first swallows it and reports the error as retryable.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+
 	// Check for network errors
 	if netErr, ok := err.(net.Error); ok {
 		return netErr.Timeout() || netErr.Temporary()
-	}
-
-	// Check for context errors
-	if err == context.DeadlineExceeded || err == context.Canceled {
-		return false
 	}
 
 	return false
