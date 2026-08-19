@@ -13,7 +13,7 @@ Only the latest release is actively supported with security fixes.
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-Report security issues privately by emailing: **pradeep.dev@proton.me**
+Report security issues privately by emailing: **pradeep.devlabs@gmail.com**
 
 Include:
 - A description of the vulnerability and its potential impact

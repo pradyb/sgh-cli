@@ -116,7 +116,7 @@ docs: update README with new workflow examples
 - Keep functions focused and small; prefer composition
 - Add license headers to all new `.go` files:
   ```go
-  // Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+  // Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.devlabs@gmail.com>
   // SPDX-License-Identifier: MIT
   ```
 - Write table-driven tests where appropriate

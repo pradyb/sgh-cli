@@ -1,4 +1,4 @@
-// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.dev@proton.me>
+// Copyright © 2024 Pradeep Kumar Balakrishnan <pradeep.devlabs@gmail.com>
 // SPDX-License-Identifier: MIT
 
 package workflow
