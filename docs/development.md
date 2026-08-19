@@ -1,9 +1,10 @@
 # Development
 
 - [Building](#building)
+- [Git hooks](#git-hooks)
 - [Running tests](#running-tests)
 - [Coverage](#coverage)
-- [Linting](#linting)
+- [Formatting and linting](#formatting-and-linting)
 - [Project structure](#project-structure)
 - [Architecture notes](#architecture-notes)
 - [Guidelines](#guidelines)
@@ -28,6 +29,20 @@ go build -ldflags="-s -w \
 ```
 
 Without those flags `sgh version` reports `dev`.
+
+## Git hooks
+
+Enable once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The pre-commit hook blocks three things, all cheap to check and expensive to
+discover later: files over 1 MB, strings that look like real GitHub tokens, and
+Go files that are not gofmt-formatted. It inspects only staged content and never
+runs tests, so it costs well under a second. `git commit --no-verify` bypasses
+it; CI enforces the same rules either way.
 
 ## Running tests
 
@@ -54,13 +69,20 @@ go tool cover -html=coverage.out -o coverage.html
 
 Open `coverage.html` in a browser to see exactly which branches are untested.
 
-## Linting
+## Formatting and linting
+
+`gofmt` is the standard CI enforces — the build fails on any drift:
 
 ```bash
-golangci-lint run
+gofmt -l .    # list unformatted files
+gofmt -w .    # fix them
+go vet ./...
 ```
 
-Configuration lives in `.golangci.yml`. CI runs the same command, so a clean local run means a clean pipeline.
+> **golangci-lint is currently dormant.** It does not yet ship a build
+> supporting the Go version this project targets, so the CI lint job is
+> commented out and `.golangci.yml` is unused. Re-enable both once upstream
+> catches up.
 
 ## Project structure
 
@@ -110,7 +132,7 @@ The layering rule: `cmd/` parses flags and prints, `pkg/` holds logic that could
 ## Guidelines
 
 - Add tests for new features and bug fixes; aim for **>80% coverage** on core packages
-- Run `go test ./...` and `golangci-lint run` before opening a pull request
+- Run `go test ./...` and `gofmt -l .` before opening a pull request
 - Keep `cmd/` packages thin — logic belongs in `pkg/`
 - Anything destructive should support `--dry-run`
 - Follow standard Go conventions; the linter enforces most of them

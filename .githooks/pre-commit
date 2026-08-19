@@ -1,0 +1,92 @@
+#!/bin/sh
+#
+# sgh-cli pre-commit hook.
+#
+# Enable with:
+#   git config core.hooksPath .githooks
+#
+# Deliberately fast — it only checks staged content and never runs the test
+# suite. CI is the gate; this is here to catch the three things that are
+# expensive to discover later. Bypass with `git commit --no-verify` when you
+# genuinely need to.
+
+set -e
+
+RED=$(printf '\033[31m')
+YELLOW=$(printf '\033[33m')
+RESET=$(printf '\033[0m')
+
+fail=0
+
+staged() {
+	git diff --cached --name-only --diff-filter=ACM
+}
+
+# ---------------------------------------------------------------------------
+# 1. Large files
+#
+# This repository once carried 25 MB of compiled binaries in its history, which
+# had to be surgically removed later. Blobs are forever; catch them here.
+# ---------------------------------------------------------------------------
+MAX_BYTES=1048576
+
+for file in $(staged); do
+	[ -f "$file" ] || continue
+	size=$(wc -c <"$file" | tr -d ' ')
+	if [ "$size" -gt "$MAX_BYTES" ]; then
+		printf '%sBLOCKED%s %s is %s bytes (limit %s)\n' \
+			"$RED" "$RESET" "$file" "$size" "$MAX_BYTES"
+		fail=1
+	fi
+done
+
+# ---------------------------------------------------------------------------
+# 2. Credentials
+#
+# sgh-cli exists to handle GitHub PATs, so a real token reaching a commit is
+# the worst-case failure. Test files and documentation use deliberate
+# placeholders, so they are skipped.
+# ---------------------------------------------------------------------------
+TOKEN_RE='(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{50,}'
+
+for file in $(staged); do
+	[ -f "$file" ] || continue
+	case "$file" in
+	*_test.go | docs/* | README.md | CONTRIBUTING.md | .githooks/*) continue ;;
+	esac
+	if git show ":$file" | grep -Eq "$TOKEN_RE"; then
+		printf '%sBLOCKED%s %s looks like it contains a GitHub token\n' \
+			"$RED" "$RESET" "$file"
+		fail=1
+	fi
+done
+
+# ---------------------------------------------------------------------------
+# 3. Formatting
+#
+# gofmt only. golangci-lint is not run here: it is slow, and it does not yet
+# support the Go version this project targets.
+# ---------------------------------------------------------------------------
+go_files=$(staged | grep '\.go$' || true)
+
+if [ -n "$go_files" ]; then
+	if ! command -v gofmt >/dev/null 2>&1; then
+		printf '%sWARNING%s gofmt not found; skipping format check\n' \
+			"$YELLOW" "$RESET" >&2
+	else
+		unformatted=$(gofmt -l $go_files)
+		if [ -n "$unformatted" ]; then
+			printf '%sBLOCKED%s not gofmt-formatted:\n' "$RED" "$RESET"
+			printf '  %s\n' $unformatted
+			printf "  run: gofmt -w %s\n" "$(echo $unformatted | tr '\n' ' ')"
+			fail=1
+		fi
+	fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+	printf '\nCommit aborted. Use --no-verify to override.\n' >&2
+	exit 1
+fi
+
+exit 0

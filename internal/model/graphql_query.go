@@ -443,8 +443,8 @@ type SearchBranchesQuery struct {
 						TotalCount int
 						Edges      []struct {
 							Node struct {
-								Name               string
-								Target             struct { Oid string }
+								Name                 string
+								Target               struct{ Oid string }
 								BranchProtectionRule struct {
 									IsAdminEnforced bool
 									Pattern         string

@@ -7,8 +7,8 @@ package repo
 
 import (
 	"fmt"
-	"sort"
 	"slices"
+	"sort"
 
 	"github.com/pradyb/sgh-cli/internal/model"
 	"github.com/pradyb/sgh-cli/internal/service"

@@ -45,7 +45,7 @@ func ListCommits(ctx *context.Context, req CommitListRequest) []model.CommitResp
 		if n <= 0 {
 			n = 3
 		}
-		midnight := time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, -n)
+		midnight := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -n)
 		since = midnight.Format(time.RFC3339)
 	}
 
