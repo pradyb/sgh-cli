@@ -666,19 +666,19 @@ func (e *AuditLogEntry) UnmarshalJSON(b []byte) error {
 
 // UserInfo holds the authenticated user's profile from GET /user.
 type UserInfo struct {
-	Login       string `json:"login"`
-	Name        string `json:"name"`
-	Email       string `json:"email"`
-	Company     string `json:"company"`
-	Location    string `json:"location"`
-	Bio         string `json:"bio"`
-	Blog        string `json:"blog"`
+	Login           string `json:"login"`
+	Name            string `json:"name"`
+	Email           string `json:"email"`
+	Company         string `json:"company"`
+	Location        string `json:"location"`
+	Bio             string `json:"bio"`
+	Blog            string `json:"blog"`
 	TwitterUsername string `json:"twitter_username"`
-	PublicRepos int    `json:"public_repos"`
-	Followers   int    `json:"followers"`
-	Following   int    `json:"following"`
-	HTMLUrl     string `json:"html_url"`
-	CreatedAt   string `json:"created_at"`
+	PublicRepos     int    `json:"public_repos"`
+	Followers       int    `json:"followers"`
+	Following       int    `json:"following"`
+	HTMLUrl         string `json:"html_url"`
+	CreatedAt       string `json:"created_at"`
 	// private — only present when token has `user` scope
 	TotalPrivateRepos int `json:"total_private_repos"`
 	DiskUsage         int `json:"disk_usage"`
@@ -704,23 +704,23 @@ type IssueComment struct {
 
 // OrgDetail holds rich information about a GitHub organization fetched via GraphQL.
 type OrgDetail struct {
-	Login            string
-	Name             string
-	Description      string
-	Email            string
-	WebsiteURL       string
-	Location         string
-	TwitterUsername  string
-	CreatedAt        string
-	UpdatedAt        string
-	URL              string
-	AvatarURL        string
-	IsVerified       bool
-	RequiresTwoFA    bool
-	MembersCount     int
-	TeamsCount       int
-	ReposCount       int
-	PublicReposCount int
+	Login             string
+	Name              string
+	Description       string
+	Email             string
+	WebsiteURL        string
+	Location          string
+	TwitterUsername   string
+	CreatedAt         string
+	UpdatedAt         string
+	URL               string
+	AvatarURL         string
+	IsVerified        bool
+	RequiresTwoFA     bool
+	MembersCount      int
+	TeamsCount        int
+	ReposCount        int
+	PublicReposCount  int
 	PrivateReposCount int
-	DiskUsageMB      float64
+	DiskUsageMB       float64
 }

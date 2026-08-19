@@ -37,6 +37,19 @@ By participating in this project, you agree to be respectful and considerate of 
 - **Go 1.24.0 or higher**
 - **GitHub Personal Access Token** with `repo` and `admin:org` scopes (for integration tests)
 
+### Enable the git hooks
+
+Do this once per clone. It wires up a fast pre-commit check that blocks large
+files, accidental credentials, and unformatted Go:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook only inspects staged content and never runs the test suite, so it adds
+well under a second. Bypass it with `git commit --no-verify` if you genuinely
+need to — CI enforces the same rules regardless.
+
 ### Build
 
 ```bash
@@ -49,9 +62,14 @@ go test ./...
 # Run tests with race detector
 go test -race ./...
 
-# Run linter (requires golangci-lint)
-golangci-lint run
+# Check formatting — CI fails on any drift
+gofmt -l .
 ```
+
+> **golangci-lint is not currently runnable.** It does not yet ship a build
+> supporting the Go version this project targets, so the CI lint job is
+> disabled and `.golangci.yml` is dormant. `gofmt` and `go vet` are the
+> standards enforced today.
 
 ### Environment Variables
 
