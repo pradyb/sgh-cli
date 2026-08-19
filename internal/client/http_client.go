@@ -43,8 +43,12 @@ func NewHttpClient(timeout time.Duration, token string) *HttpClient {
 	rateLimiter := ratelimit.NewRateLimiter()
 	circuitBreaker := circuitbreaker.New(circuitbreaker.DefaultConfig())
 
-	// Create a custom transport with connection pooling and timeouts
+	// Create a custom transport with connection pooling and timeouts.
+	// Proxy must be set explicitly — a custom transport does not inherit
+	// http.DefaultTransport's ProxyFromEnvironment, so HTTPS_PROXY/NO_PROXY
+	// would otherwise be ignored.
 	transport := &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
