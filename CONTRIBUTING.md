@@ -91,23 +91,24 @@ gofmt -l .           # must print nothing
 
 ### Coverage expectations
 
-Coverage is measured where it buys something, not everywhere:
+Coverage is tracked across the whole module except one explicitly excluded package:
 
-| Area | Target | Why |
+| Area | Tracked | Why |
 |---|---|---|
-| `pkg/**` except `pkg/pr/prompt` | **85%** | Business logic. A bug here quietly does the wrong thing across every repository in an organization at once. |
-| `internal/**` | **85%** | Rate limiting, retry, circuit breaking, config. These fail subtly and usually only under load. |
-| `cmd/**` and `pkg/pr/prompt` | no floor | Cobra wiring and Bubble Tea rendering. Tests there break on every cosmetic change and catch almost nothing. |
+| `pkg/**` (including `pkg/pr/prompt`) | Yes | Business logic. A bug here quietly does the wrong thing across every repository in an organization at once. `pkg/pr/prompt` is a Bubble Tea model, but its `Init`/`Update`/`View` methods, network calls, and table renderers are all plain functions callable without a real terminal — only `RunInteractivePR` itself (the terminal event loop) is exempt, for the same reason `cmd/tui` is below. |
+| `internal/**` | Yes | Rate limiting, retry, circuit breaking, config, the HTTP/GraphQL transport layer. These fail subtly and usually only under load. |
+| `cmd/**` (all subcommands, e.g. `cmd/branch`, `cmd/pr`, `cmd/config`, ...) | Yes | Cobra flag parsing, validation, and orchestration — tested against a local mock GitHub server, not the real API, so this isn't just wiring. |
+| `cmd/tui` | **No** | A full-screen interactive Bubble Tea application driven by a real TTY event loop. Meaningfully testing it means driving an actual terminal program end-to-end, which is fragile, hangs CI easily, and mostly re-tests the Bubble Tea library rather than this project's logic. |
 
-Check the areas that carry a target:
+> **Overall coverage across the tracked packages must stay above 85%.** This is a hard floor for the whole module, not a per-package target — a change is free to leave one file thinner as long as the total holds.
+
+Check current coverage (excludes `cmd/tui`, per the table above):
 
 ```bash
-go test ./pkg/... ./internal/... -coverprofile=coverage.out
+go test $(go list ./... | grep -v 'cmd/tui') -coverprofile=coverage.out
 go tool cover -func=coverage.out | tail -1
 go tool cover -html=coverage.out -o coverage.html   # line-by-line view
 ```
-
-> **These targets are not met today.** Several packages have no tests at all, and the module total is far below 85%. The targets apply to code you add or change; the existing gaps are being closed package by package. Do not read the current number as the standard.
 
 ### What makes a good test here
 

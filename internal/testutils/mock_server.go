@@ -4,8 +4,10 @@
 package testutils
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -134,8 +136,20 @@ func (m *MockGitHubServer) SetRateLimit(limit, remaining int, reset time.Time) {
 	}
 }
 
-// recordRequest records a request for later inspection
-func (m *MockGitHubServer) recordRequest(r *http.Request, body string) {
+// recordRequest records a request for later inspection. It reads and
+// captures the request body (if any), then restores r.Body so handlers can
+// still read it afterwards (e.g. handleGraphQL decoding the query).
+func (m *MockGitHubServer) recordRequest(r *http.Request) {
+	var bodyStr string
+	if r.Body != nil {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err == nil {
+			bodyStr = string(bodyBytes)
+		}
+		r.Body.Close()
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -150,9 +164,34 @@ func (m *MockGitHubServer) recordRequest(r *http.Request, body string) {
 		Method:    r.Method,
 		Path:      r.URL.Path,
 		Headers:   headers,
-		Body:      body,
+		Body:      bodyStr,
 		Timestamp: time.Now(),
 	})
+}
+
+// respondWithOverride writes a previously configured custom response for
+// path, if any, and reports whether it did so. Callers should return
+// immediately when it returns true.
+func (m *MockGitHubServer) respondWithOverride(w http.ResponseWriter, path string) bool {
+	m.mu.RLock()
+	response, exists := m.responses[path]
+	m.mu.RUnlock()
+	if !exists {
+		return false
+	}
+
+	if response.Delay > 0 {
+		time.Sleep(response.Delay)
+	}
+	for key, value := range response.Headers {
+		w.Header().Set(key, value)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	if response.Body != nil {
+		json.NewEncoder(w).Encode(response.Body)
+	}
+	return true
 }
 
 // writeJSONResponse writes a JSON response with standard headers
@@ -174,7 +213,7 @@ func (m *MockGitHubServer) writeJSONResponse(w http.ResponseWriter, statusCode i
 
 // handleRateLimit handles the /rate_limit endpoint
 func (m *MockGitHubServer) handleRateLimit(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
 	response := map[string]interface{}{
 		"resources": map[string]interface{}{
@@ -204,7 +243,11 @@ func (m *MockGitHubServer) handleRateLimit(w http.ResponseWriter, r *http.Reques
 
 // handleUser handles the /user endpoint
 func (m *MockGitHubServer) handleUser(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
+
+	if m.respondWithOverride(w, r.URL.Path) {
+		return
+	}
 
 	user := map[string]interface{}{
 		"login":        "testuser",
@@ -230,25 +273,11 @@ func (m *MockGitHubServer) handleUser(w http.ResponseWriter, r *http.Request) {
 
 // handleOrganizations handles organization-related endpoints
 func (m *MockGitHubServer) handleOrganizations(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
-	// Check if we have a custom response for this path
-	m.mu.RLock()
-	if response, exists := m.responses[r.URL.Path]; exists {
-		m.mu.RUnlock()
-		if response.Delay > 0 {
-			time.Sleep(response.Delay)
-		}
-		for key, value := range response.Headers {
-			w.Header().Set(key, value)
-		}
-		w.WriteHeader(response.StatusCode)
-		if response.Body != nil {
-			json.NewEncoder(w).Encode(response.Body)
-		}
+	if m.respondWithOverride(w, r.URL.Path) {
 		return
 	}
-	m.mu.RUnlock()
 
 	path := r.URL.Path
 	if strings.Contains(path, "/repos") {
@@ -399,24 +428,13 @@ func (m *MockGitHubServer) handleOrganizations(w http.ResponseWriter, r *http.Re
 
 // handleRepositories handles repository-related endpoints
 func (m *MockGitHubServer) handleRepositories(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
 	path := r.URL.Path
 
-	// Check if we have a custom response for this path
-	m.mu.RLock()
-	if response, exists := m.responses[r.URL.Path]; exists {
-		m.mu.RUnlock()
-		if response.Delay > 0 {
-			time.Sleep(response.Delay)
-		}
-		for key, value := range response.Headers {
-			w.Header().Set(key, value)
-		}
-		m.writeJSONResponse(w, response.StatusCode, response.Body)
+	if m.respondWithOverride(w, r.URL.Path) {
 		return
 	}
-	m.mu.RUnlock()
 
 	// Handle list branches
 	if r.Method == "GET" && strings.Contains(path, "/branches") && !strings.Contains(path, "/protection") {
@@ -538,7 +556,7 @@ func (m *MockGitHubServer) handleRepositories(w http.ResponseWriter, r *http.Req
 
 // handleGraphQL handles GraphQL API requests
 func (m *MockGitHubServer) handleGraphQL(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
 	// Parse the GraphQL query from request body
 	var request struct {
@@ -555,6 +573,10 @@ func (m *MockGitHubServer) handleGraphQL(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if m.respondWithOverride(w, r.URL.Path) {
+		return
+	}
+
 	// Mock different GraphQL responses based on query
 	response := m.mockGraphQLResponse(request.Query, request.Variables)
 	m.writeJSONResponse(w, http.StatusOK, response)
@@ -562,9 +584,13 @@ func (m *MockGitHubServer) handleGraphQL(w http.ResponseWriter, r *http.Request)
 
 // handleSearch handles search API requests
 func (m *MockGitHubServer) handleSearch(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
 	path := r.URL.Path
+
+	if m.respondWithOverride(w, path) {
+		return
+	}
 
 	if strings.Contains(path, "/repositories") {
 		repos := []map[string]interface{}{
@@ -646,31 +672,11 @@ func (m *MockGitHubServer) handleSearch(w http.ResponseWriter, r *http.Request) 
 
 // handleDefault handles unmatched routes
 func (m *MockGitHubServer) handleDefault(w http.ResponseWriter, r *http.Request) {
-	m.recordRequest(r, "")
+	m.recordRequest(r)
 
-	// Check if we have a custom response for this path
-	m.mu.RLock()
-	if response, exists := m.responses[r.URL.Path]; exists {
-		m.mu.RUnlock()
-
-		// Apply delay if specified
-		if response.Delay > 0 {
-			time.Sleep(response.Delay)
-		}
-
-		// Set custom headers
-		for key, value := range response.Headers {
-			w.Header().Set(key, value)
-		}
-
-		w.WriteHeader(response.StatusCode)
-
-		if response.Body != nil {
-			json.NewEncoder(w).Encode(response.Body)
-		}
+	if m.respondWithOverride(w, r.URL.Path) {
 		return
 	}
-	m.mu.RUnlock()
 
 	// Default 404 response
 	m.writeJSONResponse(w, http.StatusNotFound, map[string]interface{}{

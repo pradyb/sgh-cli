@@ -68,7 +68,7 @@ func CreateNewBranchFromCommit(ctx *context.Context, req BranchCreateFromCommitR
 	if err != nil {
 		return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], req.NewBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", fmt.Sprintf("failed to create branch from commit: %v", err))}
 	}
-	return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], req.NewBranchName, "CREATE_BRANCH_BY_COMMIT_ID", "", response.Object.SHA)}
+	return []model.RefUIResponse{model.CreateNewCommonResponse(actualRepoNames[0], req.NewBranchName, "CREATE_BRANCH_BY_COMMIT_ID", response.Object.SHA, "")}
 }
 
 func CreateNewBranches(ctx *context.Context, req BranchCreateRequest) []model.RefUIResponse {

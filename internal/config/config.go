@@ -164,9 +164,12 @@ func (config *Config) ProtectedBranchDetail(orgName string) ProtectedBranch {
 // OwnerTypeFor returns the cached owner type ("Organization" or "User") for the given name,
 // or "" if it has not been detected yet.
 func (config *Config) OwnerTypeFor(orgName string) string {
+	if config == nil {
+		return ""
+	}
 	config.ownerTypeMu.Lock()
 	defer config.ownerTypeMu.Unlock()
-	if config == nil || config.orgData == nil {
+	if config.orgData == nil {
 		return ""
 	}
 	org, exists := config.orgData[strings.ToLower(orgName)]
