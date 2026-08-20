@@ -96,9 +96,26 @@ Coverage is tracked across the whole module except one explicitly excluded packa
 | Area | Tracked | Why |
 |---|---|---|
 | `pkg/**` (including `pkg/pr/prompt`) | Yes | Business logic. A bug here quietly does the wrong thing across every repository in an organization at once. `pkg/pr/prompt` is a Bubble Tea model, but its `Init`/`Update`/`View` methods, network calls, and table renderers are all plain functions callable without a real terminal — only `RunInteractivePR` itself (the terminal event loop) is exempt, for the same reason `cmd/tui` is below. |
-| `internal/**` | Yes | Rate limiting, retry, circuit breaking, config, the HTTP/GraphQL transport layer. These fail subtly and usually only under load. |
+| `internal/**` (except the two helper packages below) | Yes | Rate limiting, retry, circuit breaking, config, the HTTP/GraphQL transport layer. These fail subtly and usually only under load. |
 | `cmd/**` (all subcommands, e.g. `cmd/branch`, `cmd/pr`, `cmd/config`, ...) | Yes | Cobra flag parsing, validation, and orchestration — tested against a local mock GitHub server, not the real API, so this isn't just wiring. |
 | `cmd/tui` | **No** | A full-screen interactive Bubble Tea application driven by a real TTY event loop. Meaningfully testing it means driving an actual terminal program end-to-end, which is fragile, hangs CI easily, and mostly re-tests the Bubble Tea library rather than this project's logic. |
+| `internal/testutils`, `internal/service/servicetest` | **No** | Test-only helpers — the mock GitHub server and the mock context builder. Neither is linked into the binary. See the note below on why their coverage number would be meaningless. |
+
+The two test-helper packages are excluded because their reported coverage is a
+measurement artifact rather than a fact. Go attributes coverage per test binary,
+and neither package has one of its own, so the thousands of times other packages'
+tests execute them earns no credit and they report 0%. Counting that against the
+floor would put roughly 150 statements of known-false "untested" into the gate.
+
+Excluded is not untrusted. A bug in the mock server does not hide — it fails
+tests across the whole repo at once, which is a louder signal than a coverage
+percentage. If either package grows real branching logic of its own, it should
+get its own tests and come back into the count.
+
+The exclusion list in `scripts/check-coverage.sh` names each package by exact
+import path, and the script fails if an entry no longer resolves. Keep it that
+way: a pattern would silently swallow future packages, and an exclusion list
+that grows by accident is how a coverage gate stops meaning anything.
 
 > **Overall coverage across the tracked packages must stay above 85%.** This is a hard floor for the whole module, not a per-package target — a change is free to leave one file thinner as long as the total holds. **CI enforces this on every push and pull request and fails the build below it** (see the "Run tests and enforce coverage floor" step in `.github/workflows/ci.yml`).
 
