@@ -13,14 +13,22 @@ set -e
 THRESHOLD=85
 PROFILE=coverage.out
 
-RED=$(printf '\033[31m')
-GREEN=$(printf '\033[32m')
-RESET=$(printf '\033[0m')
+# Only colourise when stdout is a terminal, so redirecting to a file or
+# piping into another tool does not embed escape codes in the output.
+if [ -t 1 ]; then
+	RED=$(printf '\033[31m')
+	GREEN=$(printf '\033[32m')
+	RESET=$(printf '\033[0m')
+else
+	RED=""
+	GREEN=""
+	RESET=""
+fi
 
 # cmd/tui is the one excluded package: an interactive Bubble Tea terminal
 # app driven by a real TTY event loop, which can't be meaningfully tested
 # without one. Everything else is tracked. See CONTRIBUTING.md.
-packages=$(go list ./... | grep -v 'cmd/tui')
+packages=$(go list ./... | grep -v '/cmd/tui$')
 
 # shellcheck disable=SC2086
 go test -race -coverprofile="$PROFILE" -covermode=atomic $packages
