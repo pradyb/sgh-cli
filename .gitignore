@@ -36,3 +36,7 @@ vendor/
 
 # Test cache
 /tmp/
+
+# Coverage artifacts from scripts/check-coverage.sh
+/coverage.out
+/coverage.html

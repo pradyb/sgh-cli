@@ -100,14 +100,18 @@ Coverage is tracked across the whole module except one explicitly excluded packa
 | `cmd/**` (all subcommands, e.g. `cmd/branch`, `cmd/pr`, `cmd/config`, ...) | Yes | Cobra flag parsing, validation, and orchestration — tested against a local mock GitHub server, not the real API, so this isn't just wiring. |
 | `cmd/tui` | **No** | A full-screen interactive Bubble Tea application driven by a real TTY event loop. Meaningfully testing it means driving an actual terminal program end-to-end, which is fragile, hangs CI easily, and mostly re-tests the Bubble Tea library rather than this project's logic. |
 
-> **Overall coverage across the tracked packages must stay above 85%.** This is a hard floor for the whole module, not a per-package target — a change is free to leave one file thinner as long as the total holds.
+> **Overall coverage across the tracked packages must stay above 85%.** This is a hard floor for the whole module, not a per-package target — a change is free to leave one file thinner as long as the total holds. **CI enforces this on every push and pull request and fails the build below it** (see the "Run tests and enforce coverage floor" step in `.github/workflows/ci.yml`).
 
-Check current coverage (excludes `cmd/tui`, per the table above):
+Check it locally with the same script CI runs — it's the single source of truth for the threshold, so there's no drift between what you see and what CI enforces:
 
 ```bash
-go test $(go list ./... | grep -v 'cmd/tui') -coverprofile=coverage.out
-go tool cover -func=coverage.out | tail -1
-go tool cover -html=coverage.out -o coverage.html   # line-by-line view
+./scripts/check-coverage.sh
+```
+
+It runs the full suite with `-race` and coverage instrumentation across the tracked packages, prints the total, and exits non-zero if it's below 85%. For a line-by-line view of what's uncovered:
+
+```bash
+go tool cover -html=coverage.out -o coverage.html
 ```
 
 ### What makes a good test here
