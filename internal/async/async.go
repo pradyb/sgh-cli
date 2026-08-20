@@ -48,19 +48,33 @@ func NewAsyncJobQueue[T, R any](jobQueueSize int) *AsyncJobQueue[T, R] {
 
 func (q *AsyncJobQueue[T, R]) Start(jobHandler AsyncJobHandler[T, R], resultHandler AsyncJobResultHandler[T, R], errorHandler AsyncJobErrorHandler[T], noOfWorkers int) {
 	var consumeWg sync.WaitGroup
-	consumeWg.Add(2)
+	consumeWg.Add(1)
 
+	// Both channels are drained by this single goroutine, via select, so
+	// resultHandler and errorHandler are never invoked concurrently with
+	// each other. Callers (e.g. internal/processor) commonly close over a
+	// shared, unsynchronized slice across both handlers; running them on
+	// two separate goroutines (the previous approach) raced whenever a
+	// success and a failure landed around the same time.
 	go func() {
 		defer consumeWg.Done()
-		for result := range q.Results {
-			resultHandler(result)
-		}
-	}()
-
-	go func() {
-		defer consumeWg.Done()
-		for err := range q.Errors {
-			errorHandler(err)
+		results := q.Results
+		errs := q.Errors
+		for results != nil || errs != nil {
+			select {
+			case result, ok := <-results:
+				if !ok {
+					results = nil
+					continue
+				}
+				resultHandler(result)
+			case err, ok := <-errs:
+				if !ok {
+					errs = nil
+					continue
+				}
+				errorHandler(err)
+			}
 		}
 	}()
 
