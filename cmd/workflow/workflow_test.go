@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/workflow"
 )
@@ -59,7 +59,7 @@ func workflowRunsBody() map[string]interface{} {
 func TestNewWorkflowCommand_Structure(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewWorkflowCommand(ctx)
 	if cmd.Use != "workflow <command>" {
@@ -86,7 +86,7 @@ func TestListCommand_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       workflowRunsBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	if err := execCmd(ListCommand(ctx), "list", "--org", "acme", "-r", "repo1"); err != nil {
@@ -101,7 +101,7 @@ func TestListCommand_QuickFilters(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       workflowRunsBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	tests := [][]string{
@@ -128,7 +128,7 @@ func TestListCommand_JSONOutput(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       workflowRunsBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.JSON = true
 	ctx.Limit = 1
@@ -141,7 +141,7 @@ func TestListCommand_JSONOutput(t *testing.T) {
 func TestListCommand_MutuallyExclusiveFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(ListCommand(ctx), "list", "--org", "acme", "--running", "--failed")
 	if err == nil {
@@ -163,7 +163,7 @@ func TestViewCommand_ExplicitRun(t *testing.T) {
 			"jobs":        []map[string]interface{}{{"id": 1, "run_id": 123, "name": "build-job", "status": "completed"}},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -188,7 +188,7 @@ func TestViewCommand_LatestRun(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -202,7 +202,7 @@ func TestViewCommand_LatestRunError(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	// GetLatestRunID fails; the command should just log and return, not crash.
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1"); err != nil {
@@ -221,7 +221,7 @@ func TestViewCommand_WatchFlagOnCompletedRun(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	// Since the run is already completed, --watch should take the
 	// non-watch print path and never enter the bubbletea program.
@@ -233,7 +233,7 @@ func TestViewCommand_WatchFlagOnCompletedRun(t *testing.T) {
 func TestViewCommand_MissingRepository(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository flag")
@@ -246,7 +246,7 @@ func TestRerunCommand_Success(t *testing.T) {
 	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123/rerun", testutils.MockResponse{
 		StatusCode: http.StatusCreated,
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -260,7 +260,7 @@ func TestRerunCommand_Error(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -270,7 +270,7 @@ func TestRerunCommand_Error(t *testing.T) {
 func TestRerunCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
@@ -284,7 +284,7 @@ func TestRerunCommand_DryRun(t *testing.T) {
 func TestRerunCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--run flags")
@@ -297,7 +297,7 @@ func TestCancelCommand_Success(t *testing.T) {
 	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123/cancel", testutils.MockResponse{
 		StatusCode: http.StatusAccepted,
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -311,7 +311,7 @@ func TestCancelCommand_Error(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -321,7 +321,7 @@ func TestCancelCommand_Error(t *testing.T) {
 func TestCancelCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
@@ -338,7 +338,7 @@ func TestDispatchCommand_Success(t *testing.T) {
 	mockServer.SetResponse("/repos/acme/repo1/actions/workflows/build.yml/dispatches", testutils.MockResponse{
 		StatusCode: http.StatusNoContent,
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1",
@@ -358,7 +358,7 @@ func TestDispatchCommand_MultiRepoMixedResults(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "-r", "repo2",
@@ -371,7 +371,7 @@ func TestDispatchCommand_MultiRepoMixedResults(t *testing.T) {
 func TestDispatchCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1",
@@ -387,7 +387,7 @@ func TestDispatchCommand_DryRun(t *testing.T) {
 func TestDispatchCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --workflow/--ref flags")
@@ -400,7 +400,7 @@ func TestDispatchCommand_ExportedWrapper(t *testing.T) {
 	mockServer.SetResponse("/repos/acme/repo1/actions/workflows/build.yml/dispatches", testutils.MockResponse{
 		StatusCode: http.StatusNoContent,
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(DispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main")
@@ -412,7 +412,7 @@ func TestDispatchCommand_ExportedWrapper(t *testing.T) {
 func TestRepoCompletionFn(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	root := newTestRoot()
 	if err := root.PersistentFlags().Set("org", "acme"); err != nil {
@@ -444,7 +444,7 @@ func inProgressDetail() model.WorkflowRunDetail {
 func TestNewWatchModel(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	req := workflow.WorkflowRunRequest{OrgName: "acme", RepoName: "repo1", RunID: 123}
 
 	m := newWatchModel(ctx, req, 10*time.Second, inProgressDetail())
@@ -589,7 +589,7 @@ func TestWatchModel_FetchDetail(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	req := workflow.WorkflowRunRequest{OrgName: "acme", RepoName: "repo1", RunID: 123}
 
 	m := newWatchModel(ctx, req, time.Millisecond, model.WorkflowRunDetail{})

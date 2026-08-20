@@ -14,7 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -73,7 +73,7 @@ func auditLogBody() []map[string]interface{} {
 func TestNewAuditCommand_Metadata(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewAuditCommand(ctx)
 
@@ -108,7 +108,7 @@ func TestAuditListCommand_TableOutput_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       auditLogBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	root := newTestRoot()
 	root.AddCommand(NewAuditCommand(ctx))
@@ -145,7 +145,7 @@ func TestAuditListCommand_JSONOutput_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       auditLogBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	root := newTestRoot()
@@ -172,7 +172,7 @@ func TestAuditListCommand_CompactOutput_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       auditLogBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	root := newTestRoot()
 	root.AddCommand(NewAuditCommand(ctx))
@@ -206,7 +206,7 @@ func TestAuditListCommand_ErrorExits(t *testing.T) {
 			StatusCode: http.StatusForbidden,
 			Body:       map[string]interface{}{"message": "not allowed"},
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		root := newTestRoot()
 		root.AddCommand(NewAuditCommand(ctx))

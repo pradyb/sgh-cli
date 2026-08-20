@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -75,7 +75,7 @@ func emptyGraphqlRepoSearchBody() map[string]interface{} {
 func TestOwnerQualifier_Cached(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	ctx.Config.SetOwnerType("testorg", "User")
 	if got := ownerQualifier(ctx, "testorg"); got != "user" {
@@ -96,7 +96,7 @@ func TestOwnerQualifier_FetchesAndCaches(t *testing.T) {
 		Body:       map[string]interface{}{"type": "Organization"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if got := ownerQualifier(ctx, "testorg"); got != "org" {
 		t.Errorf("ownerQualifier() = %q, want org", got)
@@ -114,7 +114,7 @@ func TestOwnerQualifier_FetchesUser(t *testing.T) {
 		Body:       map[string]interface{}{"type": "User"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if got := ownerQualifier(ctx, "someuser"); got != "user" {
 		t.Errorf("ownerQualifier() = %q, want user", got)
@@ -126,7 +126,7 @@ func TestOwnerQualifier_ErrorFallsBackToOrg(t *testing.T) {
 	defer mockServer.Close()
 	// No override for /users/testorg — the catch-all default returns 404.
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if got := ownerQualifier(ctx, "testorg"); got != "org" {
 		t.Errorf("ownerQualifier() = %q, want org (fallback)", got)
@@ -143,7 +143,7 @@ func TestGetReposForOrg_All(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	repos, err := GetReposForOrg(ctx, "testorg", true)
 
@@ -182,7 +182,7 @@ func TestGetReposForOrg_All_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	repos, err := GetReposForOrg(ctx, "testorg", true)
 
@@ -199,7 +199,7 @@ func TestGetReposForOrg_NotConfigured(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: emptyGraphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	repos, err := GetReposForOrg(ctx, "testorg", false)
 
@@ -216,7 +216,7 @@ func TestGetReposForOrg_Configured_NoPatterns(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 
 	repos, err := GetReposForOrg(ctx, "testorg", false)
@@ -240,7 +240,7 @@ func TestGetReposForOrg_Configured_ExcludePattern(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 	ctx.Config.AddRepositoryPattern("testorg", false, true, "^repo-a$")
 
@@ -261,7 +261,7 @@ func TestSearchRepos_Success(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	repos, err := SearchRepos(ctx, "testorg", "widget", "go", "cli")
 
@@ -294,7 +294,7 @@ func TestSearchRepos_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	repos, err := SearchRepos(ctx, "testorg", "", "", "")
 
@@ -313,7 +313,7 @@ func TestGetSelectedRepoNames_Success(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 
 	names, err := GetSelectedRepoNames(ctx, "testorg")
@@ -334,7 +334,7 @@ func TestGetSelectedRepoNames_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	names, err := GetSelectedRepoNames(ctx, "testorg")
 
@@ -351,7 +351,7 @@ func TestGetSelectedRepoNames_Error(t *testing.T) {
 func TestFilteredRepos(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddRepositoryPattern("testorg", true, false, "^keep-")
 
 	repos := []model.Repository{{Name: "keep-me"}, {Name: "drop-me"}}
@@ -371,7 +371,7 @@ func TestFilteredRepos(t *testing.T) {
 func TestResolveRepoList_ExplicitReposWithConfigExcludePattern(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddRepositoryPattern("testorg", false, true, "^test-")
 
 	got := resolveRepoList(ctx, "testorg", []string{"test-a", "prod-b"}, nil)
@@ -384,7 +384,7 @@ func TestResolveRepoList_ExplicitReposWithConfigExcludePattern(t *testing.T) {
 func TestResolveRepoList_ExplicitExclude(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	got := resolveRepoList(ctx, "testorg", []string{"repo1", "repo2"}, []string{"repo1"})
 
@@ -398,7 +398,7 @@ func TestResolveRepoList_NoExplicitRepos_ResolvesFromOrg(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 
 	got := resolveRepoList(ctx, "testorg", nil, nil)
@@ -416,7 +416,7 @@ func TestResolveRepoList_NoExplicitRepos_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	got := resolveRepoList(ctx, "testorg", nil, nil)
 
@@ -431,7 +431,7 @@ func TestArchiveRepos_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ArchiveRepos(ctx, "testorg", []string{"repo1"}, nil, true)
@@ -451,7 +451,7 @@ func TestArchiveRepos_Unarchive(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ArchiveRepos(ctx, "testorg", []string{"repo1"}, nil, false)
@@ -475,7 +475,7 @@ func TestArchiveRepos_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ArchiveRepos(ctx, "testorg", []string{"repo1"}, nil, true)
@@ -493,7 +493,7 @@ func TestArchiveRepos_NoReposResolved(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: emptyGraphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ArchiveRepos(ctx, "testorg", nil, nil, true)
@@ -509,7 +509,7 @@ func TestSetRepoVisibility_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := SetRepoVisibility(ctx, "testorg", []string{"repo1"}, nil, "private")
@@ -533,7 +533,7 @@ func TestSetRepoVisibility_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := SetRepoVisibility(ctx, "testorg", []string{"repo1"}, nil, "public")

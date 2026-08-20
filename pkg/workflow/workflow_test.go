@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -18,7 +18,7 @@ func TestDispatchWorkflow_Success(t *testing.T) {
 		StatusCode: http.StatusNoContent,
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	results := DispatchWorkflow(ctx, WorkflowDispatchRequest{
@@ -49,7 +49,7 @@ func TestDispatchWorkflow_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	results := DispatchWorkflow(ctx, WorkflowDispatchRequest{
@@ -85,7 +85,7 @@ func TestListWorkflowRuns_Success(t *testing.T) {
 		Body:       workflowRunsBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	runs := ListWorkflowRuns(ctx, WorkflowListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}, Count: 10})
@@ -108,7 +108,7 @@ func TestListWorkflowRuns_FilterByWorkflowName(t *testing.T) {
 		Body:       workflowRunsBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	tests := []struct {
@@ -150,7 +150,7 @@ func TestListWorkflowRuns_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	runs := ListWorkflowRuns(ctx, WorkflowListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}, Count: 10})
@@ -170,7 +170,7 @@ func TestRerunWorkflowRun_Success(t *testing.T) {
 		StatusCode: http.StatusCreated,
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	run := RerunWorkflowRun(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -190,7 +190,7 @@ func TestRerunWorkflowRun_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	run := RerunWorkflowRun(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -213,7 +213,7 @@ func TestGetLatestRunID_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	id, err := GetLatestRunID(ctx, "testorg", "repo1")
 	if err != nil {
@@ -232,7 +232,7 @@ func TestGetLatestRunID_NoRuns(t *testing.T) {
 		Body:       map[string]interface{}{"total_count": 0, "workflow_runs": []map[string]interface{}{}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	_, err := GetLatestRunID(ctx, "testorg", "repo1")
 	if err == nil {
@@ -248,7 +248,7 @@ func TestGetLatestRunID_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	_, err := GetLatestRunID(ctx, "testorg", "repo1")
 	if err == nil {
@@ -271,7 +271,7 @@ func TestGetWorkflowRunDetail_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -294,7 +294,7 @@ func TestGetWorkflowRunDetail_RunError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -318,7 +318,7 @@ func TestGetWorkflowRunDetail_JobsError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -337,7 +337,7 @@ func TestCancelWorkflowRun_Success(t *testing.T) {
 		StatusCode: http.StatusAccepted,
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	run := CancelWorkflowRun(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 
@@ -357,7 +357,7 @@ func TestCancelWorkflowRun_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	run := CancelWorkflowRun(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
 

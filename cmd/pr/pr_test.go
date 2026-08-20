@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -45,7 +45,7 @@ func execCmd(cmd *cobra.Command, args ...string) error {
 func TestNewPRCommand_Structure(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewPRCommand(ctx)
 	want := map[string]bool{
@@ -76,7 +76,7 @@ func TestCreateCommand_Success(t *testing.T) {
 			"state":    "open",
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(CreateCommand(ctx), "create", "--org", "acme", "-r", "repo1",
@@ -97,7 +97,7 @@ func TestCreateCommand_MultiRepoMixedResults(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(CreateCommand(ctx), "create", "--org", "acme", "-r", "repo1", "-r", "repo2",
@@ -110,7 +110,7 @@ func TestCreateCommand_MultiRepoMixedResults(t *testing.T) {
 func TestCreateCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(CreateCommand(ctx), "create", "--org", "acme", "-r", "repo1",
@@ -126,7 +126,7 @@ func TestCreateCommand_DryRun(t *testing.T) {
 func TestCreateCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(CreateCommand(ctx), "create", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --title/--base/--head flags")
@@ -146,7 +146,7 @@ func TestListCommand_RESTMultiRepo(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(ListCommand(ctx), "list", "--org", "acme", "-r", "repo1", "-r", "repo2",
@@ -183,7 +183,7 @@ func TestListCommand_GraphQLSingleRepo(t *testing.T) {
 			},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	err := execCmd(ListCommand(ctx), "list", "--org", "acme", "-r", "repo1", "--base", "main", "--head", "feature")
@@ -207,7 +207,7 @@ func TestListCommand_JSONOutput(t *testing.T) {
 			},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.JSON = true
 
@@ -231,7 +231,7 @@ func TestListCommand_DeprecatedAllAliases(t *testing.T) {
 			},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	if err := execCmd(ListCommand(ctx), "list", "--org", "acme", "--all"); err != nil {
@@ -263,7 +263,7 @@ func TestViewCommand_Success(t *testing.T) {
 			},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--pr", "100"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -277,7 +277,7 @@ func TestViewCommand_JSONOutput(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--pr", "100"); err != nil {
@@ -288,7 +288,7 @@ func TestViewCommand_JSONOutput(t *testing.T) {
 func TestViewCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--pr flags")
@@ -304,7 +304,7 @@ func TestReviewCommand_Approve(t *testing.T) {
 			"id": 99, "state": "APPROVED", "user": map[string]interface{}{"login": "reviewer1"},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7", "--approve")
 	if err != nil {
@@ -321,7 +321,7 @@ func TestReviewCommand_RequestChangesWithBody(t *testing.T) {
 			"id": 99, "state": "CHANGES_REQUESTED", "user": map[string]interface{}{"login": "reviewer1"},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7",
@@ -334,7 +334,7 @@ func TestReviewCommand_RequestChangesWithBody(t *testing.T) {
 func TestReviewCommand_CommentMissingBody(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	// --comment without --body should be rejected before any network call.
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7", "--comment")
@@ -349,7 +349,7 @@ func TestReviewCommand_CommentMissingBody(t *testing.T) {
 func TestReviewCommand_NoEventFlag(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	// No --approve/--comment/--request-changes and no legacy --event: invalid.
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7")
@@ -368,7 +368,7 @@ func TestReviewCommand_LegacyEventFlag(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"id": 99, "state": "COMMENTED", "user": map[string]interface{}{"login": "reviewer1"}},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7",
 		"--event", "comment", "--body", "legacy path")
@@ -380,7 +380,7 @@ func TestReviewCommand_LegacyEventFlag(t *testing.T) {
 func TestReviewCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7", "--approve")
@@ -399,7 +399,7 @@ func TestReviewCommand_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(ReviewCommand(ctx), "review", "--org", "acme", "-r", "repo1", "--pr", "7", "--approve")
 	if err != nil {
@@ -410,7 +410,7 @@ func TestReviewCommand_Error(t *testing.T) {
 func TestReviewCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ReviewCommand(ctx), "review", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--pr flags")
@@ -424,7 +424,7 @@ func TestUpdateCommand_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"number": 7, "title": "Updated PR", "state": "closed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(UpdateCommand(ctx), "update", "--org", "acme", "-r", "repo1", "--pr", "7", "--state", "closed")
 	if err != nil {
@@ -435,7 +435,7 @@ func TestUpdateCommand_Success(t *testing.T) {
 func TestUpdateCommand_InvalidState(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(UpdateCommand(ctx), "update", "--org", "acme", "-r", "repo1", "--pr", "7", "--state", "bogus")
 	if err != nil {
@@ -449,7 +449,7 @@ func TestUpdateCommand_InvalidState(t *testing.T) {
 func TestUpdateCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(UpdateCommand(ctx), "update", "--org", "acme", "-r", "repo1", "--pr", "7", "--state", "open")
@@ -464,7 +464,7 @@ func TestUpdateCommand_DryRun(t *testing.T) {
 func TestUpdateCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(UpdateCommand(ctx), "update", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required flags")
@@ -478,7 +478,7 @@ func TestMergeCommand_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"merged": true, "message": "merged", "sha": "abc123"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(MergeCommand(ctx), "merge", "--org", "acme", "-r", "repo1", "--pr", "7",
 		"--title", "Post release merge", "--body", "merging release branch")
@@ -494,7 +494,7 @@ func TestMergeCommand_Error(t *testing.T) {
 		StatusCode: http.StatusMethodNotAllowed,
 		Body:       map[string]interface{}{"message": "Pull Request is not mergeable"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	err := execCmd(MergeCommand(ctx), "merge", "--org", "acme", "-r", "repo1", "--pr", "7")
 	if err != nil {
@@ -505,7 +505,7 @@ func TestMergeCommand_Error(t *testing.T) {
 func TestMergeCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(MergeCommand(ctx), "merge", "--org", "acme", "-r", "repo1", "--pr", "7", "--title", "merge it")
@@ -520,7 +520,7 @@ func TestMergeCommand_DryRun(t *testing.T) {
 func TestMergeCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(MergeCommand(ctx), "merge", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--pr flags")
@@ -534,7 +534,7 @@ func TestCloseCommand_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"number": 42, "title": "Closed PR", "state": "closed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(CloseCommand(ctx), "close", "--org", "acme", "-r", "repo1", "--pr", "42"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -544,7 +544,7 @@ func TestCloseCommand_Success(t *testing.T) {
 func TestCloseCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(CloseCommand(ctx), "close", "--org", "acme", "-r", "repo1", "--pr", "42")
@@ -559,7 +559,7 @@ func TestCloseCommand_DryRun(t *testing.T) {
 func TestCloseCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(CloseCommand(ctx), "close", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--pr flags")
@@ -573,7 +573,7 @@ func TestReopenCommand_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"number": 42, "title": "Reopened PR", "state": "open"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ReopenCommand(ctx), "reopen", "--org", "acme", "-r", "repo1", "--pr", "42"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -583,7 +583,7 @@ func TestReopenCommand_Success(t *testing.T) {
 func TestReopenCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.DryRun = true
 
 	err := execCmd(ReopenCommand(ctx), "reopen", "--org", "acme", "-r", "repo1", "--pr", "42")
@@ -598,7 +598,7 @@ func TestReopenCommand_DryRun(t *testing.T) {
 func TestReopenCommand_MissingRequiredFlags(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	if err := execCmd(ReopenCommand(ctx), "reopen", "--org", "acme"); err == nil {
 		t.Fatal("expected an error for missing required --repository/--pr flags")

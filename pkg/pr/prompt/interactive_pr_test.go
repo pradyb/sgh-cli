@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/pr"
 )
@@ -163,7 +163,7 @@ func TestNewModel_Empty(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       emptySearchGraphQLBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	req := pr.PRRequest{OrgName: "testorg", LastCount: 10}
 
 	m := newModel(ctx, req)
@@ -219,7 +219,7 @@ func TestNewModel_WithItems(t *testing.T) {
 			},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	m := newModel(ctx, pr.PRRequest{OrgName: "testorg", LastCount: 10})
 
@@ -626,7 +626,7 @@ func TestUpdate_KeyMsg_RefreshTriggersNetwork(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       emptySearchGraphQLBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	m := newModel(ctx, pr.PRRequest{OrgName: "testorg"})
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
@@ -646,7 +646,7 @@ func TestUpdate_KeyMsg_EventMsgTriggersNetwork(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       prDetailGraphQLBody(100, "OPEN", "MERGEABLE", "CLEAN"),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	m := newRawModel([]list.Item{samplePR()})
 	next, cmd := m.Update(eventMsg{eventType: "STATUS", ctx: ctx, orgName: "testorg", repoName: "test-repo", selectedPR: samplePR()})
@@ -697,7 +697,7 @@ func TestApprovePR_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"id": 1, "state": "APPROVED", "user": map[string]interface{}{"login": "reviewer1"}},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := approvePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN"})
 	if !ok {
@@ -712,7 +712,7 @@ func TestApprovePR_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := approvePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN"})
 	if ok {
@@ -740,7 +740,7 @@ func TestClosePR_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"number": 7, "state": "closed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := closePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN"})
 	if !ok {
@@ -755,7 +755,7 @@ func TestClosePR_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := closePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN"})
 	if ok {
@@ -793,7 +793,7 @@ func TestMergePR_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"merged": true, "message": "merged", "sha": "abc123"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := mergePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN", Mergeable: "MERGEABLE"})
 	if !ok {
@@ -808,7 +808,7 @@ func TestMergePR_EmptyMergeableStillAllowed(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"merged": true, "message": "merged", "sha": "abc123"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	// Mergeable == "" (unknown/not yet computed by GitHub) should still be allowed through.
 	_, ok := mergePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN", Mergeable: ""})
@@ -824,7 +824,7 @@ func TestMergePR_Error(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	msg, ok := mergePR(ctx, "testorg", "test-repo", 7, model.PullRequestResponse{State: "OPEN", Mergeable: "MERGEABLE"})
 	if ok {
@@ -871,7 +871,7 @@ func TestProcessEventMsg_GraphQLError(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "STATUS")
 	if status.actionSuccess {
@@ -889,7 +889,7 @@ func TestProcessEventMsg_Status(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       prDetailGraphQLBody(100, "OPEN", "MERGEABLE", "CLEAN"),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "STATUS")
 	if status.actionMessage != "" {
@@ -911,7 +911,7 @@ func TestProcessEventMsg_Approve(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"id": 1, "state": "APPROVED"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "APPROVE")
 	if !status.actionSuccess {
@@ -930,7 +930,7 @@ func TestProcessEventMsg_Merge(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"merged": true, "sha": "abc123"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "MERGE")
 	if !status.actionSuccess {
@@ -953,7 +953,7 @@ func TestProcessEventMsg_ApproveMerge_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"merged": true, "sha": "abc123"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "APPROVE_MERGE")
 	if !status.actionSuccess {
@@ -976,7 +976,7 @@ func TestProcessEventMsg_ApproveMerge_MergeFails(t *testing.T) {
 		StatusCode: http.StatusNotFound,
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "APPROVE_MERGE")
 	if status.actionSuccess {
@@ -998,7 +998,7 @@ func TestProcessEventMsg_Close(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       map[string]interface{}{"number": 100, "state": "closed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	status := processEventMsg(ctx, "testorg", "test-repo", 100, "sha", "CLOSE")
 	if !status.actionSuccess {
@@ -1013,7 +1013,7 @@ func TestProcessEventAndGetSectionRenders(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       prDetailGraphQLBody(100, "OPEN", "MERGEABLE", "CLEAN"),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	sections := <-processEventAndGetSectionRenders(ctx, "testorg", "test-repo", 100, "sha", "STATUS")
 	if len(sections) == 0 {

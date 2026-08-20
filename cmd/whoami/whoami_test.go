@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -44,7 +44,7 @@ func captureStdout(t *testing.T, fn func()) string {
 func TestNewWhoAmICommand_Metadata(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewWhoAmICommand(ctx)
 
@@ -65,7 +65,7 @@ func TestNewWhoAmICommand_Metadata(t *testing.T) {
 func TestWhoAmICommand_TableOutput_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewWhoAmICommand(ctx)
 	cmd.SetOut(io.Discard)
@@ -88,7 +88,7 @@ func TestWhoAmICommand_TableOutput_Success(t *testing.T) {
 func TestWhoAmICommand_JSONOutput_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	cmd := NewWhoAmICommand(ctx)
@@ -113,7 +113,7 @@ func TestWhoAmICommand_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewWhoAmICommand(ctx)
 	cmd.SetOut(io.Discard)
@@ -140,7 +140,7 @@ func TestWhoAmICommand_JSONOutput_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	cmd := NewWhoAmICommand(ctx)

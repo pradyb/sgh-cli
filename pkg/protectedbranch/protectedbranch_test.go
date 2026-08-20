@@ -12,7 +12,7 @@ import (
 
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -678,7 +678,7 @@ func TestUpdateProtectedBranchForRepo_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp, err := UpdateProtectedBranchForRepo(ctx, "myrepo", ProtectedBranchRequest{OrgName: "acme", BranchName: "main"}, model.ProtectedBranch{})
 	if err != nil {
@@ -709,7 +709,7 @@ func TestUpdateProtectedBranchForRepo_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp, err := UpdateProtectedBranchForRepo(ctx, "myrepo", ProtectedBranchRequest{OrgName: "acme", BranchName: "main"}, model.ProtectedBranch{})
 	if err == nil {
@@ -733,7 +733,7 @@ func TestUpdateProtectedBranch_Success(t *testing.T) {
 		Body:       emptySearchGraphQLBody,
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := UpdateProtectedBranch(ctx, ProtectedBranchRequest{OrgName: "acme", RepoNames: []string{"myrepo"}, BranchName: "main"}, nil)
@@ -761,7 +761,7 @@ func TestUpdateProtectedBranch_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := UpdateProtectedBranch(ctx, ProtectedBranchRequest{OrgName: "acme", RepoNames: []string{"myrepo"}, BranchName: "main"}, nil)
@@ -791,7 +791,7 @@ func TestUpdateProtectedBranch_ExistingBranch(t *testing.T) {
 		Body:       branchProtectionGraphQLBody("myrepo", "main"),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := UpdateProtectedBranch(ctx, ProtectedBranchRequest{OrgName: "acme", RepoNames: []string{"myrepo"}, BranchName: "main"}, nil)
@@ -812,7 +812,7 @@ func TestDeleteProtectedBranch_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteProtectedBranch(ctx, "acme", []string{"myrepo"}, nil, "main")
@@ -839,7 +839,7 @@ func TestDeleteProtectedBranch_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteProtectedBranch(ctx, "acme", []string{"myrepo"}, nil, "main")
@@ -935,7 +935,7 @@ func TestListProtectedBranches_GraphQL(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Body:       branchProtectionGraphQLBody("myrepo", "main"),
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", nil, nil, "main")
 
@@ -957,7 +957,7 @@ func TestListProtectedBranches_GraphQL(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Body:       branchProtectionGraphQLBody("myrepo", "main"),
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", []string{"myrepo"}, nil, "main")
 
@@ -973,7 +973,7 @@ func TestListProtectedBranches_GraphQL(t *testing.T) {
 			StatusCode: http.StatusForbidden,
 			Body:       map[string]interface{}{"message": "forbidden"},
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", nil, nil, "main")
 
@@ -991,7 +991,7 @@ func TestListProtectedBranches_MultipleRepos(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Body:       branchProtectionGraphQLBody("repo1", "main"),
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", []string{"repo1", "repo2"}, nil, "main")
 
@@ -1007,7 +1007,7 @@ func TestListProtectedBranches_MultipleRepos(t *testing.T) {
 			StatusCode: http.StatusForbidden,
 			Body:       map[string]interface{}{"message": "forbidden"},
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", []string{"repo1", "repo2"}, nil, "main")
 
@@ -1028,7 +1028,7 @@ func TestListProtectedBranches_MultipleRepos(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Body:       emptySearchGraphQLBody,
 		})
-		ctx := service.NewMockContext(t, mockServer)
+		ctx := servicetest.NewMockContext(t, mockServer)
 
 		result := ListProtectedBranches(ctx, "acme", []string{"repo1", "repo2"}, nil, "main")
 

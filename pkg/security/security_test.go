@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -45,7 +45,7 @@ func TestListSecretScanningAlerts_Success(t *testing.T) {
 		Body:       alertsBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	alerts := ListSecretScanningAlerts(ctx, AlertListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}})
@@ -68,7 +68,7 @@ func TestListSecretScanningAlerts_FilterBySecretType(t *testing.T) {
 		Body:       alertsBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	alerts := ListSecretScanningAlerts(ctx, AlertListRequest{
@@ -93,7 +93,7 @@ func TestListSecretScanningAlerts_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	alerts := ListSecretScanningAlerts(ctx, AlertListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}})
@@ -122,7 +122,7 @@ func TestGetSecretScanningAlert_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	alert := GetSecretScanningAlert(ctx, AlertViewRequest{OrgName: "testorg", RepoName: "repo1", AlertNumber: 1})
 
@@ -145,7 +145,7 @@ func TestGetSecretScanningAlert_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	alert := GetSecretScanningAlert(ctx, AlertViewRequest{OrgName: "testorg", RepoName: "repo1", AlertNumber: 99})
 
@@ -170,7 +170,7 @@ func TestUpdateSecretScanningAlert_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	alert := UpdateSecretScanningAlert(ctx, AlertUpdateRequest{
 		OrgName: "testorg", RepoName: "repo1", AlertNumber: 1,
@@ -196,7 +196,7 @@ func TestUpdateSecretScanningAlert_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "invalid resolution"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	alert := UpdateSecretScanningAlert(ctx, AlertUpdateRequest{
 		OrgName: "testorg", RepoName: "repo1", AlertNumber: 1, State: "resolved", Resolution: "wont_fix",

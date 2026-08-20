@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -49,7 +49,7 @@ func TestCreateNewBranchFromCommit_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := CreateNewBranchFromCommit(ctx, BranchCreateFromCommitRequest{
 		OrgName:       "testorg",
@@ -84,7 +84,7 @@ func TestCreateNewBranchFromCommit_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Reference already exists"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := CreateNewBranchFromCommit(ctx, BranchCreateFromCommitRequest{
 		OrgName:       "testorg",
@@ -109,7 +109,7 @@ func TestCreateNewBranches_Success(t *testing.T) {
 		Body:       map[string]interface{}{"object": map[string]interface{}{"sha": "base-sha-1"}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := CreateNewBranches(ctx, BranchCreateRequest{
@@ -142,7 +142,7 @@ func TestCreateNewBranches_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := CreateNewBranches(ctx, BranchCreateRequest{
@@ -164,7 +164,7 @@ func TestDeleteBranches_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteBranches(ctx, BranchDeleteRequest{
@@ -192,7 +192,7 @@ func TestDeleteBranches_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteBranches(ctx, BranchDeleteRequest{
@@ -213,7 +213,7 @@ func TestRenameBranches_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := RenameBranches(ctx, BranchRenameRequest{
@@ -242,7 +242,7 @@ func TestRenameBranches_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "branch not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := RenameBranches(ctx, BranchRenameRequest{
@@ -317,7 +317,7 @@ func TestListBranches_GraphQL_Success(t *testing.T) {
 		Body:       graphqlBranchSearchBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListBranches(ctx, BranchListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}})
 
@@ -347,7 +347,7 @@ func TestListBranches_GraphQL_Filter(t *testing.T) {
 		Body:       graphqlBranchSearchBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListBranches(ctx, BranchListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}, Filter: "^main$"})
 
@@ -367,7 +367,7 @@ func TestListBranches_GraphQL_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListBranches(ctx, BranchListRequest{OrgName: "testorg"})
 
@@ -380,7 +380,7 @@ func TestListBranches_REST_MultiRepo(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListBranches(ctx, BranchListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}, Filter: "dev"})
@@ -403,7 +403,7 @@ func TestListBranches_REST_MultiRepo_PartialError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListBranches(ctx, BranchListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})

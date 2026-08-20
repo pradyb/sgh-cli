@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -28,7 +28,7 @@ func TestListAuditLog(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := ListAuditLog(ctx, AuditListRequest{OrgName: "testorg", Count: 10})
 
@@ -54,7 +54,7 @@ func TestListAuditLog_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := ListAuditLog(ctx, AuditListRequest{OrgName: "testorg"})
 

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -27,7 +27,7 @@ func TestCreateNewPullRequestForRepo_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp, err := CreateNewPullRequestForRepo(ctx, PullRequestRequest{
 		OrgName:  "testorg",
@@ -60,7 +60,7 @@ func TestCreateNewPullRequestForRepo_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Validation Failed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp, err := CreateNewPullRequestForRepo(ctx, PullRequestRequest{
 		OrgName:  "testorg",
@@ -93,7 +93,7 @@ func TestCreateNewPullRequest_MultiRepo(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := CreateNewPullRequest(ctx, PRRequest{
@@ -141,7 +141,7 @@ func TestListPullRequests_RESTMultiRepo(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListPullRequests(ctx, PRRequest{
@@ -185,7 +185,7 @@ func TestReviewPullRequest_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := ReviewPullRequest(ctx, PRReviewRequest{
 		OrgName:  "testorg",
@@ -214,7 +214,7 @@ func TestReviewPullRequest_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := ReviewPullRequest(ctx, PRReviewRequest{
 		OrgName:  "testorg",
@@ -239,7 +239,7 @@ func TestListPullRequestReviews_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	reviews := ListPullRequestReviews(ctx, "testorg", "test-repo", 7)
 
@@ -259,7 +259,7 @@ func TestListPullRequestReviews_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	reviews := ListPullRequestReviews(ctx, "testorg", "test-repo", 7)
 
@@ -278,7 +278,7 @@ func TestGetPullRequestFiles_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetPullRequestFiles(ctx, "testorg", "test-repo", 7)
 
@@ -301,7 +301,7 @@ func TestGetPullRequestFiles_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetPullRequestFiles(ctx, "testorg", "test-repo", 7)
 
@@ -325,7 +325,7 @@ func TestGetPullRequestInfo_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetPullRequestInfo(ctx, "testorg", "test-repo", 7)
 
@@ -345,7 +345,7 @@ func TestGetPullRequestInfo_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetPullRequestInfo(ctx, "testorg", "test-repo", 7)
 
@@ -366,7 +366,7 @@ func TestUpdatePullRequest_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := UpdatePullRequest(ctx, PRUpdateRequest{
 		OrgName:  "testorg",
@@ -391,7 +391,7 @@ func TestUpdatePullRequest_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := UpdatePullRequest(ctx, PRUpdateRequest{
 		OrgName:  "testorg",
@@ -417,7 +417,7 @@ func TestMergePullRequest_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := MergePullRequest(ctx, PRMergeRequest{
 		OrgName:  "testorg",
@@ -448,7 +448,7 @@ func TestMergePullRequest_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Pull Request is not mergeable"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := MergePullRequest(ctx, PRMergeRequest{
 		OrgName:  "testorg",
@@ -487,7 +487,7 @@ func TestGetPRDetails_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	prResp, filesResp, checkResp, reviews := GetPRDetails(ctx, PRDetailsRequest{
 		OrgName:  "testorg",
@@ -530,7 +530,7 @@ func TestGetPRDetails_PartialError(t *testing.T) {
 		Body:       map[string]interface{}{"total": 0, "check_runs": []map[string]interface{}{}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	prResp, filesResp, _, _ := GetPRDetails(ctx, PRDetailsRequest{
 		OrgName:  "testorg",

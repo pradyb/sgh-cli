@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -179,7 +179,7 @@ func TestCloneRepositories_NoReposSelected(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody(nil),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	if err := CloneRepositories(ctx, "testorg", nil, ""); err != nil {
@@ -195,7 +195,7 @@ func TestCloneRepositories_GetReposForOrgError(t *testing.T) {
 		Body:       map[string]interface{}{"errors": []map[string]interface{}{{"message": "boom"}}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	if err := CloneRepositories(ctx, "testorg", nil, ""); err == nil {
@@ -215,7 +215,7 @@ func TestCloneRepositories_EmptySelection_ClonesAll(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody([]repoNode{{name: "repo1", sshURL: src1}, {name: "repo2", sshURL: src2}}),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("testorg")
 
@@ -245,7 +245,7 @@ func TestCloneRepositories_ExplicitRepos_ClonesOnlySelected(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody([]repoNode{{name: "repo1", sshURL: src1}, {name: "repo2", sshURL: src2}}),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("testorg")
 
@@ -276,7 +276,7 @@ func TestCloneRepositories_PartialFailure(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody([]repoNode{{name: "repo1", sshURL: src1}, {name: "repo2", sshURL: badPath}}),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("testorg")
 

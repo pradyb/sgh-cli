@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -82,7 +82,7 @@ func orgsGraphQLBody() map[string]interface{} {
 func TestNewOrgCommand_Metadata(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewOrgCommand(ctx)
 
@@ -114,7 +114,7 @@ func TestOrgListCommand_TableOutput_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       orgsGraphQLBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := ListCommand(ctx)
 	cmd.SetOut(io.Discard)
@@ -141,7 +141,7 @@ func TestOrgListCommand_JSONOutput_Success(t *testing.T) {
 		StatusCode: http.StatusOK,
 		Body:       orgsGraphQLBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
 	cmd := ListCommand(ctx)
@@ -166,7 +166,7 @@ func TestOrgListCommand_Error(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := ListCommand(ctx)
 	cmd.SetOut(io.Discard)

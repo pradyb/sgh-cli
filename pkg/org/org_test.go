@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -53,7 +53,7 @@ func TestListOrgs(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	orgs := ListOrgs(ctx)
 
@@ -83,7 +83,7 @@ func TestListOrgs_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "boom"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	orgs := ListOrgs(ctx)
 

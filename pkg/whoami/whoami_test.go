@@ -6,7 +6,7 @@ package whoami
 import (
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -14,7 +14,7 @@ func TestGetCurrentUser(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	user := GetCurrentUser(ctx)
 
@@ -37,7 +37,7 @@ func TestGetCurrentUser_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "boom"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	user := GetCurrentUser(ctx)
 

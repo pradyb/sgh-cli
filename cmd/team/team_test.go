@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -96,7 +96,7 @@ func newMockedContext(t *testing.T) (*context.Context, *testutils.MockGitHubServ
 		StatusCode: http.StatusOK,
 		Body:       teamGraphQLBody(),
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	return ctx, mockServer
 }
 
@@ -178,7 +178,7 @@ func TestListCommand_GraphQLError_DoesNotPanic(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	root := newTestRoot()
 	root.AddCommand(NewTeamCommand(ctx))

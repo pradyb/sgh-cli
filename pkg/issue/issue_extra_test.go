@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -26,7 +26,7 @@ func TestCreateIssue_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	issue := CreateIssue(ctx, IssueCreateRequest{
 		OrgName: "testorg", RepoName: "repo1", Title: "Bug report", Body: "steps to reproduce",
@@ -52,7 +52,7 @@ func TestCreateIssue_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "validation failed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	issue := CreateIssue(ctx, IssueCreateRequest{OrgName: "testorg", RepoName: "repo1", Title: "Bug report"})
 
@@ -72,7 +72,7 @@ func TestUpdateIssue_Success(t *testing.T) {
 		Body:       map[string]interface{}{"number": 5, "state": "closed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := UpdateIssue(ctx, IssueUpdateRequest{OrgName: "testorg", RepoName: "repo1", IssueNumber: 5, State: "closed"})
 
@@ -92,7 +92,7 @@ func TestUpdateIssue_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := UpdateIssue(ctx, IssueUpdateRequest{OrgName: "testorg", RepoName: "repo1", IssueNumber: 5, State: "closed"})
 
@@ -143,7 +143,7 @@ func TestListIssues_GraphQL_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListIssues(ctx, IssueListRequest{OrgName: "testorg", State: "open"})
 
@@ -179,7 +179,7 @@ func TestListIssues_GraphQL_Error(t *testing.T) {
 		Body:       map[string]interface{}{"errors": []map[string]interface{}{{"message": "boom"}}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListIssues(ctx, IssueListRequest{OrgName: "testorg", State: "open"})
 
@@ -205,7 +205,7 @@ func TestListIssues_REST_MultiRepo_FiltersPullRequests(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListIssues(ctx, IssueListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})
@@ -232,7 +232,7 @@ func TestListIssues_REST_MultiRepo_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListIssues(ctx, IssueListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})
@@ -259,7 +259,7 @@ func TestGetIssue_Success(t *testing.T) {
 		Body:       map[string]interface{}{"number": 7, "title": "Investigate flaky test", "state": "open"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	issue := GetIssue(ctx, IssueViewRequest{OrgName: "testorg", RepoName: "repo1", IssueNumber: 7})
 
@@ -282,7 +282,7 @@ func TestGetIssue_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	issue := GetIssue(ctx, IssueViewRequest{OrgName: "testorg", RepoName: "repo1", IssueNumber: 99})
 
@@ -304,7 +304,7 @@ func TestGetIssueComments_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	comments := GetIssueComments(ctx, "testorg", "repo1", 7)
 
@@ -324,7 +324,7 @@ func TestGetIssueComments_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	comments := GetIssueComments(ctx, "testorg", "repo1", 7)
 

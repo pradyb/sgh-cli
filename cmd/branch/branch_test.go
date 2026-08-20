@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -72,7 +72,7 @@ func newMockedContext(t *testing.T) (*context.Context, *testutils.MockGitHubServ
 	t.Helper()
 	mockServer := testutils.NewMockGitHubServer()
 	t.Cleanup(mockServer.Close)
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	return ctx, mockServer
 }

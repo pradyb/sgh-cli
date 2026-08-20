@@ -12,7 +12,7 @@ import (
 	"github.com/shurcooL/githubv4"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -55,7 +55,7 @@ func TestGetTeamAndMembers_Success(t *testing.T) {
 		Body:       teamGraphQLBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	teams, err := GetTeamAndMembers(ctx, TeamMembersRequest{OrgName: "testorg", NoOfMembers: 10})
 
@@ -95,7 +95,7 @@ func TestGetTeamAndMembers_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	teams, err := GetTeamAndMembers(ctx, TeamMembersRequest{OrgName: "testorg", NoOfMembers: 10})
 
@@ -205,7 +205,7 @@ func TestGetTeamAndMembers_TeamPagination(t *testing.T) {
 
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.GraphqlClient.Client = githubv4.NewEnterpriseClient(graphqlServer.URL+"/graphql", &http.Client{Transport: ctx.HttpClient.Client.Transport})
 
 	teams, err := GetTeamAndMembers(ctx, TeamMembersRequest{OrgName: "testorg", NoOfMembers: 10})
@@ -257,7 +257,7 @@ func TestGetTeamAndMembers_MemberPagination(t *testing.T) {
 
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.GraphqlClient.Client = githubv4.NewEnterpriseClient(graphqlServer.URL+"/graphql", &http.Client{Transport: ctx.HttpClient.Client.Transport})
 
 	teams, err := GetTeamAndMembers(ctx, TeamMembersRequest{OrgName: "testorg", NoOfMembers: 10, AllMembers: true})

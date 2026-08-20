@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/pradyb/sgh-cli/internal/config"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -165,7 +165,7 @@ func TestResolveRepositoryNames_EmptyRepos_ResolvesFromOrg(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 
 	names, err := ResolveRepositoryNames(ctx, "testorg", nil, nil)
@@ -185,7 +185,7 @@ func TestResolveRepositoryNames_EmptyRepos_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config.AddOrganization("testorg")
 
 	names, err := ResolveRepositoryNames(ctx, "testorg", nil, nil)
@@ -200,7 +200,7 @@ func TestResolveRepositoryNames_EmptyRepos_Error(t *testing.T) {
 func TestResolveRepositoryNames_ExplicitRepos_FuzzyMatch(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config = makeTestConfig("testorg", []string{"repo1", "repo2", "repo3"}, 1)
 
 	names, err := ResolveRepositoryNames(ctx, "testorg", []string{"repo1", "repo3"}, nil)
@@ -215,7 +215,7 @@ func TestResolveRepositoryNames_ExplicitRepos_FuzzyMatch(t *testing.T) {
 func TestResolveRepositoryNames_PatternFiltering(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config = makeTestConfig("testorg", []string{"keep-a", "keep-b", "drop-c"}, 1)
 	ctx.Config.AddRepositoryPattern("testorg", true, false, "^keep-")
 
@@ -231,7 +231,7 @@ func TestResolveRepositoryNames_PatternFiltering(t *testing.T) {
 func TestResolveRepositoryNames_ExcludeList(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Config = makeTestConfig("testorg", []string{"repo1", "repo2", "repo3"}, 1)
 
 	names, err := ResolveRepositoryNames(ctx, "testorg", []string{"repo1", "repo2", "repo3"}, []string{"repo2"})
@@ -250,7 +250,7 @@ func TestProcessRepositoriesOperation_EmptyRepos_ResolvesFromOrg(t *testing.T) {
 	defer mockServer.Close()
 	mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("testorg")
 
@@ -282,7 +282,7 @@ func TestProcessRepositoriesOperation_EmptyRepos_ResolutionError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("testorg")
 

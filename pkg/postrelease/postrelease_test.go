@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -23,7 +23,7 @@ func TestProcessPostRelease_BranchOnly_Success(t *testing.T) {
 	})
 	// POST .../git/refs is served by the mock server's built-in default handler.
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{
@@ -64,7 +64,7 @@ func TestProcessPostRelease_TagOnly_Success(t *testing.T) {
 	})
 	// POST .../git/refs (final tag ref creation) is served by the mock server's built-in default handler.
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{
@@ -107,7 +107,7 @@ func TestProcessPostRelease_BranchAndTag_Success(t *testing.T) {
 		Body:       map[string]interface{}{"sha": "tagcommitsha"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{
@@ -142,7 +142,7 @@ func TestProcessPostRelease_BranchError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{
@@ -175,7 +175,7 @@ func TestProcessPostRelease_TagError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "tag already exists"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{
@@ -200,7 +200,7 @@ func TestProcessPostRelease_TagError(t *testing.T) {
 func TestProcessPostRelease_MessageDefaultsToTagName(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	var capturedTagBody []byte
@@ -224,7 +224,7 @@ func TestProcessPostRelease_MessageDefaultsToTagName(t *testing.T) {
 	}))
 	defer captureServer.Close()
 
-	restore := service.SetGitHubBaseURLForTesting(captureServer.URL)
+	restore := servicetest.SetGitHubBaseURL(captureServer.URL)
 	defer restore()
 
 	responses := ProcessPostRelease(ctx, PostReleaseRequest{

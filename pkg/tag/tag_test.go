@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -57,7 +57,7 @@ func TestCreateNewTag_Success(t *testing.T) {
 		Body:       map[string]interface{}{"sha": "tag-object-sha"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	response, err := CreateNewTag(ctx, TagCreateSingleRequest{
 		OrgName:       "testorg",
@@ -83,7 +83,7 @@ func TestCreateNewTag_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "branch not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	_, err := CreateNewTag(ctx, TagCreateSingleRequest{
 		OrgName:       "testorg",
@@ -110,7 +110,7 @@ func TestCreateNewTags_Success(t *testing.T) {
 		Body:       map[string]interface{}{"sha": "tag-object-sha"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := CreateNewTags(ctx, TagCreateRequest{
@@ -141,7 +141,7 @@ func TestCreateNewTags_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "branch not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := CreateNewTags(ctx, TagCreateRequest{
@@ -164,7 +164,7 @@ func TestDeleteTags_Success(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteTags(ctx, TagDeleteRequest{
@@ -192,7 +192,7 @@ func TestDeleteTags_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := DeleteTags(ctx, TagDeleteRequest{
@@ -261,7 +261,7 @@ func TestListTags_GraphQL_Success(t *testing.T) {
 		Body:       graphqlTagSearchBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListTags(ctx, TagListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}})
 
@@ -288,7 +288,7 @@ func TestListTags_GraphQL_Filter(t *testing.T) {
 		Body:       graphqlTagSearchBody(),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListTags(ctx, TagListRequest{OrgName: "testorg", RepoNames: []string{"repo1"}, Filter: "^v2"})
 
@@ -308,7 +308,7 @@ func TestListTags_GraphQL_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListTags(ctx, TagListRequest{OrgName: "testorg"})
 
@@ -326,7 +326,7 @@ func TestListTags_REST_MultiRepo(t *testing.T) {
 	mockServer.SetResponse("/repos/testorg/repo1/tags", testutils.MockResponse{StatusCode: http.StatusOK, Body: tagsBody})
 	mockServer.SetResponse("/repos/testorg/repo2/tags", testutils.MockResponse{StatusCode: http.StatusOK, Body: tagsBody})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListTags(ctx, TagListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})
@@ -353,7 +353,7 @@ func TestListTags_REST_MultiRepo_PartialError(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListTags(ctx, TagListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})

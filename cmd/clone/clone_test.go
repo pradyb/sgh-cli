@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -137,7 +137,7 @@ func searchRepositoriesGraphQLBody(names, urls []string) map[string]interface{} 
 func TestNewCloneCommand_Structure(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	cmd := NewCloneCommand(ctx)
 	if cmd.Use != "clone" {
@@ -162,7 +162,7 @@ func TestCloneCommand_Success(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody([]string{"repo1"}, []string{src}),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("acme")
 
@@ -189,7 +189,7 @@ func TestCloneCommand_WithBranchFlag(t *testing.T) {
 		Body:       searchRepositoriesGraphQLBody([]string{"repo1"}, []string{src}),
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 	ctx.Config.AddOrganization("acme")
 
@@ -217,7 +217,7 @@ func TestCloneCommand_ErrorPropagation(t *testing.T) {
 		Body:       map[string]interface{}{"errors": []map[string]interface{}{{"message": "boom"}}},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	destRoot := t.TempDir()

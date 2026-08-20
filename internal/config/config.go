@@ -181,6 +181,9 @@ func (config *Config) OwnerTypeFor(orgName string) string {
 
 // SetOwnerType caches the detected owner type for the given name.
 func (config *Config) SetOwnerType(orgName, ownerType string) {
+	if config == nil {
+		return
+	}
 	config.ownerTypeMu.Lock()
 	defer config.ownerTypeMu.Unlock()
 	for i, org := range config.Organizations {

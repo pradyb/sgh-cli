@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -53,7 +53,7 @@ func TestListPullRequests_GraphQL_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListPullRequests(ctx, PRRequest{
 		OrgName:   "testorg",
@@ -92,7 +92,7 @@ func TestListPullRequests_GraphQL_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "rate limited"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	responses := ListPullRequests(ctx, PRRequest{OrgName: "testorg"})
 
@@ -219,7 +219,7 @@ func TestGetPRDetailsGraphQL_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	prResp, filesResp, checkResp, reviews := GetPRDetailsGraphQL(ctx, PRDetailsRequest{
 		OrgName:  "testorg",
@@ -285,7 +285,7 @@ func TestGetPRDetailsGraphQL_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "forbidden"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	prResp, filesResp, checkResp, reviews := GetPRDetailsGraphQL(ctx, PRDetailsRequest{
 		OrgName:  "testorg",

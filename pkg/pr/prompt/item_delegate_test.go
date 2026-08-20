@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pradyb/sgh-cli/internal/model"
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -189,7 +189,7 @@ func TestItemDelegate_UpdateFunc_Diff(t *testing.T) {
 			{"filename": "main.go", "additions": 1, "deletions": 0, "status": "modified", "patch": "@@ -1,2 +1,3 @@\n+line"},
 		},
 	})
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	keys := newDelegateKeyMap()
 	d := newItemDelegate(ctx, "testorg", keys)

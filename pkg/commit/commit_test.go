@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pradyb/sgh-cli/internal/service"
+	"github.com/pradyb/sgh-cli/internal/service/servicetest"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 )
 
@@ -34,7 +34,7 @@ func TestListCommits_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListCommits(ctx, CommitListRequest{
@@ -68,7 +68,7 @@ func TestListCommits_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	responses := ListCommits(ctx, CommitListRequest{
@@ -95,7 +95,7 @@ func TestListCommits_Error(t *testing.T) {
 func TestListCommits_QueryParameters(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.Silent = true
 
 	tests := []struct {
@@ -129,7 +129,7 @@ func TestListCommits_QueryParameters(t *testing.T) {
 			}))
 			defer captureServer.Close()
 
-			restore := service.SetGitHubBaseURLForTesting(captureServer.URL)
+			restore := servicetest.SetGitHubBaseURL(captureServer.URL)
 			defer restore()
 
 			ListCommits(ctx, tt.req)
@@ -155,7 +155,7 @@ func TestGetCommitInfo_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetCommitInfo(ctx, CommitInfoRequest{OrgName: "testorg", RepoName: "repo1", CommitSHA: "abc123"})
 
@@ -178,7 +178,7 @@ func TestGetCommitInfo_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "Not Found"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetCommitInfo(ctx, CommitInfoRequest{OrgName: "testorg", RepoName: "repo1", CommitSHA: "deadbeef"})
 
@@ -203,7 +203,7 @@ func TestGetCommitCheckRuns_Success(t *testing.T) {
 		},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetCommitCheckRuns(ctx, CommitCheckRunsRequest{OrgName: "testorg", RepoName: "repo1", CommitSHA: "abc123"})
 
@@ -226,7 +226,7 @@ func TestGetCommitCheckRuns_Error(t *testing.T) {
 		Body:       map[string]interface{}{"message": "not allowed"},
 	})
 
-	ctx := service.NewMockContext(t, mockServer)
+	ctx := servicetest.NewMockContext(t, mockServer)
 
 	resp := GetCommitCheckRuns(ctx, CommitCheckRunsRequest{OrgName: "testorg", RepoName: "repo1", CommitSHA: "abc123"})
 
