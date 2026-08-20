@@ -53,21 +53,37 @@ go test ./... -race        # race detector
 go test ./internal/config  # one package
 ```
 
-CI runs `go test -v -race -short ./...`. Tests that need more than a moment should respect `testing.Short()` so the release path stays fast.
+CI runs `./scripts/check-coverage.sh` — `go test -race` with coverage
+instrumentation across every package except `cmd/tui`. Note that it does **not**
+pass `-short`, so a test guarded by `testing.Short()` still runs in CI. Use that
+guard to keep local runs quick, not to skip anything that needs verifying.
 
 ## Coverage
 
+The authoritative check is the script CI runs. It applies the same package
+exclusions and the same 85% floor, so the number it prints is the number that
+gates the build:
+
 ```bash
-# Percentage for one package
+./scripts/check-coverage.sh
+```
+
+Reach for the raw tooling only for narrower questions:
+
+```bash
+# Percentage for a single package
 go test ./internal/config -cover
 
-# Profile, then read it two ways
-go test ./... -coverprofile=coverage.out
-go tool cover -func=coverage.out
+# Line-by-line view, from the profile the script leaves behind
 go tool cover -html=coverage.out -o coverage.html
 ```
 
 Open `coverage.html` in a browser to see exactly which branches are untested.
+
+Running `go test ./... -coverprofile=...` yourself reports a **lower** number than
+CI enforces, because it includes `cmd/tui`. Trust the script instead — see
+[CONTRIBUTING](../CONTRIBUTING.md#coverage-expectations) for why that package is
+excluded.
 
 ## Formatting and linting
 
@@ -131,11 +147,10 @@ The layering rule: `cmd/` parses flags and prints, `pkg/` holds logic that could
 
 ## Guidelines
 
-- Add tests for new features and bug fixes. The coverage targets are **85% for
-  `pkg/**` (except `pkg/pr/prompt`) and `internal/**`**, with no floor on
-  `cmd/**` — see [CONTRIBUTING](../CONTRIBUTING.md#coverage-expectations) for
-  the reasoning. These targets are not met yet and apply to new work
-- Run `go test ./...` and `gofmt -l .` before opening a pull request
+- Add tests for new features and bug fixes. Total coverage across every package
+  except `cmd/tui` must stay **above 85%**, and CI fails the build below it — see
+  [CONTRIBUTING](../CONTRIBUTING.md#coverage-expectations) for the reasoning
+- Run `./scripts/check-coverage.sh` and `gofmt -l .` before opening a pull request
 - Keep `cmd/` packages thin — logic belongs in `pkg/`
 - Anything destructive should support `--dry-run`
 - Follow standard Go conventions; the linter enforces most of them

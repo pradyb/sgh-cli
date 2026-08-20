@@ -293,3 +293,136 @@ func TestSortSecretAlerts(t *testing.T) {
 		SortSecretAlerts(nil, "state")
 	})
 }
+
+func newPR(repo, title, author, state string) model.PullRequestResponse {
+	return model.PullRequestResponse{
+		TitleName: title,
+		State:     state,
+		Base:      model.PRBranch{Repo: model.Repository{Name: repo}},
+		Author:    model.User{Login: author},
+	}
+}
+
+func TestSortPullRequests(t *testing.T) {
+	newSet := func() []model.PullRequestResponse {
+		return []model.PullRequestResponse{
+			newPR("web", "Fix bug", "zoe", "open"),
+			newPR("api", "Add feature", "alice", "closed"),
+		}
+	}
+
+	t.Run("by repo", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "repo")
+		if got[0].RepositoryName() != "api" {
+			t.Errorf("first repo = %q, want api", got[0].RepositoryName())
+		}
+	})
+
+	t.Run("by title", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "title")
+		if got[0].TitleName != "Add feature" {
+			t.Errorf("first title = %q, want Add feature", got[0].TitleName)
+		}
+	})
+
+	t.Run("by author", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "author")
+		if got[0].AuthorName() != "alice" {
+			t.Errorf("first author = %q, want alice", got[0].AuthorName())
+		}
+	})
+
+	t.Run("by status", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "status")
+		if got[0].State != "closed" {
+			t.Errorf("first state = %q, want closed", got[0].State)
+		}
+	})
+
+	t.Run("unknown key leaves order untouched", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "nope")
+		if got[0].TitleName != "Fix bug" {
+			t.Errorf("order changed unexpectedly: first = %q", got[0].TitleName)
+		}
+	})
+
+	t.Run("empty slice does not panic", func(t *testing.T) {
+		SortPullRequests(nil, "title")
+	})
+}
+
+func newIssue(repo, title, author, state, createdAt string) model.IssueResponse {
+	return model.IssueResponse{
+		RepositoryName: repo,
+		Title:          title,
+		State:          state,
+		Author:         model.User{Login: author},
+		CreatedAt:      createdAt,
+	}
+}
+
+func TestSortIssues(t *testing.T) {
+	newSet := func() []model.IssueResponse {
+		return []model.IssueResponse{
+			newIssue("web", "Fix bug", "zoe", "open", "2026-01-01T00:00:00Z"),
+			newIssue("api", "Add feature", "alice", "closed", "2026-08-01T00:00:00Z"),
+		}
+	}
+
+	t.Run("by repo", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "repo")
+		if got[0].RepositoryName != "api" {
+			t.Errorf("first repo = %q, want api", got[0].RepositoryName)
+		}
+	})
+
+	t.Run("by title", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "title")
+		if got[0].Title != "Add feature" {
+			t.Errorf("first title = %q, want Add feature", got[0].Title)
+		}
+	})
+
+	t.Run("by author", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "author")
+		if got[0].AuthorName() != "alice" {
+			t.Errorf("first author = %q, want alice", got[0].AuthorName())
+		}
+	})
+
+	t.Run("by state", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "state")
+		if got[0].State != "closed" {
+			t.Errorf("first state = %q, want closed", got[0].State)
+		}
+	})
+
+	t.Run("by created is newest first", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "created")
+		if got[0].CreatedAt != "2026-08-01T00:00:00Z" {
+			t.Errorf("first created = %q, want the newest", got[0].CreatedAt)
+		}
+	})
+
+	t.Run("unknown key leaves order untouched", func(t *testing.T) {
+		got := newSet()
+		SortIssues(got, "nope")
+		if got[0].Title != "Fix bug" {
+			t.Errorf("order changed unexpectedly: first = %q", got[0].Title)
+		}
+	})
+
+	t.Run("empty slice does not panic", func(t *testing.T) {
+		SortIssues(nil, "state")
+	})
+}

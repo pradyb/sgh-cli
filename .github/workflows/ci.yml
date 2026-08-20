@@ -44,8 +44,8 @@ jobs:
       - name: Build
         run: go build -v ./...
 
-      - name: Run unit tests
-        run: go test -v -race -short ./...
+      - name: Run tests and enforce coverage floor
+        run: ./scripts/check-coverage.sh
 
       - name: Run go vet
         run: go vet ./...

@@ -6,6 +6,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -240,27 +241,38 @@ func (c *HttpClient) doSingleRequest(ctx context.Context, req *http.Request) (*h
 }
 
 func (c *HttpClient) handleError(response *http.Response, err error) (*http.Response, error) {
-	if githubErr, ok := err.(*apperrors.GitHubError); ok {
+	// Use errors.As rather than a direct type assertion: once retries are
+	// exhausted, internal/retry.DoHTTP wraps the final error with
+	// fmt.Errorf("HTTP operation failed after %d attempts: %w", ...), so a
+	// direct assertion would never match and every retried 401/403/404/5xx
+	// error would silently lose its enhanced, actionable message below.
+	// The extracted values below are used only to classify the failure; every
+	// branch wraps the original err, not the extracted error, so the retry
+	// wrapper's "after N attempts" context survives into the final message.
+	var githubErr *apperrors.GitHubError
+	if errors.As(err, &githubErr) {
 		// Enhance GitHub error with additional context
 		if githubErr.StatusCode == 401 {
-			return response, fmt.Errorf("authentication failed: %w (check your SGH_TOKEN)", githubErr)
+			return response, fmt.Errorf("authentication failed: %w (check your SGH_TOKEN)", err)
 		} else if githubErr.StatusCode == 403 {
-			return response, fmt.Errorf("permission denied: %w (check your token permissions)", githubErr)
+			return response, fmt.Errorf("permission denied: %w (check your token permissions)", err)
 		} else if githubErr.StatusCode == 404 {
-			return response, fmt.Errorf("resource not found: %w", githubErr)
+			return response, fmt.Errorf("resource not found: %w", err)
 		} else if githubErr.StatusCode >= 500 {
-			return response, fmt.Errorf("GitHub API server error: %w", githubErr)
+			return response, fmt.Errorf("GitHub API server error: %w", err)
 		}
-		return response, githubErr
+		return response, err
 	}
 
 	// Handle network errors
-	if netErr, ok := err.(*net.OpError); ok {
-		return response, fmt.Errorf("network error: %w (check your internet connection)", netErr)
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		return response, fmt.Errorf("network error: %w (check your internet connection)", err)
 	}
 
 	// Handle timeout errors
-	if timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
+	var timeoutErr interface{ Timeout() bool }
+	if errors.As(err, &timeoutErr) && timeoutErr.Timeout() {
 		return response, fmt.Errorf("request timeout: %w (try increasing SGH_TIMEOUT environment variable)", err)
 	}
 

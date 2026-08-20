@@ -66,6 +66,40 @@ func TestConfigDirIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestConfigDir_HomeDirUnresolvable(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("this test exercises the Windows-specific os.UserHomeDir failure mode")
+	}
+	t.Setenv("USERPROFILE", "")
+
+	if _, err := ConfigDir(); err == nil {
+		t.Fatal("expected an error when USERPROFILE is unset, got nil")
+	} else if !strings.Contains(err.Error(), "failed to get user home directory") {
+		t.Errorf("error = %q, want it to mention the home directory lookup", err.Error())
+	}
+}
+
+func TestConfigDir_MkdirAllFails(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("this test relies on ConfigDir() using USERPROFILE verbatim as configDir, which is Windows-only behavior")
+	}
+	// On Windows, configDir is homeDir itself (no join), so pointing
+	// USERPROFILE at a path that is already a regular file makes MkdirAll
+	// fail: the path exists but isn't a directory and can't become one.
+	tmp := t.TempDir()
+	blockedPath := filepath.Join(tmp, "not-a-directory")
+	if err := os.WriteFile(blockedPath, []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to create blocking file: %v", err)
+	}
+	t.Setenv("USERPROFILE", blockedPath)
+
+	if _, err := ConfigDir(); err == nil {
+		t.Fatal("expected an error when the config dir path is blocked by a file, got nil")
+	} else if !strings.Contains(err.Error(), "failed to create config directory") {
+		t.Errorf("error = %q, want it to mention config directory creation", err.Error())
+	}
+}
+
 func TestValidateGitHubToken(t *testing.T) {
 	tests := []struct {
 		name    string
