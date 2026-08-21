@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-21
+
+First public release.
+
+### Fixed
+- **Branch creation from a commit reported success as failure**: `branch create --from-commit` passed the new SHA into the error field, so every successful creation was rendered as an error
+- **Retried API errors lost their guidance**: once retries were exhausted the underlying GitHub error was wrapped, so retried 401/403/404/5xx responses fell back to a generic message instead of "check your SGH_TOKEN", "check your token permissions", and so on
+- **Data race in bulk operations**: result and error handlers ran on separate goroutines while sharing unsynchronised state, which could corrupt results when a success and a failure completed together
+- **Proxy environment variables were ignored**: `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` are now honoured
+- **Module path**: corrected to `github.com/pradyb/sgh-cli`
+
+### Changed
+- README split into a `docs/` guide (installation, authentication, configuration, commands, examples, advanced usage, troubleshooting, development)
+- Added `SECURITY.md`, a disclaimer, and a security section to the README
+
+### Internal
+- Test coverage raised to 94%, enforced by an 85% floor in CI via `scripts/check-coverage.sh`
+- Pre-commit hooks blocking oversized files, credential-shaped strings, and unformatted Go; `gofmt` gate added to CI
+- Test-only helpers moved out of the production import graph so `testing` and `net/http/httptest` are no longer linked into the binary
+
 ## [1.0.0] - 2025-03-10
 
 ### Added
