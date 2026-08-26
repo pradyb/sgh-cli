@@ -737,11 +737,17 @@ func TestIsValidGitHubUsername(t *testing.T) {
 	}{
 		{"valid simple", "alice", true},
 		{"valid with hyphen", "alice-bob", true},
+		{"valid with underscore", "alice_bob", true},
+		{"valid GHES saml name", "jane-doe_acme", true},
+		{"valid consecutive underscores", "alice__bob", true},
 		{"empty", "", false},
 		{"too long", strings.Repeat("a", 40), false},
 		{"starts with hyphen", "-alice", false},
 		{"ends with hyphen", "alice-", false},
+		{"starts with underscore", "_alice", false},
+		{"ends with underscore", "alice_", false},
 		{"consecutive hyphens", "al--ice", false},
+		{"invalid character", "alice.bob", false},
 		{"max length boundary", strings.Repeat("a", 39), true},
 	}
 
