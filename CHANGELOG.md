@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Config rejected GitHub Enterprise Server usernames with underscores**: username validation enforced github.com's public rules only, so a SAML/LDAP-synced name like `jane-doe_acme` in `pull_request_assignees` or the `protected_branch` user lists failed config loading and blocked every command
+
 ## [1.1.0] - 2026-08-21
 
 First public release.
