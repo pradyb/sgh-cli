@@ -795,9 +795,12 @@ func isValidGitHubUsername(username string) bool {
 		return false
 	}
 
-	// GitHub usernames can contain alphanumeric characters and single hyphens
-	// Cannot start or end with hyphen, and cannot have consecutive hyphens
-	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`
+	// GitHub usernames can contain alphanumeric characters and single hyphens.
+	// Underscores are also accepted because GitHub Enterprise Server instances
+	// can sync usernames from an external identity provider (SAML/LDAP), and
+	// those commonly contain underscores (e.g. "jane-doe_acme").
+	// Cannot start or end with hyphen/underscore, and cannot have consecutive hyphens
+	pattern := `^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`
 	matched, _ := regexp.MatchString(pattern, username)
 
 	if !matched {
