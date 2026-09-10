@@ -181,6 +181,7 @@ func (a Actor) Login() string {
 
 type User struct {
 	ID         int    `json:"id"`
+	NodeID     string `json:"node_id"`
 	Login      string `json:"login"`
 	Type       string `json:"type"`
 	Name       string `json:"name"`
@@ -579,6 +580,11 @@ type IssueResponse struct {
 	RepositoryName string
 	ErrorMessage   string
 	PullRequest    *IssuePR `json:"pull_request"`
+	// LinkedPRCount is the number of pull requests that close this issue.
+	// Only populated on the GraphQL (single-repo) list path; nil means unknown
+	// (e.g. REST/multi-repo listing, where resolving it would cost one extra
+	// API call per issue).
+	LinkedPRCount *int
 }
 
 type IssueLabel struct {

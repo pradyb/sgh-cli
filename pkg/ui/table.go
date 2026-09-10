@@ -1486,13 +1486,14 @@ func PrintIssues(issues []model.IssueResponse, sortBy string, compact bool) {
 			issue.State,
 			labels,
 			strconv.Itoa(issue.Comments),
+			linkedPRIndicator(issue.LinkedPRCount),
 			RelativeTime(issue.CreatedAt),
 			fmt.Sprintf(HyperLinkFormat, issue.HTMLUrl, "Open"),
 		})
 	}
 
 	if len(rows) > 0 {
-		headers := []string{"Repository", "#", "Title", "Author", "State", "Labels", "Comments", "Created", "URL"}
+		headers := []string{"Repository", "#", "Title", "Author", "State", "Labels", "Comments", "PR", "Created", "URL"}
 		if compact {
 			PrintCompactTable(headers, rows)
 			return
@@ -1515,6 +1516,7 @@ func PrintIssues(issues []model.IssueResponse, sortBy string, compact bool) {
 				SortIndicator("State", sortBy, "state"),
 				"Labels",
 				"Comments",
+				"PR",
 				SortIndicator("Created", sortBy, "created"),
 				"URL",
 			).
@@ -1623,7 +1625,7 @@ func issueTableStyle(row, col int, rows [][]string) lipgloss.Style {
 
 	if row >= 0 {
 		switch col {
-		case 1, 6, 8:
+		case 1, 6, 7, 9:
 			style = style.Align(lipgloss.Center)
 		}
 		if row < len(rows)-1 && col == 4 {
@@ -1631,6 +1633,18 @@ func issueTableStyle(row, col int, rows [][]string) lipgloss.Style {
 		}
 	}
 	return style
+}
+
+// linkedPRIndicator renders the number of pull requests that close an issue.
+// A nil count means the source (REST/multi-repo listing) didn't fetch it.
+func linkedPRIndicator(count *int) string {
+	if count == nil {
+		return "—"
+	}
+	if *count == 0 {
+		return ""
+	}
+	return strconv.Itoa(*count)
 }
 
 func PrintAuditLog(entries []model.AuditLogEntry, compact bool) {

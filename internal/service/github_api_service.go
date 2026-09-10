@@ -739,7 +739,49 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 		allIssues = append(allIssues, page...)
 		url = parseLinkNext(resp.LinkHeader)
 	}
+	resolveIssueAuthorNames(ctx, allIssues)
 	return allIssues, nil
+}
+
+// resolveIssueAuthorNames fills in Author.Name for issues fetched via the
+// REST list endpoint, whose "simple user" objects don't include a name
+// field. It batches all unique authors into a single GraphQL nodes() call
+// rather than one REST /users/{login} call per author.
+func resolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueResponse) {
+	idIndex := make(map[string][]int)
+	order := make([]string, 0)
+	for i, issue := range issues {
+		if issue.Author.NodeID == "" || issue.Author.Name != "" {
+			continue
+		}
+		if _, seen := idIndex[issue.Author.NodeID]; !seen {
+			order = append(order, issue.Author.NodeID)
+		}
+		idIndex[issue.Author.NodeID] = append(idIndex[issue.Author.NodeID], i)
+	}
+	if len(order) == 0 {
+		return
+	}
+
+	ids := make([]githubv4.ID, len(order))
+	for i, id := range order {
+		ids[i] = githubv4.ID(id)
+	}
+
+	var query model.NodesByIDQuery
+	if err := Query(ctx, &query, map[string]interface{}{"ids": ids}); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error resolving issue author display names")
+		return
+	}
+
+	for i, node := range query.Nodes {
+		if i >= len(order) || node.User.Name == "" {
+			continue
+		}
+		for _, idx := range idIndex[order[i]] {
+			issues[idx].Author.Name = node.User.Name
+		}
+	}
 }
 
 func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int) (model.IssueResponse, error) {

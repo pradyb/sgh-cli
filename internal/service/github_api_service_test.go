@@ -1149,6 +1149,43 @@ func TestListIssues(t *testing.T) {
 
 		require.Error(t, err)
 	})
+
+	t.Run("resolves author display name via one batched GraphQL call for repeated authors", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/issues", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body: []map[string]interface{}{
+				{"number": 1, "title": "Bug one", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
+				{"number": 2, "title": "Bug two", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
+			},
+		})
+
+		var graphqlCalls int
+		mockServer.SetResponse("/graphql", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body: map[string]interface{}{
+				"data": map[string]interface{}{
+					"nodes": []map[string]interface{}{
+						{"login": "alice", "name": "Alice Doe"},
+					},
+				},
+			},
+		})
+
+		issues, err := ListIssues(ctx, testOrgName, testRepoName, "", "", "", "", 0)
+
+		require.NoError(t, err)
+		require.Len(t, issues, 2)
+		assert.Equal(t, "Alice Doe", issues[0].Author.Name)
+		assert.Equal(t, "Alice Doe", issues[1].Author.Name)
+
+		for _, req := range mockServer.GetRequests() {
+			if req.Path == "/graphql" {
+				graphqlCalls++
+			}
+		}
+		assert.Equal(t, 1, graphqlCalls, "expected exactly one batched GraphQL call regardless of duplicate authors")
+	})
 }
 
 func TestGetIssue(t *testing.T) {

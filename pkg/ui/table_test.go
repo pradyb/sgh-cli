@@ -245,10 +245,10 @@ func TestSecretAlertTableStyle(t *testing.T) {
 
 func TestIssueTableStyle(t *testing.T) {
 	rows := [][]string{
-		{"repo", "1", "title", "author", "closed", "bug", "2", "just now", "link"},
+		{"repo", "1", "title", "author", "closed", "bug", "2", "1", "just now", "link"},
 		{"Total Issues", "1"},
 	}
-	for _, col := range []int{1, 6, 8} {
+	for _, col := range []int{1, 6, 7, 9} {
 		s := issueTableStyle(0, col, rows)
 		if s.GetAlignHorizontal() != lipgloss.Center {
 			t.Errorf("col %d not centered: %+v", col, s)

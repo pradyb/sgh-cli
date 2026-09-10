@@ -422,10 +422,22 @@ type SearchIssuesQuery struct {
 					Comments struct {
 						TotalCount int
 					}
+					ClosedByPullRequestsReferences struct {
+						TotalCount int
+					} `graphql:"closedByPullRequestsReferences(first: 1)"`
 				} `graphql:"... on Issue"`
 			}
 		}
 	} `graphql:"search(query: $queryString, type: ISSUE, last: $lastCount, after: $issueCursor)"`
+}
+
+// NodesByIDQuery resolves a batch of GitHub node IDs to their User display
+// name in a single GraphQL call, used to fill in author display names for
+// issues fetched via the REST list path (which doesn't return a name field).
+type NodesByIDQuery struct {
+	Nodes []struct {
+		User UserFragment `graphql:"... on User"`
+	} `graphql:"nodes(ids: $ids)"`
 }
 
 type SearchBranchesQuery struct {
