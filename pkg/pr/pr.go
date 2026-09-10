@@ -166,6 +166,7 @@ func ListPullRequests(ctx *context.Context, prRequest PRRequest) []model.PullReq
 				},
 				State:            pr.State,
 				MergeStateStatus: pr.MergeStateStatus,
+				CreatedAt:        pr.CreatedAt,
 			}
 
 			prResponse.Assignees = populateAssignees(pr.Assignees)

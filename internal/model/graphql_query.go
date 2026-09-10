@@ -134,6 +134,7 @@ type SearchPullRequestsQuery struct {
 					HeadRefName      string
 					State            string
 					MergeStateStatus string
+					CreatedAt        string
 					Author           ActorFragment
 					ReviewRequests   ReviewRequestsFragment `graphql:"reviewRequests(first: 3)"`
 					Assignees        AssigneesFragment      `graphql:"assignees(first: 3)"`

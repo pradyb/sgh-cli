@@ -32,6 +32,7 @@ func TestListPullRequests_GraphQL_Success(t *testing.T) {
 								"headRef":          map[string]interface{}{"name": "feature", "repository": map[string]interface{}{"name": "test-repo"}},
 								"state":            "OPEN",
 								"mergeStateStatus": "CLEAN",
+								"createdAt":        "2024-03-01T00:00:00Z",
 								"author":           map[string]interface{}{"login": "jdoe", "name": "J Doe"},
 								"reviewRequests": map[string]interface{}{
 									"totalCount": 1,
@@ -66,6 +67,9 @@ func TestListPullRequests_GraphQL_Success(t *testing.T) {
 	pr := responses[0]
 	if pr.PRNumber != 42 || pr.TitleName != "GraphQL PR" {
 		t.Errorf("unexpected PR: %+v", pr)
+	}
+	if pr.CreatedAt != "2024-03-01T00:00:00Z" {
+		t.Errorf("unexpected CreatedAt: %q", pr.CreatedAt)
 	}
 	if pr.Base.Ref != "main" || pr.Base.Repo.Name != "test-repo" {
 		t.Errorf("unexpected base branch: %+v", pr.Base)
