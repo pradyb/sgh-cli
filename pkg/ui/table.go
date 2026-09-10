@@ -407,7 +407,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 	}
 
 	if len(rows) > 0 {
-		headers := []string{"ID", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "Created", "HTMLUrl"}
+		headers := []string{"ID", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "Created", "URL"}
 		if compact {
 			PrintCompactTable(headers, rows)
 			return
@@ -431,7 +431,7 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 				SortIndicator("Status/Merge State", sortBy, "status"),
 				"Refs",
 				SortIndicator("Created", sortBy, "created"),
-				"HTMLUrl",
+				"URL",
 			).
 			Rows(rows...)
 
