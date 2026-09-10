@@ -224,6 +224,57 @@ func TestListIssues_REST_MultiRepo_FiltersPullRequests(t *testing.T) {
 	}
 }
 
+func TestListIssues_REST_MultiRepo_ResolvesAuthorNamesInOneCallAcrossRepos(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/testorg/repo1/issues", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: []map[string]interface{}{
+			{"number": 1, "title": "Bug in repo1", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
+		},
+	})
+	mockServer.SetResponse("/repos/testorg/repo2/issues", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: []map[string]interface{}{
+			{"number": 2, "title": "Bug in repo2", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
+		},
+	})
+	mockServer.SetResponse("/graphql", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"data": map[string]interface{}{
+				"nodes": []map[string]interface{}{
+					{"login": "alice", "name": "Alice Doe"},
+				},
+			},
+		},
+	})
+
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	responses := ListIssues(ctx, IssueListRequest{OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}})
+
+	if len(responses) != 2 {
+		t.Fatalf("len(responses) = %d, want 2", len(responses))
+	}
+	for _, r := range responses {
+		if r.Author.Name != "Alice Doe" {
+			t.Errorf("repo %s: Author.Name = %q, want %q", r.RepositoryName, r.Author.Name, "Alice Doe")
+		}
+	}
+
+	var graphqlCalls int
+	for _, req := range mockServer.GetRequests() {
+		if req.Path == "/graphql" {
+			graphqlCalls++
+		}
+	}
+	if graphqlCalls != 1 {
+		t.Errorf("graphqlCalls = %d, want 1 (author shared across repo1 and repo2 should resolve in a single batched call)", graphqlCalls)
+	}
+}
+
 func TestListIssues_REST_MultiRepo_Error(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
