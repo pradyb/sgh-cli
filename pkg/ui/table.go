@@ -1641,9 +1641,6 @@ func linkedPRIndicator(count *int) string {
 	if count == nil {
 		return "—"
 	}
-	if *count == 0 {
-		return ""
-	}
 	return strconv.Itoa(*count)
 }
 

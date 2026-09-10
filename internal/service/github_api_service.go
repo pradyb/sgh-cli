@@ -743,15 +743,19 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 	return allIssues, nil
 }
 
+// nodesByIDBatchSize is GitHub's cap on the number of IDs accepted by a
+// single GraphQL nodes(ids:) query.
+const nodesByIDBatchSize = 100
+
 // resolveIssueAuthorNames fills in Author.Name for issues fetched via the
 // REST list endpoint, whose "simple user" objects don't include a name
-// field. It batches all unique authors into a single GraphQL nodes() call
-// rather than one REST /users/{login} call per author.
+// field. It batches unique authors into GraphQL nodes() calls of at most
+// nodesByIDBatchSize IDs rather than one REST /users/{login} call per author.
 func resolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueResponse) {
 	idIndex := make(map[string][]int)
 	order := make([]string, 0)
 	for i, issue := range issues {
-		if issue.Author.NodeID == "" || issue.Author.Name != "" {
+		if !issue.IsIssue() || issue.Author.NodeID == "" || issue.Author.Name != "" {
 			continue
 		}
 		if _, seen := idIndex[issue.Author.NodeID]; !seen {
@@ -763,23 +767,31 @@ func resolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueRespon
 		return
 	}
 
-	ids := make([]githubv4.ID, len(order))
-	for i, id := range order {
-		ids[i] = githubv4.ID(id)
-	}
+	for start := 0; start < len(order); start += nodesByIDBatchSize {
+		end := start + nodesByIDBatchSize
+		if end > len(order) {
+			end = len(order)
+		}
+		batch := order[start:end]
 
-	var query model.NodesByIDQuery
-	if err := Query(ctx, &query, map[string]interface{}{"ids": ids}); err != nil {
-		logger.Flog.Error().Err(err).Msg("Error resolving issue author display names")
-		return
-	}
+		ids := make([]githubv4.ID, len(batch))
+		for i, id := range batch {
+			ids[i] = githubv4.ID(id)
+		}
 
-	for i, node := range query.Nodes {
-		if i >= len(order) || node.User.Name == "" {
+		var query model.NodesByIDQuery
+		if err := Query(ctx, &query, map[string]interface{}{"ids": ids}); err != nil {
+			logger.Flog.Error().Err(err).Msg("Error resolving issue author display names")
 			continue
 		}
-		for _, idx := range idIndex[order[i]] {
-			issues[idx].Author.Name = node.User.Name
+
+		for i, node := range query.Nodes {
+			if i >= len(batch) || node.User.Name == "" {
+				continue
+			}
+			for _, idx := range idIndex[batch[i]] {
+				issues[idx].Author.Name = node.User.Name
+			}
 		}
 	}
 }
