@@ -739,7 +739,61 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 		allIssues = append(allIssues, page...)
 		url = parseLinkNext(resp.LinkHeader)
 	}
+	resolveIssueAuthorNames(ctx, allIssues)
 	return allIssues, nil
+}
+
+// nodesByIDBatchSize is GitHub's cap on the number of IDs accepted by a
+// single GraphQL nodes(ids:) query.
+const nodesByIDBatchSize = 100
+
+// resolveIssueAuthorNames fills in Author.Name for issues fetched via the
+// REST list endpoint, whose "simple user" objects don't include a name
+// field. It batches unique authors into GraphQL nodes() calls of at most
+// nodesByIDBatchSize IDs rather than one REST /users/{login} call per author.
+func resolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueResponse) {
+	idIndex := make(map[string][]int)
+	order := make([]string, 0)
+	for i, issue := range issues {
+		if !issue.IsIssue() || issue.Author.NodeID == "" || issue.Author.Name != "" {
+			continue
+		}
+		if _, seen := idIndex[issue.Author.NodeID]; !seen {
+			order = append(order, issue.Author.NodeID)
+		}
+		idIndex[issue.Author.NodeID] = append(idIndex[issue.Author.NodeID], i)
+	}
+	if len(order) == 0 {
+		return
+	}
+
+	for start := 0; start < len(order); start += nodesByIDBatchSize {
+		end := start + nodesByIDBatchSize
+		if end > len(order) {
+			end = len(order)
+		}
+		batch := order[start:end]
+
+		ids := make([]githubv4.ID, len(batch))
+		for i, id := range batch {
+			ids[i] = githubv4.ID(id)
+		}
+
+		var query model.NodesByIDQuery
+		if err := Query(ctx, &query, map[string]interface{}{"ids": ids}); err != nil {
+			logger.Flog.Error().Err(err).Msg("Error resolving issue author display names")
+			continue
+		}
+
+		for i, node := range query.Nodes {
+			if i >= len(batch) || node.User.Name == "" {
+				continue
+			}
+			for _, idx := range idIndex[batch[i]] {
+				issues[idx].Author.Name = node.User.Name
+			}
+		}
+	}
 }
 
 func GetIssue(ctx *appcontext.Context, orgName, repoName string, issueNumber int) (model.IssueResponse, error) {

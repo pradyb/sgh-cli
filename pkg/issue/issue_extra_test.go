@@ -134,7 +134,8 @@ func TestListIssues_GraphQL_Success(t *testing.T) {
 									"totalCount": 1,
 									"edges":      []map[string]interface{}{{"node": map[string]interface{}{"name": "bug"}}},
 								},
-								"comments": map[string]interface{}{"totalCount": 3},
+								"comments":                       map[string]interface{}{"totalCount": 3},
+								"closedByPullRequestsReferences": map[string]interface{}{"totalCount": 2},
 							},
 						},
 					},
@@ -168,6 +169,9 @@ func TestListIssues_GraphQL_Success(t *testing.T) {
 	}
 	if got.Comments != 3 {
 		t.Errorf("Comments = %d, want 3", got.Comments)
+	}
+	if got.LinkedPRCount == nil || *got.LinkedPRCount != 2 {
+		t.Errorf("LinkedPRCount = %v, want 2", got.LinkedPRCount)
 	}
 }
 

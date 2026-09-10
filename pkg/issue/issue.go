@@ -110,6 +110,7 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 				labels = append(labels, model.IssueLabel{Name: labelEdge.Node.Name})
 			}
 
+			linkedPRCount := issue.ClosedByPullRequestsReferences.TotalCount
 			issueResponse := model.IssueResponse{
 				Number:         issue.Number,
 				Title:          issue.Title,
@@ -123,8 +124,9 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 					Login: issue.Author.User.Login,
 					Name:  issue.Author.User.Name,
 				},
-				Labels:   labels,
-				Comments: issue.Comments.TotalCount,
+				Labels:        labels,
+				Comments:      issue.Comments.TotalCount,
+				LinkedPRCount: &linkedPRCount,
 			}
 
 			issueResponse.Assignees = populateAssignees(issue.Assignees)
