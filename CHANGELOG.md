@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`pr list` shows a Created column**: pull request listings now include the creation date alongside the existing columns
+- **`issue list` resolves author display names and shows a linked-PR indicator**: issue authors are now shown by display name (batched via a single GraphQL lookup, chunked to stay under GitHub's 100-ID node limit) instead of just their login, and each issue shows how many pull requests are linked to close it
+
 ### Fixed
 - **Config rejected GitHub Enterprise Server usernames with underscores**: username validation enforced github.com's public rules only, so a SAML/LDAP-synced name like `jane-doe_acme` in `pull_request_assignees` or the `protected_branch` user lists failed config loading and blocked every command
 
