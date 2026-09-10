@@ -303,11 +303,17 @@ func newPR(repo, title, author, state string) model.PullRequestResponse {
 	}
 }
 
+func newPRWithCreatedAt(repo, title, author, state, createdAt string) model.PullRequestResponse {
+	pr := newPR(repo, title, author, state)
+	pr.CreatedAt = createdAt
+	return pr
+}
+
 func TestSortPullRequests(t *testing.T) {
 	newSet := func() []model.PullRequestResponse {
 		return []model.PullRequestResponse{
-			newPR("web", "Fix bug", "zoe", "open"),
-			newPR("api", "Add feature", "alice", "closed"),
+			newPRWithCreatedAt("web", "Fix bug", "zoe", "open", "2026-01-01T00:00:00Z"),
+			newPRWithCreatedAt("api", "Add feature", "alice", "closed", "2026-08-01T00:00:00Z"),
 		}
 	}
 
@@ -340,6 +346,14 @@ func TestSortPullRequests(t *testing.T) {
 		SortPullRequests(got, "status")
 		if got[0].State != "closed" {
 			t.Errorf("first state = %q, want closed", got[0].State)
+		}
+	})
+
+	t.Run("by created is newest first", func(t *testing.T) {
+		got := newSet()
+		SortPullRequests(got, "created")
+		if got[0].TitleName != "Add feature" {
+			t.Errorf("first title = %q, want Add feature", got[0].TitleName)
 		}
 	})
 
