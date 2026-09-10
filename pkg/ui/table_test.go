@@ -175,12 +175,12 @@ func TestRepositoryTableStyle(t *testing.T) {
 
 func TestPullRequestStyle(t *testing.T) {
 	rows := [][]string{
-		{"1", "repo", "title", "author", "assignee", "reviewer", "open / MERGEABLE", "refs", "link"},
-		{"2", "repo2", "title2", "author2", "", "", "closed / DIRTY", "refs2", "link2"},
+		{"1", "repo", "title", "author", "assignee", "reviewer", "open / MERGEABLE", "refs", "just now", "link"},
+		{"2", "repo2", "title2", "author2", "", "", "closed / DIRTY", "refs2", "2 days ago", "link2"},
 		{"", "Total Pull Requests", "2"},
 	}
 
-	for _, col := range []int{0, 6, 8} {
+	for _, col := range []int{0, 6, 8, 9} {
 		s := pullRequestStyle(0, col, rows)
 		if s.GetAlignHorizontal() != lipgloss.Center {
 			t.Errorf("col %d not centered: %+v", col, s)

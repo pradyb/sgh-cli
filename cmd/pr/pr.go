@@ -185,7 +185,7 @@ By default lists open pull requests. Use --state to filter by state.`,
 	listCmd.Flags().StringVarP(&reviewer, "reviewer", "R", "", "filter by `reviewer` login")
 	listCmd.Flags().StringVarP(&label, "label", "l", "", "filter by `label` name")
 	listCmd.Flags().StringVar(&since, "since", "", "filter PRs created on or after `date` (YYYY-MM-DD)")
-	listCmd.Flags().StringVar(&prSortBy, "sort", "", "sort results by: repo, title, author, status")
+	listCmd.Flags().StringVar(&prSortBy, "sort", "", "sort results by: repo, title, author, status, created")
 
 	return listCmd
 }

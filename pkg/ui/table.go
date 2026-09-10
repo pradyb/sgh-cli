@@ -400,13 +400,14 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 				truncateText(pr.ReviewersName(), maxLenName),
 				pr.State + " / " + pr.MergeStateStatus,
 				truncateText(refs, maxLenRefs),
+				RelativeTime(pr.CreatedAt),
 				fmt.Sprintf(HyperLinkFormat, pr.HTMLUrl, "Open"),
 			})
 		}
 	}
 
 	if len(rows) > 0 {
-		headers := []string{"ID", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "HTMLUrl"}
+		headers := []string{"ID", "Repository", "Title", "Created User", "Assignees", "Reviewers", "Status/Merge State", "Refs", "Created", "HTMLUrl"}
 		if compact {
 			PrintCompactTable(headers, rows)
 			return
@@ -428,7 +429,9 @@ func PrintPullRequestResponses(prResponses []model.PullRequestResponse, sortBy s
 				SortIndicator("Created User", sortBy, "author"),
 				"Assignees", "Reviewers",
 				SortIndicator("Status/Merge State", sortBy, "status"),
-				"Refs", "HTMLUrl",
+				"Refs",
+				SortIndicator("Created", sortBy, "created"),
+				"HTMLUrl",
 			).
 			Rows(rows...)
 
@@ -448,6 +451,12 @@ func SortPullRequests(prs []model.PullRequestResponse, sortBy string) {
 		sort.Slice(prs, func(i, j int) bool { return prs[i].AuthorName() < prs[j].AuthorName() })
 	case "status":
 		sort.Slice(prs, func(i, j int) bool { return prs[i].State < prs[j].State })
+	case "created":
+		sort.Slice(prs, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339, prs[i].CreatedAt)
+			tj, _ := time.Parse(time.RFC3339, prs[j].CreatedAt)
+			return ti.After(tj)
+		})
 	}
 }
 
@@ -456,7 +465,7 @@ func pullRequestStyle(row int, col int, rows [][]string) lipgloss.Style {
 
 	if row >= 0 {
 		switch col {
-		case 0, 6, 8:
+		case 0, 6, 8, 9:
 			style = style.Align(lipgloss.Center)
 		}
 	}
