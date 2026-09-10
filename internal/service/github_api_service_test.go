@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pradyb/sgh-cli/internal/model"
 	"github.com/pradyb/sgh-cli/internal/testutils"
 	appcontext "github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -1150,17 +1151,11 @@ func TestListIssues(t *testing.T) {
 		require.Error(t, err)
 	})
 
+}
+
+func TestResolveIssueAuthorNames(t *testing.T) {
 	t.Run("resolves author display name via one batched GraphQL call for repeated authors", func(t *testing.T) {
 		mockServer, ctx := newTestCtx(t)
-		mockServer.SetResponse("/repos/testorg/test-repo/issues", testutils.MockResponse{
-			StatusCode: http.StatusOK,
-			Body: []map[string]interface{}{
-				{"number": 1, "title": "Bug one", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
-				{"number": 2, "title": "Bug two", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}},
-			},
-		})
-
-		var graphqlCalls int
 		mockServer.SetResponse("/graphql", testutils.MockResponse{
 			StatusCode: http.StatusOK,
 			Body: map[string]interface{}{
@@ -1172,13 +1167,16 @@ func TestListIssues(t *testing.T) {
 			},
 		})
 
-		issues, err := ListIssues(ctx, testOrgName, testRepoName, "", "", "", "", 0)
+		issues := []model.IssueResponse{
+			{Number: 1, Author: model.User{Login: "alice", NodeID: "U_alice"}},
+			{Number: 2, Author: model.User{Login: "alice", NodeID: "U_alice"}},
+		}
+		ResolveIssueAuthorNames(ctx, issues)
 
-		require.NoError(t, err)
-		require.Len(t, issues, 2)
 		assert.Equal(t, "Alice Doe", issues[0].Author.Name)
 		assert.Equal(t, "Alice Doe", issues[1].Author.Name)
 
+		var graphqlCalls int
 		for _, req := range mockServer.GetRequests() {
 			if req.Path == "/graphql" {
 				graphqlCalls++
@@ -1189,17 +1187,12 @@ func TestListIssues(t *testing.T) {
 
 	t.Run("does not resolve author names for pull request entries", func(t *testing.T) {
 		mockServer, ctx := newTestCtx(t)
-		mockServer.SetResponse("/repos/testorg/test-repo/issues", testutils.MockResponse{
-			StatusCode: http.StatusOK,
-			Body: []map[string]interface{}{
-				{"number": 1, "title": "A PR", "state": "open", "user": map[string]interface{}{"login": "alice", "node_id": "U_alice"}, "pull_request": map[string]interface{}{"url": "https://api.github.com/repos/testorg/test-repo/pulls/1"}},
-			},
-		})
 
-		issues, err := ListIssues(ctx, testOrgName, testRepoName, "", "", "", "", 0)
+		issues := []model.IssueResponse{
+			{Number: 1, Author: model.User{Login: "alice", NodeID: "U_alice"}, PullRequest: &model.IssuePR{URL: "https://api.github.com/repos/testorg/test-repo/pulls/1"}},
+		}
+		ResolveIssueAuthorNames(ctx, issues)
 
-		require.NoError(t, err)
-		require.Len(t, issues, 1)
 		assert.Empty(t, issues[0].Author.Name)
 
 		var graphqlCalls int
@@ -1213,19 +1206,6 @@ func TestListIssues(t *testing.T) {
 
 	t.Run("chunks author name resolution into GraphQL calls of at most 100 ids", func(t *testing.T) {
 		mockServer, ctx := newTestCtx(t)
-		body := make([]map[string]interface{}, 101)
-		for i := range body {
-			body[i] = map[string]interface{}{
-				"number": i + 1,
-				"title":  "Bug",
-				"state":  "open",
-				"user":   map[string]interface{}{"login": fmt.Sprintf("user%d", i), "node_id": fmt.Sprintf("U_%d", i)},
-			}
-		}
-		mockServer.SetResponse("/repos/testorg/test-repo/issues", testutils.MockResponse{
-			StatusCode: http.StatusOK,
-			Body:       body,
-		})
 		mockServer.SetResponse("/graphql", testutils.MockResponse{
 			StatusCode: http.StatusOK,
 			Body: map[string]interface{}{
@@ -1235,10 +1215,14 @@ func TestListIssues(t *testing.T) {
 			},
 		})
 
-		issues, err := ListIssues(ctx, testOrgName, testRepoName, "", "", "", "", 0)
-
-		require.NoError(t, err)
-		require.Len(t, issues, 101)
+		issues := make([]model.IssueResponse, 101)
+		for i := range issues {
+			issues[i] = model.IssueResponse{
+				Number: i + 1,
+				Author: model.User{Login: fmt.Sprintf("user%d", i), NodeID: fmt.Sprintf("U_%d", i)},
+			}
+		}
+		ResolveIssueAuthorNames(ctx, issues)
 
 		var graphqlCalls int
 		for _, req := range mockServer.GetRequests() {

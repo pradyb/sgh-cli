@@ -739,7 +739,6 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 		allIssues = append(allIssues, page...)
 		url = parseLinkNext(resp.LinkHeader)
 	}
-	resolveIssueAuthorNames(ctx, allIssues)
 	return allIssues, nil
 }
 
@@ -747,11 +746,14 @@ func ListIssues(ctx *appcontext.Context, orgName, repoName, state, labels, assig
 // single GraphQL nodes(ids:) query.
 const nodesByIDBatchSize = 100
 
-// resolveIssueAuthorNames fills in Author.Name for issues fetched via the
+// ResolveIssueAuthorNames fills in Author.Name for issues fetched via the
 // REST list endpoint, whose "simple user" objects don't include a name
-// field. It batches unique authors into GraphQL nodes() calls of at most
+// field. Callers should aggregate issues across all repos being listed
+// before calling this once, since authors are commonly shared across an
+// org's repos and batching avoids one GraphQL round-trip per repo. It
+// batches unique authors into GraphQL nodes() calls of at most
 // nodesByIDBatchSize IDs rather than one REST /users/{login} call per author.
-func resolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueResponse) {
+func ResolveIssueAuthorNames(ctx *appcontext.Context, issues []model.IssueResponse) {
 	idIndex := make(map[string][]int)
 	order := make([]string, 0)
 	for i, issue := range issues {

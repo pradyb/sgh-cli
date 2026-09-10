@@ -160,6 +160,11 @@ func ListIssues(ctx *context.Context, req IssueListRequest) []model.IssueRespons
 				})
 			})
 
+		// Resolve author display names once across all repos rather than
+		// per repo: authors are commonly shared across an org's repos, so
+		// this collapses what would otherwise be one GraphQL call per repo
+		// into a single (possibly chunked) call.
+		service.ResolveIssueAuthorNames(ctx, responses)
 		return responses
 	}
 }
