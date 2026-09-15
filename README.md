@@ -119,6 +119,9 @@ MIT — see [LICENSE](LICENSE).
 
 Copyright (c) 2024 Pradeep Kumar Balakrishnan
 
+Third-party dependency licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## 🙏 Acknowledgments
 
 Built with [Cobra](https://github.com/spf13/cobra), [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Bubbles](https://github.com/charmbracelet/bubbles), [Lipgloss](https://github.com/charmbracelet/lipgloss), [Progressbar](https://github.com/schollz/progressbar), and [Zerolog](https://github.com/rs/zerolog), on top of the [GitHub REST](https://docs.github.com/en/rest) and [GraphQL](https://docs.github.com/en/graphql) APIs.
