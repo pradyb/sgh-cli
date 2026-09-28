@@ -1283,6 +1283,40 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 	b.WriteString(t.String())
 	b.WriteString("\n")
 	b.WriteString(renderApprovals(detail.Approvals))
+	b.WriteString(renderPendingGates(detail.PendingGates, run))
+	return b.String()
+}
+
+// renderPendingGates shows the environment gates a waiting run is blocked on, who can decide them,
+// and whether the current user is one of them.
+func renderPendingGates(gates []model.PendingDeployment, run model.WorkflowRun) string {
+	if len(gates) == 0 {
+		return ""
+	}
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(White).PaddingLeft(1)
+	labelStyle := lipgloss.NewStyle().Foreground(Dimmed)
+	var b strings.Builder
+	b.WriteString("\n" + titleStyle.Render("Pending approval") + "\n\n")
+	canApprove := false
+	for _, g := range gates {
+		names := make([]string, 0, len(g.Reviewers))
+		for _, r := range g.Reviewers {
+			names = append(names, r.DisplayName())
+		}
+		who := "you cannot approve"
+		if g.CurrentUserCanApprove {
+			who = "you can approve"
+			canApprove = true
+		}
+		line := fmt.Sprintf("  %s %s", lipgloss.NewStyle().Foreground(Yellow).Render("⏸"), g.Environment.Name)
+		if len(names) > 0 {
+			line += labelStyle.Render("  reviewers: " + strings.Join(names, ", "))
+		}
+		b.WriteString(line + labelStyle.Render("  ("+who+")") + "\n")
+	}
+	if canApprove {
+		b.WriteString(labelStyle.Render(fmt.Sprintf("\n  Approve with: sgh workflow approve -r %s --run %d", run.RepositoryName, run.ID)) + "\n")
+	}
 	return b.String()
 }
 

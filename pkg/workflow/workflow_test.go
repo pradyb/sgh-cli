@@ -597,3 +597,80 @@ func TestGetWorkflowRunDetail_ApprovalsErrorIsNotFatal(t *testing.T) {
 		t.Errorf("want run without approvals and no error, got %+v", detail)
 	}
 }
+
+const detailPendingPath = "/repos/testorg/repo1/actions/runs/123/pending_deployments"
+
+func pendingRequests(mockServer *testutils.MockGitHubServer) int {
+	n := 0
+	for _, r := range mockServer.GetRequests() {
+		if r.Path == detailPendingPath {
+			n++
+		}
+	}
+	return n
+}
+
+func TestGetWorkflowRunDetail_WaitingRunIncludesPendingGates(t *testing.T) {
+	mockServer := detailMock(t)
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 123, "name": "Build", "status": "waiting"},
+	})
+	mockServer.SetResponse(detailPendingPath, testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: []map[string]interface{}{{
+			"environment":              map[string]interface{}{"id": 9, "name": "approval-2"},
+			"current_user_can_approve": true,
+			"reviewers":                []map[string]interface{}{{"type": "User", "reviewer": map[string]interface{}{"login": "alice"}}},
+		}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
+
+	if detail.ErrorMessage != "" {
+		t.Fatalf("unexpected error: %s", detail.ErrorMessage)
+	}
+	if len(detail.PendingGates) != 1 || detail.PendingGates[0].Environment.Name != "approval-2" ||
+		detail.PendingGates[0].Reviewers[0].DisplayName() != "alice" {
+		t.Errorf("PendingGates = %+v", detail.PendingGates)
+	}
+}
+
+func TestGetWorkflowRunDetail_NonWaitingRunSkipsPendingCall(t *testing.T) {
+	for _, status := range []string{"completed", "in_progress", "queued"} {
+		t.Run(status, func(t *testing.T) {
+			mockServer := detailMock(t)
+			mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123", testutils.MockResponse{
+				StatusCode: http.StatusOK,
+				Body:       map[string]interface{}{"id": 123, "name": "Build", "status": status},
+			})
+			ctx := servicetest.NewMockContext(t, mockServer)
+
+			detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
+
+			if pendingRequests(mockServer) != 0 || len(detail.PendingGates) != 0 {
+				t.Errorf("status %s: pending calls=%d gates=%v, want none", status, pendingRequests(mockServer), detail.PendingGates)
+			}
+		})
+	}
+}
+
+func TestGetWorkflowRunDetail_PendingErrorIsNotFatal(t *testing.T) {
+	mockServer := detailMock(t)
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 123, "name": "Build", "status": "waiting"},
+	})
+	mockServer.SetResponse(detailPendingPath, testutils.MockResponse{
+		StatusCode: http.StatusForbidden,
+		Body:       map[string]interface{}{"message": "Forbidden"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
+
+	if detail.ErrorMessage != "" || len(detail.PendingGates) != 0 {
+		t.Errorf("want run without gates and no error, got %+v", detail)
+	}
+}

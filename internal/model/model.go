@@ -510,6 +510,29 @@ type PendingDeployment struct {
 	Environment           DeploymentEnvironment `json:"environment"`
 	WaitTimer             int                   `json:"wait_timer"`
 	CurrentUserCanApprove bool                  `json:"current_user_can_approve"`
+	Reviewers             []DeploymentReviewer  `json:"reviewers"`
+}
+
+// DeploymentReviewer is a required reviewer of an environment: a user or a team.
+type DeploymentReviewer struct {
+	Type     string `json:"type"`
+	Reviewer struct {
+		Login string `json:"login"`
+		Slug  string `json:"slug"`
+		Name  string `json:"name"`
+	} `json:"reviewer"`
+}
+
+// DisplayName returns the user's login, or the team's slug (falling back to its name).
+func (r DeploymentReviewer) DisplayName() string {
+	switch {
+	case r.Reviewer.Login != "":
+		return r.Reviewer.Login
+	case r.Reviewer.Slug != "":
+		return r.Reviewer.Slug
+	default:
+		return r.Reviewer.Name
+	}
 }
 
 // WorkflowApproval is a recorded approve/reject decision on an environment gate of a run.
@@ -540,9 +563,11 @@ type WorkflowJobsResponse struct {
 }
 
 type WorkflowRunDetail struct {
-	Run          WorkflowRun
-	Jobs         []WorkflowJob
-	Approvals    []WorkflowApproval
+	Run       WorkflowRun
+	Jobs      []WorkflowJob
+	Approvals []WorkflowApproval
+	// PendingGates are the environment gates a waiting run is blocked on.
+	PendingGates []PendingDeployment
 	ErrorMessage string
 }
 

@@ -486,3 +486,21 @@ func TestAuditLogEntry_UnmarshalJSON_MalformedRepoArray(t *testing.T) {
 		t.Errorf("Repo = %q, want empty string when array elements are not strings", e.Repo)
 	}
 }
+
+func TestDeploymentReviewer_DisplayName(t *testing.T) {
+	var user, team, nameOnly DeploymentReviewer
+	user.Reviewer.Login = "alice"
+	user.Reviewer.Name = "Alice A"
+	team.Reviewer.Slug = "platform"
+	team.Reviewer.Name = "Platform Team"
+	nameOnly.Reviewer.Name = "Only Name"
+
+	for _, tc := range []struct {
+		r    DeploymentReviewer
+		want string
+	}{{user, "alice"}, {team, "platform"}, {nameOnly, "Only Name"}, {DeploymentReviewer{}, ""}} {
+		if got := tc.r.DisplayName(); got != tc.want {
+			t.Errorf("DisplayName() = %q, want %q", got, tc.want)
+		}
+	}
+}

@@ -170,10 +170,20 @@ func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.Wo
 	}
 	slices.Reverse(approvals) // API returns newest first; show in chronological order
 
+	// Only a waiting run can be blocked on a gate, so skip the extra call otherwise.
+	var pending []model.PendingDeployment
+	if run.Status == "waiting" {
+		pending, err = service.ListPendingDeployments(ctx, req.OrgName, repoName, req.RunID)
+		if err != nil {
+			logger.Glog.Debug().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Could not get pending deployments")
+		}
+	}
+
 	return model.WorkflowRunDetail{
-		Run:       run,
-		Jobs:      jobs,
-		Approvals: approvals,
+		Run:          run,
+		Jobs:         jobs,
+		Approvals:    approvals,
+		PendingGates: pending,
 	}
 }
 

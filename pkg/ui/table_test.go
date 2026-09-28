@@ -466,6 +466,53 @@ func TestRenderWorkflowRunDetail_Approvals(t *testing.T) {
 	})
 }
 
+func TestRenderWorkflowRunDetail_PendingGates(t *testing.T) {
+	var user, team model.DeploymentReviewer
+	user.Reviewer.Login = "alice"
+	team.Reviewer.Slug = "platform"
+	base := model.WorkflowRunDetail{
+		Run:  model.WorkflowRun{ID: 42, RepositoryName: "repo1", Name: "CI", Status: "waiting"},
+		Jobs: []model.WorkflowJob{{Name: "deploy", Status: "waiting"}},
+	}
+
+	t.Run("gate the user can approve", func(t *testing.T) {
+		detail := base
+		detail.PendingGates = []model.PendingDeployment{{
+			Environment:           model.DeploymentEnvironment{ID: 1, Name: "production"},
+			CurrentUserCanApprove: true,
+			Reviewers:             []model.DeploymentReviewer{user, team},
+		}}
+		out := RenderWorkflowRunDetail(detail)
+		for _, want := range []string{"Pending approval", "production", "reviewers: alice, platform", "you can approve",
+			"sgh workflow approve -r repo1 --run 42"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("output missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("gate the user cannot approve has no approve hint", func(t *testing.T) {
+		detail := base
+		detail.PendingGates = []model.PendingDeployment{{
+			Environment: model.DeploymentEnvironment{ID: 1, Name: "production"},
+			Reviewers:   []model.DeploymentReviewer{user},
+		}}
+		out := RenderWorkflowRunDetail(detail)
+		if !strings.Contains(out, "you cannot approve") {
+			t.Errorf("output missing 'you cannot approve':\n%s", out)
+		}
+		if strings.Contains(out, "sgh workflow approve") {
+			t.Errorf("unexpected approve hint:\n%s", out)
+		}
+	})
+
+	t.Run("omitted when there are none", func(t *testing.T) {
+		if out := RenderWorkflowRunDetail(base); strings.Contains(out, "Pending approval") {
+			t.Errorf("unexpected section:\n%s", out)
+		}
+	})
+}
+
 func TestPrintWorkflowRunDetail(t *testing.T) {
 	out := captureStdout(t, func() {
 		PrintWorkflowRunDetail(model.WorkflowRunDetail{ErrorMessage: "boom"})
