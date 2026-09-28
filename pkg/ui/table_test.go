@@ -441,6 +441,31 @@ func TestRenderWorkflowRunDetail(t *testing.T) {
 	})
 }
 
+func TestRenderWorkflowRunDetail_Approvals(t *testing.T) {
+	job := model.WorkflowJob{Name: "build", Status: "completed", Conclusion: "success"}
+	base := model.WorkflowRunDetail{Run: model.WorkflowRun{RepositoryName: "repo1", Name: "CI"}, Jobs: []model.WorkflowJob{job}}
+
+	t.Run("shows decision, reviewer and comment", func(t *testing.T) {
+		detail := base
+		detail.Approvals = []model.WorkflowApproval{
+			{State: "approved", Comment: "gate 1 ok", User: model.User{Login: "alice"}, Environments: []model.DeploymentEnvironment{{Name: "approval-1"}}},
+			{State: "rejected", Comment: "rejecting gate 2", User: model.User{Login: "bob"}, Environments: []model.DeploymentEnvironment{{Name: "approval-2"}}},
+		}
+		out := RenderWorkflowRunDetail(detail)
+		for _, want := range []string{"Approvals", "approval-1 approved by alice", "gate 1 ok", "approval-2 rejected by bob", "rejecting gate 2"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("output missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("omitted when there are none", func(t *testing.T) {
+		if out := RenderWorkflowRunDetail(base); strings.Contains(out, "Approvals") {
+			t.Errorf("unexpected Approvals section:\n%s", out)
+		}
+	})
+}
+
 func TestPrintWorkflowRunDetail(t *testing.T) {
 	out := captureStdout(t, func() {
 		PrintWorkflowRunDetail(model.WorkflowRunDetail{ErrorMessage: "boom"})

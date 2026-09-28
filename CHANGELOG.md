@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`workflow view` shows approval decisions**: for runs that went through environment approval gates, an "Approvals" section lists each gate's decision (approved/rejected), the reviewer and their comment, in chronological order
 - **`workflow approve`**: approve (or `--reject`) the environment approval gates a workflow run is waiting on, without opening the Actions UI. Defaults to the latest waiting run, supports `--environment`, `--comment`, several `-r` repos, `--dry-run` and `--json`, and asks for confirmation unless `--yes` is given. Gates you are not a required reviewer of are skipped and reported
 - **`pr list` shows a Created column**: pull request listings now include the creation date alongside the existing columns
 - **`issue list` resolves author display names and shows a linked-PR indicator**: issue authors are now shown by display name (batched via a single GraphQL lookup, chunked to stay under GitHub's 100-ID node limit) instead of just their login, and each issue shows how many pull requests are linked to close it

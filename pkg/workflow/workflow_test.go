@@ -545,3 +545,55 @@ func jsonEqual(a, b string) bool {
 	}
 	return reflect.DeepEqual(x, y)
 }
+
+func detailMock(t *testing.T) *testutils.MockGitHubServer {
+	t.Helper()
+	mockServer := testutils.NewMockGitHubServer()
+	t.Cleanup(mockServer.Close)
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 123, "name": "Build", "status": "completed"},
+	})
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	return mockServer
+}
+
+func TestGetWorkflowRunDetail_IncludesApprovalsChronologically(t *testing.T) {
+	mockServer := detailMock(t)
+	// The API returns newest first.
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123/approvals", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: []map[string]interface{}{
+			{"state": "rejected", "comment": "second", "environments": []map[string]interface{}{{"id": 2, "name": "approval-2"}}},
+			{"state": "approved", "comment": "first", "environments": []map[string]interface{}{{"id": 1, "name": "approval-1"}}},
+		},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
+
+	if detail.ErrorMessage != "" {
+		t.Fatalf("unexpected error: %s", detail.ErrorMessage)
+	}
+	if len(detail.Approvals) != 2 || detail.Approvals[0].Comment != "first" || detail.Approvals[1].Comment != "second" {
+		t.Errorf("approvals = %+v, want [first, second]", detail.Approvals)
+	}
+}
+
+func TestGetWorkflowRunDetail_ApprovalsErrorIsNotFatal(t *testing.T) {
+	mockServer := detailMock(t)
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs/123/approvals", testutils.MockResponse{
+		StatusCode: http.StatusForbidden,
+		Body:       map[string]interface{}{"message": "Forbidden"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	detail := GetWorkflowRunDetail(ctx, WorkflowRunRequest{OrgName: "testorg", RepoName: "repo1", RunID: 123})
+
+	if detail.ErrorMessage != "" || len(detail.Approvals) != 0 {
+		t.Errorf("want run without approvals and no error, got %+v", detail)
+	}
+}

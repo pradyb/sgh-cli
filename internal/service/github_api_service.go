@@ -647,6 +647,21 @@ func ListPendingDeployments(ctx *appcontext.Context, orgName, repoName string, r
 	return pending, nil
 }
 
+// GetWorkflowRunApprovals returns the approve/reject decisions recorded on a workflow run's
+// environment gates, newest first.
+func GetWorkflowRunApprovals(ctx *appcontext.Context, orgName, repoName string, runID int) ([]model.WorkflowApproval, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/approvals", githubBaseURL, orgName, repoName, runID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var approvals []model.WorkflowApproval
+	if err := json.Unmarshal(response, &approvals); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the workflow approvals response body")
+		return nil, err
+	}
+	return approvals, nil
+}
+
 // ReviewPendingDeployments approves or rejects (state "approved" | "rejected") the
 // given environment gates of a workflow run.
 func ReviewPendingDeployments(ctx *appcontext.Context, orgName, repoName string, runID int, environmentIDs []int, state, comment string) error {

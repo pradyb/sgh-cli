@@ -512,6 +512,14 @@ type PendingDeployment struct {
 	CurrentUserCanApprove bool                  `json:"current_user_can_approve"`
 }
 
+// WorkflowApproval is a recorded approve/reject decision on an environment gate of a run.
+type WorkflowApproval struct {
+	State        string                  `json:"state"`
+	Comment      string                  `json:"comment"`
+	User         User                    `json:"user"`
+	Environments []DeploymentEnvironment `json:"environments"`
+}
+
 type DeploymentEnvironment struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
@@ -534,6 +542,7 @@ type WorkflowJobsResponse struct {
 type WorkflowRunDetail struct {
 	Run          WorkflowRun
 	Jobs         []WorkflowJob
+	Approvals    []WorkflowApproval
 	ErrorMessage string
 }
 

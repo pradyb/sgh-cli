@@ -163,9 +163,17 @@ func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.Wo
 		}
 	}
 
+	// Approvals are supplementary: a failure here (e.g. limited token) must not hide the run.
+	approvals, err := service.GetWorkflowRunApprovals(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Debug().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Could not get workflow approvals")
+	}
+	slices.Reverse(approvals) // API returns newest first; show in chronological order
+
 	return model.WorkflowRunDetail{
-		Run:  run,
-		Jobs: jobs,
+		Run:       run,
+		Jobs:      jobs,
+		Approvals: approvals,
 	}
 }
 

@@ -1705,3 +1705,40 @@ func TestReviewPendingDeployments(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestGetWorkflowRunApprovals(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs/100/approvals", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body: []map[string]interface{}{{
+				"state":        "rejected",
+				"comment":      "not now",
+				"user":         map[string]interface{}{"login": "alice"},
+				"environments": []map[string]interface{}{{"id": 7, "name": "approval-2"}},
+			}},
+		})
+
+		got, err := GetWorkflowRunApprovals(ctx, testOrgName, testRepoName, 100)
+
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, "rejected", got[0].State)
+		assert.Equal(t, "not now", got[0].Comment)
+		assert.Equal(t, "alice", got[0].User.Login)
+		assert.Equal(t, "approval-2", got[0].Environments[0].Name)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs/999/approvals", testutils.MockResponse{
+			StatusCode: http.StatusNotFound,
+			Body:       map[string]interface{}{"message": "Not Found"},
+		})
+
+		got, err := GetWorkflowRunApprovals(ctx, testOrgName, testRepoName, 999)
+
+		require.Error(t, err)
+		assert.Nil(t, got)
+	})
+}
