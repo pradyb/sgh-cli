@@ -4,6 +4,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -501,6 +502,24 @@ func TestDeploymentReviewer_DisplayName(t *testing.T) {
 	}{{user, "alice"}, {team, "platform"}, {nameOnly, "Only Name"}, {DeploymentReviewer{}, ""}} {
 		if got := tc.r.DisplayName(); got != tc.want {
 			t.Errorf("DisplayName() = %q, want %q", got, tc.want)
+		}
+	}
+}
+
+func TestWorkflowRunDetail_JSONFieldNames(t *testing.T) {
+	detail := WorkflowRunDetail{Run: WorkflowRun{ID: 1}, Jobs: []WorkflowJob{{ID: 2}}}
+	b, err := json.Marshal(detail)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	for _, want := range []string{`"run":`, `"jobs":`} {
+		if !bytes.Contains(b, []byte(want)) {
+			t.Errorf("output missing %s: %s", want, b)
+		}
+	}
+	for _, absent := range []string{"approvals", "pending_gates", "error_message"} {
+		if bytes.Contains(b, []byte(absent)) {
+			t.Errorf("omitempty field %q present when unset: %s", absent, b)
 		}
 	}
 }

@@ -193,6 +193,11 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if watch && ctx.JSON {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch cannot be combined with --json: --watch is an interactive, human-readable view")
+				ctx.HasError = true
+				return
+			}
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
 			if len(resolvedNames) == 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
@@ -208,7 +213,8 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 					return
 				}
 				effectiveRunID = resolved
-				fmt.Printf("  Using latest workflow run: %d\n", effectiveRunID)
+				// Informational, not data: stderr so it never lands in --json/--output output.
+				fmt.Fprintf(cmd.ErrOrStderr(), "  Using latest workflow run: %d\n", effectiveRunID)
 			}
 
 			req := workflow.WorkflowRunRequest{
@@ -218,6 +224,14 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 			}
 
 			detail := workflow.GetWorkflowRunDetail(ctx, req)
+
+			if ctx.JSON {
+				ui.PrintJSON(detail)
+				if detail.ErrorMessage != "" {
+					ctx.HasError = true
+				}
+				return
+			}
 
 			if !watch || !detail.IsInProgress() {
 				ui.PrintWorkflowRunDetail(detail)
