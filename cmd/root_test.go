@@ -6,6 +6,8 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"strings"
@@ -470,4 +472,80 @@ func TestNewRootCommand_HelpRun(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Errorf("Execute() with no args returned error: %v", err)
 	}
+}
+
+func TestPrintAPICallCount(t *testing.T) {
+	var buf bytes.Buffer
+	printAPICallCount(&buf, 0)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for zero calls, got %q", buf.String())
+	}
+	printAPICallCount(&buf, 3)
+	if !strings.Contains(buf.String(), "API calls: 3") {
+		t.Errorf("expected API call count in output, got %q", buf.String())
+	}
+}
+
+// Regression test for #17: the API call count must go to stderr only, so
+// `--output json | jq` sees clean stdout.
+func TestRootCommand_APICallCountOnStderrOnly(t *testing.T) {
+	stdout, stderr := runAPICallCommand(t)
+	if strings.Contains(stdout, "API calls") {
+		t.Errorf("stdout must not contain the API call count, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "API calls: 1") {
+		t.Errorf("stderr should contain the API call count, got %q", stderr)
+	}
+}
+
+// Machine-readable formats must not emit the summary at all, so callers that
+// merge stderr into stdout (2>&1) still get parseable output.
+func TestRootCommand_NoAPICallCountForMachineOutput(t *testing.T) {
+	for _, flag := range []string{"--json", "--compact", "--output=json"} {
+		stdout, stderr := runAPICallCommand(t, flag)
+		if strings.Contains(stdout+stderr, "API calls") {
+			t.Errorf("%s: API call count must be suppressed, got stdout=%q stderr=%q", flag, stdout, stderr)
+		}
+	}
+}
+
+// runAPICallCommand runs a command that makes one API call and returns the
+// captured stdout and stderr. HOME is isolated so the developer's real sgh
+// config is never read.
+func runAPICallCommand(t *testing.T, extraArgs ...string) (string, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	ctx, err := context.Init()
+	if err != nil {
+		t.Fatalf("context.Init: %v", err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	root := NewRootCommand(ctx)
+	root.AddCommand(&cobra.Command{
+		Use: "apicall",
+		Run: func(cmd *cobra.Command, args []string) {
+			req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+			resp, err := ctx.HttpClient.Send(req)
+			if err != nil {
+				t.Errorf("Send: %v", err)
+				return
+			}
+			resp.Body.Close()
+			cmd.Println(`{"ok":true}`)
+		},
+	})
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs(append([]string{"apicall", "--org", "test-org"}, extraArgs...))
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	return stdout.String(), stderr.String()
 }

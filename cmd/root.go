@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -121,12 +122,9 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			logCommandExecution(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if ctx.HttpClient != nil {
-				count := ctx.HttpClient.APICallCount()
-				if count > 0 {
-					style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
-					fmt.Println(style.Render(fmt.Sprintf("  API calls: %d", count)))
-				}
+			// Machine-readable formats stay clean even when a caller merges stderr into stdout.
+			if ctx.HttpClient != nil && !ctx.JSON && !ctx.Compact {
+				printAPICallCount(cmd.ErrOrStderr(), ctx.HttpClient.APICallCount())
 			}
 			if ctx.HasError {
 				os.Exit(1)
@@ -368,9 +366,13 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 	}
 }
 
+// stderrRenderer detects colour support from stderr rather than stdout, so
+// text written to stderr is styled correctly when stdout is piped (and vice versa).
+var stderrRenderer = lipgloss.NewRenderer(os.Stderr)
+
 func printCLIError(msg string, hint string) {
-	errStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Red)
-	hintStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+	errStyle := stderrRenderer.NewStyle().Bold(true).Foreground(ui.Red)
+	hintStyle := stderrRenderer.NewStyle().Foreground(ui.Dimmed).Italic(true)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, errStyle.Render("  ✗ "+msg))
 	if hint != "" {
@@ -388,4 +390,13 @@ func logCommandExecution(cmd *cobra.Command) {
 		}
 	})
 	logger.Flog.Info().Msgf("Processing command: %s %s", cmd.CommandPath(), strings.Join(userFlags, " "))
+}
+
+// printAPICallCount writes the API call summary to w. Callers pass stderr so
+// stdout stays clean for machine-readable --output formats piped to tools like jq.
+func printAPICallCount(w io.Writer, count int64) {
+	if count > 0 {
+		style := lipgloss.NewRenderer(w).NewStyle().Foreground(ui.Dimmed).Italic(true)
+		fmt.Fprintln(w, style.Render(fmt.Sprintf("  API calls: %d", count)))
+	}
 }
