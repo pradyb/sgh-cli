@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Third-party attributions moved out of `LICENSE`**: the appended dependency notices made GitHub classify the repo as `NOASSERTION` ("Other") instead of MIT, which also trips automated license scanners. `LICENSE` is now the unmodified MIT text and the attributions live in `THIRD_PARTY_NOTICES.md`, now generated from `go list -deps` so it covers every linked module rather than just two
 
 ### Fixed
+- **`workflow dispatch` silently ignored malformed `--input` values**: an input without `=` (such as a typo like `--input target` or `--input env:prod`) was dropped, so the workflow ran with its default instead of the intended value. It now fails before dispatching anything, naming the bad value, and also rejects an empty key
 - **`--output json` could not be piped to `jq`**: the trailing `API calls: N` summary was printed to stdout, corrupting structured output. It now goes to stderr, and is omitted entirely for `--json`/`--compact`/`--output json|compact` so `2>&1 | jq` also works. Anything that stripped that line from stdout (e.g. with `grep`) should read stderr instead
 - **Config rejected GitHub Enterprise Server usernames with underscores**: username validation enforced github.com's public rules only, so a SAML/LDAP-synced name like `jane-doe_acme` in `pull_request_assignees` or the `protected_branch` user lists failed config loading and blocked every command
 

@@ -754,3 +754,69 @@ func TestApproveCommand_MissingRepository(t *testing.T) {
 		t.Fatal("expected an error for missing required --repository flag")
 	}
 }
+
+func TestParseInputPairs(t *testing.T) {
+	got, err := parseInputPairs([]string{"env=prod", "empty=", "url=a=b=c"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := map[string]string{"env": "prod", "empty": "", "url": "a=b=c"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if gv, ok := got[k]; !ok || gv != v {
+			t.Errorf("input %q = %q (present=%v), want %q", k, gv, ok, v)
+		}
+	}
+
+	if got, err := parseInputPairs(nil); err != nil || len(got) != 0 {
+		t.Errorf("nil pairs: got %v, %v; want empty map, nil", got, err)
+	}
+
+	for _, bad := range []string{"target", "dry_run", "env:prod", "=x", "="} {
+		if _, err := parseInputPairs([]string{"ok=1", bad}); err == nil {
+			t.Errorf("parseInputPairs(%q) expected an error", bad)
+		}
+	}
+}
+
+// A malformed --input must abort before any API call, so a multi-repo dispatch never runs partially
+// and the workflow never runs with the intended input silently missing.
+func TestDispatchCommand_InvalidInputSendsNothing(t *testing.T) {
+	for _, bad := range []string{"target", "=x"} {
+		t.Run(bad, func(t *testing.T) {
+			mockServer := testutils.NewMockGitHubServer()
+			defer mockServer.Close()
+			ctx := servicetest.NewMockContext(t, mockServer)
+			ctx.Silent = true
+
+			err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "-r", "repo2",
+				"--workflow", "build.yml", "--ref", "main", "--input", "env=prod", "--input", bad)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(mockServer.GetRequests()) != 0 {
+				t.Errorf("expected no network requests, got %d", len(mockServer.GetRequests()))
+			}
+			if !ctx.HasError {
+				t.Error("expected ctx.HasError so the process exits non-zero")
+			}
+		})
+	}
+}
+
+func TestDispatchCommand_InvalidInputAbortsDryRun(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.DryRun = true
+
+	if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1",
+		"--workflow", "build.yml", "--ref", "main", "--input", "target"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError {
+		t.Error("dry-run must also reject a malformed --input")
+	}
+}
