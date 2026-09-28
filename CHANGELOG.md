@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-29
+
 ### Added
 - **`workflow view` supports `--json` / `--output json`**: run, jobs, approvals and any pending approval gate are printed as JSON, so `sgh workflow view -r repo --run N --json | jq .` works. `--watch` is rejected together with `--json` (it's an interactive view); the "Using latest workflow run" notice now goes to stderr in every mode
 - **`workflow view` shows the pending approval gate**: for a run waiting on an environment gate, a "Pending approval" section lists each blocking environment, its required reviewers (users or teams), whether you can approve it, and the `workflow approve` command to run. Only fetched for `waiting` runs, so other runs cost no extra API call, and it also refreshes under `--watch`
@@ -74,5 +76,7 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/pradyb/sgh-cli/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/pradyb/sgh-cli/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/pradyb/sgh-cli/releases/tag/v1.0.0
