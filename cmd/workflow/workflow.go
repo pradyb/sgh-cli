@@ -449,14 +449,11 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
 
-			inputs := make(map[string]string)
-			for _, pair := range inputPairs {
-				for i, ch := range pair {
-					if ch == '=' {
-						inputs[pair[:i]] = pair[i+1:]
-						break
-					}
-				}
+			inputs, err := parseInputPairs(inputPairs)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %v\n", err)
+				ctx.HasError = true
+				return
 			}
 
 			if ctx.DryRun {
@@ -621,4 +618,22 @@ func printApproveResult(cmd *cobra.Command, r workflow.ApproveResult, verb strin
 	if len(r.Skipped) > 0 {
 		fmt.Fprintf(cmd.ErrOrStderr(), "  ! %s: skipped (not a required reviewer): %s\n", r.Repository, strings.Join(r.Skipped, ", "))
 	}
+}
+
+// parseInputPairs turns repeated --input key=value flags into a map. It splits on the first
+// '=' only (values may contain '='), and rejects malformed pairs so a typo never results in a
+// workflow being dispatched with the intended input silently missing.
+func parseInputPairs(pairs []string) (map[string]string, error) {
+	inputs := make(map[string]string, len(pairs))
+	for _, pair := range pairs {
+		key, value, found := strings.Cut(pair, "=")
+		if !found {
+			return nil, fmt.Errorf("invalid --input %q: expected key=value", pair)
+		}
+		if key == "" {
+			return nil, fmt.Errorf("invalid --input %q: key must not be empty", pair)
+		}
+		inputs[key] = value
+	}
+	return inputs, nil
 }
