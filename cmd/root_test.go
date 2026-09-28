@@ -6,6 +6,8 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"strings"
@@ -481,5 +483,46 @@ func TestPrintAPICallCount(t *testing.T) {
 	printAPICallCount(&buf, 3)
 	if !strings.Contains(buf.String(), "API calls: 3") {
 		t.Errorf("expected API call count in output, got %q", buf.String())
+	}
+}
+
+// Regression test for #17: the API call count must go to stderr only, so
+// `--output json | jq` sees clean stdout.
+func TestRootCommand_APICallCountOnStderrOnly(t *testing.T) {
+	t.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
+	ctx, err := context.Init()
+	if err != nil {
+		t.Fatalf("context.Init: %v", err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	root := NewRootCommand(ctx)
+	root.AddCommand(&cobra.Command{
+		Use: "apicall",
+		Run: func(cmd *cobra.Command, args []string) {
+			req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+			resp, err := ctx.HttpClient.Send(req)
+			if err != nil {
+				t.Errorf("Send: %v", err)
+				return
+			}
+			resp.Body.Close()
+			cmd.Println(`{"ok":true}`)
+		},
+	})
+	var stdout, stderr bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"apicall", "--org", "test-org"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Contains(stdout.String(), "API calls") {
+		t.Errorf("stdout must not contain the API call count, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "API calls: 1") {
+		t.Errorf("stderr should contain the API call count, got %q", stderr.String())
 	}
 }

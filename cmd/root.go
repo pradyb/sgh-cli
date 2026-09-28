@@ -365,9 +365,13 @@ func setupContext(cmd *cobra.Command, ctx *context.Context) {
 	}
 }
 
+// stderrRenderer detects colour support from stderr rather than stdout, so
+// text written to stderr is styled correctly when stdout is piped (and vice versa).
+var stderrRenderer = lipgloss.NewRenderer(os.Stderr)
+
 func printCLIError(msg string, hint string) {
-	errStyle := lipgloss.NewStyle().Bold(true).Foreground(ui.Red)
-	hintStyle := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+	errStyle := stderrRenderer.NewStyle().Bold(true).Foreground(ui.Red)
+	hintStyle := stderrRenderer.NewStyle().Foreground(ui.Dimmed).Italic(true)
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, errStyle.Render("  ✗ "+msg))
 	if hint != "" {
@@ -391,7 +395,7 @@ func logCommandExecution(cmd *cobra.Command) {
 // stdout stays clean for machine-readable --output formats piped to tools like jq.
 func printAPICallCount(w io.Writer, count int64) {
 	if count > 0 {
-		style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+		style := stderrRenderer.NewStyle().Foreground(ui.Dimmed).Italic(true)
 		fmt.Fprintln(w, style.Render(fmt.Sprintf("  API calls: %d", count)))
 	}
 }
