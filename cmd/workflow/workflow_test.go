@@ -4,8 +4,11 @@
 package workflow
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -818,5 +821,143 @@ func TestDispatchCommand_InvalidInputAbortsDryRun(t *testing.T) {
 	}
 	if !ctx.HasError {
 		t.Error("dry-run must also reject a malformed --input")
+	}
+}
+
+// captureStdout redirects os.Stdout while fn runs and returns everything written to it.
+// ui.PrintJSON writes directly to os.Stdout (not cmd.OutOrStdout()), so this is the only way
+// to assert on what a --json run actually prints.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating pipe: %v", err)
+	}
+	original := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+	func() {
+		defer func() {
+			_ = w.Close()
+			os.Stdout = original
+		}()
+		fn()
+	}()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+func TestViewCommand_JSONOutput(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 123, "name": "Build", "status": "completed", "conclusion": "success"},
+	})
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	var detail model.WorkflowRunDetail
+	if err := json.Unmarshal([]byte(out), &detail); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\noutput: %s", err, out)
+	}
+	if detail.Run.ID != 123 || detail.Run.Name != "Build" {
+		t.Errorf("decoded run = %+v", detail.Run)
+	}
+	if ctx.HasError {
+		t.Error("HasError should be false for a successful lookup")
+	}
+}
+
+func TestViewCommand_JSONOutput_LatestRunNoticeOnStderr(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"total_count":   1,
+			"workflow_runs": []map[string]interface{}{{"id": 555, "name": "Build"}},
+		},
+	})
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/555", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 555, "name": "Build", "status": "completed"},
+	})
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/555/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "Using latest workflow run") {
+		t.Errorf("stdout must not contain the informational notice, got %q", out)
+	}
+	var detail model.WorkflowRunDetail
+	if err := json.Unmarshal([]byte(out), &detail); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\noutput: %s", err, out)
+	}
+}
+
+func TestViewCommand_JSONOutput_ErrorSetsHasError(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusNotFound,
+		Body:       map[string]interface{}{"message": "Not Found"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+	ctx.JSON = true
+
+	captureStdout(t, func() {
+		if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError {
+		t.Error("expected HasError to be set when the run lookup fails")
+	}
+}
+
+func TestViewCommand_WatchAndJSONRejected(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.JSON = true
+
+	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--watch"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError {
+		t.Error("expected HasError for --watch combined with --json")
+	}
+	if len(mockServer.GetRequests()) != 0 {
+		t.Errorf("expected no network requests, got %d", len(mockServer.GetRequests()))
 	}
 }

@@ -563,12 +563,12 @@ type WorkflowJobsResponse struct {
 }
 
 type WorkflowRunDetail struct {
-	Run       WorkflowRun
-	Jobs      []WorkflowJob
-	Approvals []WorkflowApproval
+	Run       WorkflowRun        `json:"run"`
+	Jobs      []WorkflowJob      `json:"jobs"`
+	Approvals []WorkflowApproval `json:"approvals,omitempty"`
 	// PendingGates are the environment gates a waiting run is blocked on.
-	PendingGates []PendingDeployment
-	ErrorMessage string
+	PendingGates []PendingDeployment `json:"pending_gates,omitempty"`
+	ErrorMessage string              `json:"error_message,omitempty"`
 }
 
 func (d WorkflowRunDetail) IsInProgress() bool {
