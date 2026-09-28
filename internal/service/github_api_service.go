@@ -633,6 +633,38 @@ func GetWorkflowRunJobs(ctx *appcontext.Context, orgName, repoName string, runID
 	return jobsResponse.Jobs, nil
 }
 
+// ListPendingDeployments returns the environment gates a workflow run is waiting on.
+func ListPendingDeployments(ctx *appcontext.Context, orgName, repoName string, runID int) ([]model.PendingDeployment, error) {
+	response, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/pending_deployments", githubBaseURL, orgName, repoName, runID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var pending []model.PendingDeployment
+	if err := json.Unmarshal(response, &pending); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the pending deployments response body")
+		return nil, err
+	}
+	return pending, nil
+}
+
+// ReviewPendingDeployments approves or rejects (state "approved" | "rejected") the
+// given environment gates of a workflow run.
+func ReviewPendingDeployments(ctx *appcontext.Context, orgName, repoName string, runID int, environmentIDs []int, state, comment string) error {
+	jsonBody, err := json.Marshal(map[string]interface{}{
+		"environment_ids": environmentIDs,
+		"state":           state,
+		"comment":         comment,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "POST",
+		fmt.Sprintf("%s/repos/%s/%s/actions/runs/%d/pending_deployments", githubBaseURL, orgName, repoName, runID),
+		bytes.NewReader(jsonBody),
+	)
+	return err
+}
+
 func ListSecretScanningAlerts(ctx *appcontext.Context, orgName, repoName, state string) ([]model.SecretScanningAlert, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/secret-scanning/alerts?per_page=100", githubBaseURL, orgName, repoName)
 	if state != "" {
