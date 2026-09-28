@@ -1648,7 +1648,14 @@ func TestListPendingDeployments(t *testing.T) {
 		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs/100/pending_deployments", testutils.MockResponse{
 			StatusCode: http.StatusOK,
 			Body: []map[string]interface{}{
-				{"environment": map[string]interface{}{"id": 7, "name": "approval-1"}, "current_user_can_approve": true},
+				{
+					"environment":              map[string]interface{}{"id": 7, "name": "approval-1"},
+					"current_user_can_approve": true,
+					"reviewers": []map[string]interface{}{
+						{"type": "User", "reviewer": map[string]interface{}{"login": "alice"}},
+						{"type": "Team", "reviewer": map[string]interface{}{"slug": "platform", "name": "Platform"}},
+					},
+				},
 			},
 		})
 
@@ -1656,6 +1663,9 @@ func TestListPendingDeployments(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, got, 1)
+		require.Len(t, got[0].Reviewers, 2)
+		assert.Equal(t, "alice", got[0].Reviewers[0].DisplayName())
+		assert.Equal(t, "platform", got[0].Reviewers[1].DisplayName())
 		assert.Equal(t, 7, got[0].Environment.ID)
 		assert.Equal(t, "approval-1", got[0].Environment.Name)
 		assert.True(t, got[0].CurrentUserCanApprove)

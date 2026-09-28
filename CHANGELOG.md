@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`workflow view` shows the pending approval gate**: for a run waiting on an environment gate, a "Pending approval" section lists each blocking environment, its required reviewers (users or teams), whether you can approve it, and the `workflow approve` command to run. Only fetched for `waiting` runs, so other runs cost no extra API call, and it also refreshes under `--watch`
 - **`workflow view` shows approval decisions**: for runs that went through environment approval gates, an "Approvals" section lists each gate's decision (approved/rejected), the reviewer and their comment, in chronological order
 - **`workflow approve`**: approve (or `--reject`) the environment approval gates a workflow run is waiting on, without opening the Actions UI. Defaults to the latest waiting run, supports `--environment`, `--comment`, several `-r` repos, `--dry-run` and `--json`, and asks for confirmation unless `--yes` is given. Gates you are not a required reviewer of are skipped and reported
 - **`pr list` shows a Created column**: pull request listings now include the creation date alongside the existing columns
