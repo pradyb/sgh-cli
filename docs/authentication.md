@@ -27,9 +27,12 @@ Fine-grained PATs give least-privilege access and work for both personal account
 | **Pull requests** | Read & Write | PR list, create, merge, approve, review, assignees |
 | **Issues** | Read & Write | Issue list, view, create, assignees |
 | **Actions** | Read & Write | Workflow run list, view, rerun, cancel, dispatch |
+| **Deployments** | Read & Write | `workflow approve` (approve/reject environment approval gates) |
 | **Secret scanning alerts** | Read & Write | `security list`, `view`, `update` |
 | **Administration** | Read & Write | Protected branch config, repo archive/visibility |
 | **Commit statuses** | Read-only | Commit check-runs (used by `post-release`) |
+
+> **`workflow approve`:** besides the Deployments permission (classic PAT: `repo` scope), the token's user must be a required reviewer of the environment. A token without it fails with `403 Resource not accessible by personal access token`; `workflow view` still works with read-only tokens. `workflow dispatch` needs Actions: Read & Write.
 
 ### Organization permissions
 

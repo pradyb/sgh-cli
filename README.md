@@ -43,7 +43,7 @@ Full instructions, including building from source and shell completion: **[docs/
 
 ## Quick start
 
-**1. Create a token.** A fine-grained PAT is recommended. The [permissions table](docs/authentication.md#repository-permissions) lists exactly what each feature needs — for read-only use you need very little.
+**1. Create a token.** A fine-grained PAT is recommended. The [permissions table](docs/authentication.md#repository-permissions) lists exactly what each feature needs — for read-only use you need very little. `workflow approve` additionally needs Deployments (write) and the token's user must be a required reviewer of the environment.
 
 **2. Set your environment:**
 
