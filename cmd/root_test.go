@@ -489,6 +489,34 @@ func TestPrintAPICallCount(t *testing.T) {
 // Regression test for #17: the API call count must go to stderr only, so
 // `--output json | jq` sees clean stdout.
 func TestRootCommand_APICallCountOnStderrOnly(t *testing.T) {
+	stdout, stderr := runAPICallCommand(t)
+	if strings.Contains(stdout, "API calls") {
+		t.Errorf("stdout must not contain the API call count, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "API calls: 1") {
+		t.Errorf("stderr should contain the API call count, got %q", stderr)
+	}
+}
+
+// Machine-readable formats must not emit the summary at all, so callers that
+// merge stderr into stdout (2>&1) still get parseable output.
+func TestRootCommand_NoAPICallCountForMachineOutput(t *testing.T) {
+	for _, flag := range []string{"--json", "--compact", "--output=json"} {
+		stdout, stderr := runAPICallCommand(t, flag)
+		if strings.Contains(stdout+stderr, "API calls") {
+			t.Errorf("%s: API call count must be suppressed, got stdout=%q stderr=%q", flag, stdout, stderr)
+		}
+	}
+}
+
+// runAPICallCommand runs a command that makes one API call and returns the
+// captured stdout and stderr. HOME is isolated so the developer's real sgh
+// config is never read.
+func runAPICallCommand(t *testing.T, extraArgs ...string) (string, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("SGH_TOKEN", "ghp_1234567890abcdef1234567890abcdef123456")
 	ctx, err := context.Init()
 	if err != nil {
@@ -514,15 +542,10 @@ func TestRootCommand_APICallCountOnStderrOnly(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
-	root.SetArgs([]string{"apicall", "--org", "test-org"})
+	root.SetArgs(append([]string{"apicall", "--org", "test-org"}, extraArgs...))
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if strings.Contains(stdout.String(), "API calls") {
-		t.Errorf("stdout must not contain the API call count, got %q", stdout.String())
-	}
-	if !strings.Contains(stderr.String(), "API calls: 1") {
-		t.Errorf("stderr should contain the API call count, got %q", stderr.String())
-	}
+	return stdout.String(), stderr.String()
 }

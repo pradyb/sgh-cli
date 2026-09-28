@@ -122,7 +122,8 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			logCommandExecution(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if ctx.HttpClient != nil {
+			// Machine-readable formats stay clean even when a caller merges stderr into stdout.
+			if ctx.HttpClient != nil && !ctx.JSON && !ctx.Compact {
 				printAPICallCount(cmd.ErrOrStderr(), ctx.HttpClient.APICallCount())
 			}
 			if ctx.HasError {
@@ -395,7 +396,7 @@ func logCommandExecution(cmd *cobra.Command) {
 // stdout stays clean for machine-readable --output formats piped to tools like jq.
 func printAPICallCount(w io.Writer, count int64) {
 	if count > 0 {
-		style := stderrRenderer.NewStyle().Foreground(ui.Dimmed).Italic(true)
+		style := lipgloss.NewRenderer(w).NewStyle().Foreground(ui.Dimmed).Italic(true)
 		fmt.Fprintln(w, style.Render(fmt.Sprintf("  API calls: %d", count)))
 	}
 }
