@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -122,11 +123,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if ctx.HttpClient != nil {
-				count := ctx.HttpClient.APICallCount()
-				if count > 0 {
-					style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
-					fmt.Println(style.Render(fmt.Sprintf("  API calls: %d", count)))
-				}
+				printAPICallCount(cmd.ErrOrStderr(), ctx.HttpClient.APICallCount())
 			}
 			if ctx.HasError {
 				os.Exit(1)
@@ -388,4 +385,13 @@ func logCommandExecution(cmd *cobra.Command) {
 		}
 	})
 	logger.Flog.Info().Msgf("Processing command: %s %s", cmd.CommandPath(), strings.Join(userFlags, " "))
+}
+
+// printAPICallCount writes the API call summary to w. Callers pass stderr so
+// stdout stays clean for machine-readable --output formats piped to tools like jq.
+func printAPICallCount(w io.Writer, count int64) {
+	if count > 0 {
+		style := lipgloss.NewStyle().Foreground(ui.Dimmed).Italic(true)
+		fmt.Fprintln(w, style.Render(fmt.Sprintf("  API calls: %d", count)))
+	}
 }

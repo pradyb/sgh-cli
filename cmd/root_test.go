@@ -471,3 +471,15 @@ func TestNewRootCommand_HelpRun(t *testing.T) {
 		t.Errorf("Execute() with no args returned error: %v", err)
 	}
 }
+
+func TestPrintAPICallCount(t *testing.T) {
+	var buf bytes.Buffer
+	printAPICallCount(&buf, 0)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for zero calls, got %q", buf.String())
+	}
+	printAPICallCount(&buf, 3)
+	if !strings.Contains(buf.String(), "API calls: 3") {
+		t.Errorf("expected API call count in output, got %q", buf.String())
+	}
+}
