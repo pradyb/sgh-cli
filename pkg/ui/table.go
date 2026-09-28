@@ -1282,6 +1282,38 @@ func RenderWorkflowRunDetail(detail model.WorkflowRunDetail) string {
 
 	b.WriteString(t.String())
 	b.WriteString("\n")
+	b.WriteString(renderApprovals(detail.Approvals))
+	return b.String()
+}
+
+// renderApprovals lists the approve/reject decisions (with reviewer comments) made on a run's environment gates.
+func renderApprovals(approvals []model.WorkflowApproval) string {
+	if len(approvals) == 0 {
+		return ""
+	}
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(White).PaddingLeft(1)
+	labelStyle := lipgloss.NewStyle().Foreground(Dimmed)
+	var b strings.Builder
+	b.WriteString("\n" + titleStyle.Render("Approvals") + "\n\n")
+	for _, a := range approvals {
+		envs := make([]string, 0, len(a.Environments))
+		for _, e := range a.Environments {
+			envs = append(envs, e.Name)
+		}
+		conclusion := "success"
+		if a.State == "rejected" {
+			conclusion = "failure"
+		}
+		reviewer := a.User.Login
+		if reviewer == "" {
+			reviewer = a.User.Name
+		}
+		line := fmt.Sprintf("  %s %s %s by %s", StatusIcon(conclusion), strings.Join(envs, ", "), a.State, reviewer)
+		if a.Comment != "" {
+			line += labelStyle.Render(fmt.Sprintf("  %q", a.Comment))
+		}
+		b.WriteString(line + "\n")
+	}
 	return b.String()
 }
 

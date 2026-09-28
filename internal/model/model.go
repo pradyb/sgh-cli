@@ -505,6 +505,26 @@ type WorkflowJob struct {
 	Steps       []WorkflowStep `json:"steps"`
 }
 
+// PendingDeployment is a workflow run job waiting on an environment's required reviewers.
+type PendingDeployment struct {
+	Environment           DeploymentEnvironment `json:"environment"`
+	WaitTimer             int                   `json:"wait_timer"`
+	CurrentUserCanApprove bool                  `json:"current_user_can_approve"`
+}
+
+// WorkflowApproval is a recorded approve/reject decision on an environment gate of a run.
+type WorkflowApproval struct {
+	State        string                  `json:"state"`
+	Comment      string                  `json:"comment"`
+	User         User                    `json:"user"`
+	Environments []DeploymentEnvironment `json:"environments"`
+}
+
+type DeploymentEnvironment struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type WorkflowStep struct {
 	Name        string `json:"name"`
 	Status      string `json:"status"`
@@ -522,6 +542,7 @@ type WorkflowJobsResponse struct {
 type WorkflowRunDetail struct {
 	Run          WorkflowRun
 	Jobs         []WorkflowJob
+	Approvals    []WorkflowApproval
 	ErrorMessage string
 }
 

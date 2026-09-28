@@ -6,6 +6,7 @@ package workflow
 import (
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +67,7 @@ func TestNewWorkflowCommand_Structure(t *testing.T) {
 		t.Errorf("Use = %q", cmd.Use)
 	}
 
-	want := map[string]bool{"list": false, "view": false, "rerun": false, "cancel": false, "dispatch": false}
+	want := map[string]bool{"list": false, "view": false, "rerun": false, "cancel": false, "dispatch": false, "approve": false}
 	for _, c := range cmd.Commands() {
 		if _, ok := want[c.Name()]; ok {
 			want[c.Name()] = true
@@ -600,5 +601,156 @@ func TestWatchModel_FetchDetail(t *testing.T) {
 	}
 	if dataMsg.detail.Run.ID != 123 {
 		t.Errorf("detail.Run.ID = %d, want 123", dataMsg.detail.Run.ID)
+	}
+}
+
+const approvePendingPath = "/repos/acme/repo1/actions/runs/123/pending_deployments"
+
+func approveServer(t *testing.T, canApprove bool) *testutils.MockGitHubServer {
+	t.Helper()
+	mockServer := testutils.NewMockGitHubServer()
+	t.Cleanup(mockServer.Close)
+	mockServer.SetResponse(approvePendingPath, testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: []map[string]interface{}{{
+			"environment":              map[string]interface{}{"id": 9, "name": "approval-1"},
+			"current_user_can_approve": canApprove,
+		}},
+	})
+	return mockServer
+}
+
+func postCount(mockServer *testutils.MockGitHubServer) int {
+	n := 0
+	for _, r := range mockServer.GetRequests() {
+		if r.Method == http.MethodPost && r.Path == approvePendingPath {
+			n++
+		}
+	}
+	return n
+}
+
+// execCmdWithStdin is execCmd with a scripted stdin, for confirmation prompts.
+func execCmdWithStdin(cmd *cobra.Command, stdin string, args ...string) error {
+	root := newTestRoot()
+	root.AddCommand(cmd)
+	root.SetArgs(args)
+	root.SetIn(strings.NewReader(stdin))
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	return root.Execute()
+}
+
+func TestApproveCommand_YesSkipsPrompt(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--yes"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 1 || ctx.HasError {
+		t.Errorf("posts=%d HasError=%v, want 1 post and no error", postCount(mockServer), ctx.HasError)
+	}
+}
+
+func TestApproveCommand_PromptAccepted(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmdWithStdin(approveCommand(ctx), "yes\n", "approve", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 1 {
+		t.Errorf("posts = %d, want 1", postCount(mockServer))
+	}
+}
+
+func TestApproveCommand_PromptDeclinedOrEOF(t *testing.T) {
+	for name, stdin := range map[string]string{"no": "no\n", "eof": ""} {
+		t.Run(name, func(t *testing.T) {
+			mockServer := approveServer(t, true)
+			ctx := servicetest.NewMockContext(t, mockServer)
+
+			if err := execCmdWithStdin(approveCommand(ctx), stdin, "approve", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if postCount(mockServer) != 0 {
+				t.Errorf("posts = %d, want 0 without confirmation", postCount(mockServer))
+			}
+		})
+	}
+}
+
+func TestApproveCommand_Reject(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--yes", "--reject", "--comment", "not now"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, r := range mockServer.GetRequests() {
+		if r.Method == http.MethodPost && !strings.Contains(r.Body, `"state":"rejected"`) {
+			t.Errorf("body = %s, want rejected state", r.Body)
+		}
+	}
+}
+
+func TestApproveCommand_NotAReviewerSetsError(t *testing.T) {
+	mockServer := approveServer(t, false)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--yes"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 0 || !ctx.HasError {
+		t.Errorf("posts=%d HasError=%v, want 0 posts and HasError", postCount(mockServer), ctx.HasError)
+	}
+}
+
+func TestApproveCommand_DryRun(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.DryRun = true
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 0 {
+		t.Errorf("posts = %d, want 0 in dry-run", postCount(mockServer))
+	}
+}
+
+func TestApproveCommand_JSONRequiresYes(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.JSON = true
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 0 || !ctx.HasError {
+		t.Errorf("posts=%d HasError=%v, want 0 posts and HasError", postCount(mockServer), ctx.HasError)
+	}
+}
+
+func TestApproveCommand_RunNeedsSingleRepo(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "-r", "repo2", "--run", "123", "--yes"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(mockServer.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want error and no requests", ctx.HasError, len(mockServer.GetRequests()))
+	}
+}
+
+func TestApproveCommand_MissingRepository(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	if err := execCmd(approveCommand(ctx), "approve", "--org", "acme"); err == nil {
+		t.Fatal("expected an error for missing required --repository flag")
 	}
 }

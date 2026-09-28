@@ -4,7 +4,9 @@
 package workflow
 
 import (
+	"bufio"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MakeNowJust/heredoc"
@@ -41,6 +43,7 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 			  rerun     Re-trigger a specific workflow run
 			  cancel    Cancel an in-progress workflow run
 			  dispatch  Trigger a workflow_dispatch event across repositories
+			  approve   Approve or reject workflow runs waiting on environment approval gates
 
 			Quick Filters (list command):
 			  --running   Show only in-progress runs
@@ -84,6 +87,7 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 	workflowCmd.AddCommand(rerunCommand(ctx))
 	workflowCmd.AddCommand(cancelCommand(ctx))
 	workflowCmd.AddCommand(dispatchCommand(ctx))
+	workflowCmd.AddCommand(approveCommand(ctx))
 	return workflowCmd
 }
 
@@ -498,4 +502,123 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 	dispatchCmd.MarkFlagRequired("ref")
 
 	return dispatchCmd
+}
+
+func approveCommand(ctx *context.Context) *cobra.Command {
+	var repoNames []string
+	var runID int
+	var environments []string
+	var reject bool
+	var comment string
+	var yes bool
+
+	approveCmd := &cobra.Command{
+		Use:   "approve",
+		Short: "Approve or reject workflow runs waiting on environment approval gates",
+		Long: heredoc.Doc(`
+			Approve (or reject with --reject) the pending environment deployment gates of a
+			workflow run, without opening the Actions UI.
+
+			If --run is omitted, the latest run waiting for approval in each repository is used.
+			Only gates you are a required reviewer of can be decided; others are skipped.
+			A run with several sequential gates exposes one at a time, so run the command again
+			after each approval. Asks for confirmation unless --yes is given.
+		`),
+		Example: heredoc.Doc(`
+			$ sgh workflow approve --org sample-org -r sample-repo1
+			$ sgh workflow approve --org sample-org -r sample-repo1 --run 123456789 --yes
+			$ sgh workflow approve --org sample-org -r sample-repo1 --environment production --comment "ship it"
+			$ sgh workflow approve --org sample-org -r sample-repo1 --run 123456789 --reject --comment "not now"
+			$ sgh workflow approve --org sample-org -r app1 -r app2 --yes
+		`),
+		Run: func(cmd *cobra.Command, args []string) {
+			orgName, _ := cmd.Flags().GetString("org")
+			if runID != 0 && len(repoNames) != 1 {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --run requires exactly one --repository")
+				ctx.HasError = true
+				return
+			}
+			resolved := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, repoNames)
+			if len(resolved) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", strings.Join(repoNames, ", "))
+				return
+			}
+
+			if ctx.JSON && !yes && !ctx.DryRun {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --json cannot prompt for confirmation; pass --yes")
+				ctx.HasError = true
+				return
+			}
+
+			verb := "approve"
+			if reject {
+				verb = "reject"
+			}
+			stdin := bufio.NewReader(cmd.InOrStdin())
+			confirm := func(r workflow.ApproveResult) bool {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  %s %s (run %d) gates [%s]? Type 'yes' to confirm: ",
+					strings.ToUpper(verb[:1])+verb[1:], r.Repository, r.RunID, strings.Join(r.Decided, ", "))
+				line, _ := stdin.ReadString('\n')
+				return strings.EqualFold(strings.TrimSpace(line), "yes")
+			}
+			if yes {
+				confirm = nil
+			}
+
+			results := make([]workflow.ApproveResult, 0, len(resolved))
+			for _, repo := range resolved {
+				results = append(results, workflow.ApproveWorkflowRun(ctx, workflow.ApproveRequest{
+					OrgName:      orgName,
+					RepoName:     repo,
+					RunID:        runID,
+					Environments: environments,
+					Reject:       reject,
+					Comment:      comment,
+					Confirm:      confirm,
+				}))
+			}
+
+			if ctx.JSON {
+				ui.PrintJSON(results)
+			} else {
+				if ctx.DryRun {
+					ui.PrintDryRunBanner()
+				}
+				for _, r := range results {
+					printApproveResult(cmd, r, verb)
+				}
+			}
+			for _, r := range results {
+				if r.Error != "" {
+					ctx.HasError = true
+				}
+			}
+		},
+	}
+
+	approveCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names (repeatable)")
+	approveCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID (defaults to the latest run waiting for approval)")
+	approveCmd.Flags().StringArrayVarP(&environments, "environment", "E", []string{}, "only decide these environment gates (repeatable)")
+	approveCmd.Flags().BoolVar(&reject, "reject", false, "reject instead of approve")
+	approveCmd.Flags().StringVar(&comment, "comment", "", "comment recorded with the decision")
+	approveCmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	approveCmd.MarkFlagRequired("repository")
+
+	return approveCmd
+}
+
+func printApproveResult(cmd *cobra.Command, r workflow.ApproveResult, verb string) {
+	switch {
+	case r.Error != "":
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", r.Repository, r.Error)
+	case r.Aborted:
+		fmt.Printf("  - %s: aborted, nothing sent\n", r.Repository)
+	case r.DryRun:
+		fmt.Printf("  [dry-run] would %s %s (run %d): %s\n", verb, r.Repository, r.RunID, strings.Join(r.Decided, ", "))
+	default:
+		fmt.Printf("  ✓ %s (run %d): %s %s\n", r.Repository, r.RunID, r.State, strings.Join(r.Decided, ", "))
+	}
+	if len(r.Skipped) > 0 {
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ! %s: skipped (not a required reviewer): %s\n", r.Repository, strings.Join(r.Skipped, ", "))
+	}
 }

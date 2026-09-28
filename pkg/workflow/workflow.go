@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pradyb/sgh-cli/internal/model"
@@ -123,11 +124,18 @@ func RerunWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.Workfl
 }
 
 func GetLatestRunID(ctx *context.Context, orgName, repoName string) (int, error) {
-	runs, err := service.ListWorkflowRuns(ctx, orgName, repoName, "", "", 1)
+	return latestRunID(ctx, orgName, repoName, "")
+}
+
+func latestRunID(ctx *context.Context, orgName, repoName, status string) (int, error) {
+	runs, err := service.ListWorkflowRuns(ctx, orgName, repoName, "", status, 1)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch workflow runs: %w", err)
 	}
 	if len(runs) == 0 {
+		if status != "" {
+			return 0, fmt.Errorf("no %s workflow runs found for %s/%s", status, orgName, repoName)
+		}
 		return 0, fmt.Errorf("no workflow runs found for %s/%s", orgName, repoName)
 	}
 	return runs[0].ID, nil
@@ -155,9 +163,17 @@ func GetWorkflowRunDetail(ctx *context.Context, req WorkflowRunRequest) model.Wo
 		}
 	}
 
+	// Approvals are supplementary: a failure here (e.g. limited token) must not hide the run.
+	approvals, err := service.GetWorkflowRunApprovals(ctx, req.OrgName, repoName, req.RunID)
+	if err != nil {
+		logger.Glog.Debug().Err(err).Str("repo", repoName).Int("runID", req.RunID).Msg("Could not get workflow approvals")
+	}
+	slices.Reverse(approvals) // API returns newest first; show in chronological order
+
 	return model.WorkflowRunDetail{
-		Run:  run,
-		Jobs: jobs,
+		Run:       run,
+		Jobs:      jobs,
+		Approvals: approvals,
 	}
 }
 
@@ -178,4 +194,96 @@ func CancelWorkflowRun(ctx *context.Context, req WorkflowRunRequest) model.Workf
 		ID:             req.RunID,
 		Status:         "cancel_requested",
 	}
+}
+
+type ApproveRequest struct {
+	OrgName  string
+	RepoName string
+	// RunID 0 resolves the latest run waiting on a gate.
+	RunID int
+	// Environments limits the decision to these gates; empty means every gate the user can review.
+	Environments []string
+	Reject       bool
+	Comment      string
+	// Confirm, when set, is asked before anything is sent; returning false aborts.
+	Confirm func(ApproveResult) bool
+}
+
+type ApproveResult struct {
+	Repository string   `json:"repository"`
+	RunID      int      `json:"run_id"`
+	State      string   `json:"state"`
+	Decided    []string `json:"decided,omitempty"`
+	Skipped    []string `json:"skipped,omitempty"`
+	DryRun     bool     `json:"dry_run,omitempty"`
+	Aborted    bool     `json:"aborted,omitempty"`
+	Error      string   `json:"error,omitempty"`
+}
+
+// ApproveWorkflowRun approves (or rejects) the pending environment gates of a workflow run.
+// Gates the current user is not a required reviewer of are reported as Skipped, not failures.
+func ApproveWorkflowRun(ctx *context.Context, req ApproveRequest) ApproveResult {
+	state, defaultComment := "approved", "Approved via sgh"
+	if req.Reject {
+		state, defaultComment = "rejected", "Rejected via sgh"
+	}
+	comment := req.Comment
+	if comment == "" {
+		comment = defaultComment
+	}
+	res := ApproveResult{Repository: req.RepoName, RunID: req.RunID, State: state}
+	fail := func(format string, a ...any) ApproveResult {
+		res.Error = fmt.Sprintf(format, a...)
+		logger.Glog.Error().Str("repo", req.RepoName).Int("runID", res.RunID).Msg(res.Error)
+		return res
+	}
+
+	if res.RunID == 0 {
+		id, err := latestRunID(ctx, req.OrgName, req.RepoName, "waiting")
+		if err != nil {
+			return fail("%v", err)
+		}
+		res.RunID = id
+	}
+
+	gates, err := service.ListPendingDeployments(ctx, req.OrgName, req.RepoName, res.RunID)
+	if err != nil {
+		return fail("failed to list pending deployments: %v", err)
+	}
+
+	var ids []int
+	for _, g := range gates {
+		name := g.Environment.Name
+		if len(req.Environments) > 0 && !slices.Contains(req.Environments, name) {
+			continue
+		}
+		if !g.CurrentUserCanApprove {
+			res.Skipped = append(res.Skipped, name)
+			continue
+		}
+		ids = append(ids, g.Environment.ID)
+		res.Decided = append(res.Decided, name)
+	}
+	if len(ids) == 0 {
+		if len(res.Skipped) > 0 {
+			return fail("you are not a required reviewer for: %s", strings.Join(res.Skipped, ", "))
+		}
+		return fail("no matching pending deployments for run %d", res.RunID)
+	}
+
+	if ctx.DryRun {
+		res.DryRun = true
+		return res
+	}
+	if req.Confirm != nil && !req.Confirm(res) {
+		res.Aborted = true
+		res.Decided = nil
+		return res
+	}
+
+	if err := service.ReviewPendingDeployments(ctx, req.OrgName, req.RepoName, res.RunID, ids, state, comment); err != nil {
+		res.Decided = nil
+		return fail("failed to submit review: %v", err)
+	}
+	return res
 }

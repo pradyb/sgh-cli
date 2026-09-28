@@ -23,7 +23,7 @@ sgh protected-branch list --org my-org --branch main
 
 - **Branches and tags** — create, rename, delete, and filter across every repository
 - **Pull requests** — create, list, view, review, update, merge, close, reopen in bulk, plus an interactive selector
-- **GitHub Actions** — list, view, rerun, cancel, and dispatch workflow runs, with live monitoring
+- **GitHub Actions** — list, view, rerun, cancel, dispatch, and approve/reject workflow runs waiting on environment gates, with live monitoring
 - **Branch protection** — inspect and update protection rules org-wide
 - **Repository lifecycle** — archive/unarchive and flip visibility in bulk
 - **Issues, teams, org audit log, and secret scanning alerts**
