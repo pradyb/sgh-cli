@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.1] - 2026-09-29
 
 ### Added
-- **Homebrew install**: `brew install pradyb/tap/sgh` installs the prebuilt binary on macOS and Linux (see [Installation](docs/installation.md#option-4-homebrew)). Each release now also publishes `.tar.gz`/`.zip` archives, and the formula in `pradyb/homebrew-tap` is updated automatically on every non-prerelease tag
+- **Homebrew install**: `brew install pradyb/tap/sgh` installs the prebuilt binary on macOS and Linux (see [Installation](docs/installation.md#option-1-homebrew)). Each release now also publishes `.tar.gz`/`.zip` archives, and the formula in `pradyb/homebrew-tap` is updated automatically on every non-prerelease tag
 
 ### Changed
 - **Releases are built with GoReleaser**: the raw `sgh-<os>-<arch>` binaries and `checksums.txt` are still attached under the same names, so existing download URLs keep working; `sgh version` now reports the same tag, commit and build date as before

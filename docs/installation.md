@@ -1,10 +1,10 @@
 # Installation
 
 - [Prerequisites](#prerequisites)
-- [Option 1: Go install](#option-1-go-install)
-- [Option 2: Prebuilt binary](#option-2-prebuilt-binary)
-- [Option 3: From source](#option-3-from-source)
-- [Option 4: Homebrew](#option-4-homebrew)
+- [Option 1: Homebrew](#option-1-homebrew)
+- [Option 2: Go install](#option-2-go-install)
+- [Option 3: Prebuilt binary](#option-3-prebuilt-binary)
+- [Option 4: From source](#option-4-from-source)
 - [Upgrading](#upgrading)
 - [Verify the installation](#verify-the-installation)
 - [Shell completion](#shell-completion)
@@ -14,9 +14,19 @@
 - **Go 1.26.1 or higher** — required for `go install` and for building from source. Not needed if you download a prebuilt binary.
 - **A GitHub Personal Access Token** — fine-grained (recommended) or classic. See [Authentication](authentication.md).
 
-## Option 1: Go install
+## Option 1: Homebrew
 
-The shortest path if you already have Go:
+The shortest path on macOS or Linux, no Go required:
+
+```bash
+brew install pradyb/tap/sgh
+```
+
+This taps [`pradyb/homebrew-tap`](https://github.com/pradyb/homebrew-tap) and installs the prebuilt binary. Each release also publishes `.tar.gz` (`.zip` on Windows) archives that Homebrew uses.
+
+## Option 2: Go install
+
+If you already have Go:
 
 ```bash
 go install github.com/pradyb/sgh-cli/cmd/sgh@latest
@@ -24,7 +34,7 @@ go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 
 This installs the binary as `sgh` into `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
 
-## Option 2: Prebuilt binary
+## Option 3: Prebuilt binary
 
 Every tagged release attaches prebuilt binaries built with `CGO_ENABLED=0`, so they have no runtime dependencies. Download the one for your platform from the [releases page](https://github.com/pradyb/sgh-cli/releases):
 
@@ -49,7 +59,7 @@ sudo install -m 0755 sgh-linux-amd64 /usr/local/bin/sgh
 
 On Windows, rename `sgh-windows-amd64.exe` to `sgh.exe` and place it in a directory on your `PATH`.
 
-## Option 3: From source
+## Option 4: From source
 
 Useful if you want to build a specific branch or make local changes:
 
@@ -64,19 +74,15 @@ sudo mv sgh /usr/local/bin/
 # Windows — move sgh.exe to a directory on your PATH
 ```
 
-## Option 4: Homebrew
-
-macOS and Linux, no Go required:
-
-```bash
-brew install pradyb/tap/sgh
-```
-
-This taps [`pradyb/homebrew-tap`](https://github.com/pradyb/homebrew-tap) and installs the prebuilt binary. Each release also publishes `.tar.gz` (`.zip` on Windows) archives that Homebrew uses.
-
 ## Upgrading
 
 There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect. sgh also checks for a newer release once a day and prints a stderr notice when one exists, with the upgrade command matching how you installed it — Homebrew, `go install`, or just the releases link for a downloaded binary (disable with `--no-update-check` or `SGH_NO_UPDATE_CHECK=1`), so you don't have to check the releases page manually.
+
+**Homebrew:**
+
+```bash
+brew update && brew upgrade sgh
+```
 
 **Go install:**
 
@@ -86,13 +92,7 @@ go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 
 Re-running this rebuilds at the newest tag and overwrites the existing binary in place.
 
-**Prebuilt binary:** re-download from the [releases page](https://github.com/pradyb/sgh-cli/releases) (or `.../releases/latest/download/sgh-<platform>`) and overwrite the file at the same path — same steps as [Option 2](#option-2-prebuilt-binary), including re-verifying against the new `checksums.txt`.
-
-**Homebrew:**
-
-```bash
-brew update && brew upgrade sgh
-```
+**Prebuilt binary:** re-download from the [releases page](https://github.com/pradyb/sgh-cli/releases) (or `.../releases/latest/download/sgh-<platform>`) and overwrite the file at the same path — same steps as [Option 3](#option-3-prebuilt-binary), including re-verifying against the new `checksums.txt`.
 
 **From source:**
 
