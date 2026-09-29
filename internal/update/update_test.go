@@ -309,6 +309,48 @@ func TestUpgradeCommand_TestBinaryIsUnknown(t *testing.T) {
 	}
 }
 
+// The #56 scenario: GOBIN itself is a symlink (e.g. macOS's /tmp -> /private/tmp), so the
+// candidate must be resolved the same way the executable path already is, or it never matches.
+func TestResolvedGoBinDirs_ResolvesSymlinkedGOBIN(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "gobin-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("cannot create symlinks on this system: %v", err)
+	}
+	t.Setenv("GOENV", "off")
+	t.Setenv("GOBIN", link)
+
+	got := resolvedGoBinDirs()
+
+	realResolved, err := filepath.EvalSymlinks(real)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", real, err)
+	}
+	if len(got) != 1 || got[0] != realResolved {
+		t.Fatalf("resolvedGoBinDirs() = %v, want [%q]", got, realResolved)
+	}
+
+	// And the comparison that was silently failing before the fix now succeeds — mirroring
+	// UpgradeCommand(), which resolves the executable path the same way before comparing.
+	exe := filepath.Join(realResolved, "sgh")
+	if upgradeCommandFor(exe, got) == "" {
+		t.Error("a binary under a symlinked GOBIN should still be recognised as go-installed")
+	}
+}
+
+// A candidate that doesn't exist (EvalSymlinks fails) must be kept as-is rather than
+// dropped or causing a panic.
+func TestResolvedGoBinDirs_NonexistentCandidateKeptAsIs(t *testing.T) {
+	t.Setenv("GOENV", "off")
+	t.Setenv("GOBIN", "/does/not/exist/anywhere")
+
+	got := resolvedGoBinDirs()
+
+	if len(got) != 1 || got[0] != "/does/not/exist/anywhere" {
+		t.Errorf("resolvedGoBinDirs() = %v, want the original candidate unchanged", got)
+	}
+}
+
 func writeGoEnv(t *testing.T, content string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "env")
