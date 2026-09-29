@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`workflow approve --environment` shorthand changed from `-E` to `-e`**: `-e` was free on the command and follows the project's own lowercase-by-default shorthand convention (`-E` didn't fit it — nothing else on `approve` claims `-e`). Scripts using `-E` (shipped in v1.2.0) must switch to `-e`; the long form `--environment` is unaffected
+
 ## [1.2.0] - 2026-09-29
 
 ### Added

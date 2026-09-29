@@ -229,7 +229,7 @@ One rule governs every single-letter shorthand in the CLI:
 | `--workflow <name>` | `workflow list` (partial match) |
 | `--watch`, `--interval` | `workflow view` (not combinable with `--json`) |
 | `--input key=value` | `workflow dispatch` (repeatable) |
-| `-E, --environment <name>` | `workflow approve` (repeatable; only decide these gates) |
+| `-e, --environment <name>` | `workflow approve` (repeatable; only decide these gates) |
 | `--reject` | `workflow approve` (reject instead of approve) |
 | `--comment <text>` | `workflow approve` |
 | `-y, --yes` | `workflow approve`, `config reset` — skip the confirmation prompt |
