@@ -163,6 +163,7 @@ sgh workflow list --org my-org --sort status
 sgh workflow view --org my-org -r my-app --run 123456789
 sgh workflow view --org my-org -r my-app --run 123456789 --watch
 sgh workflow view --org my-org -r my-app --run 123456789 --watch --interval 5
+sgh workflow view --org my-org -r my-app --run 123456789 --json | jq .
 
 sgh workflow rerun  --org my-org -r my-app --run 123456789
 sgh workflow cancel --org my-org -r my-app --run 123456789
@@ -172,6 +173,12 @@ sgh workflow dispatch --org my-org --workflow deploy.yml --ref main
 sgh workflow dispatch --org my-org -r app1 -r app2 \
   --workflow release.yml --ref main \
   --input env=production --input dry_run=false
+
+# Approve or reject a run waiting on an environment gate
+sgh workflow approve --org my-org -r my-app                              # latest waiting run, asks to confirm
+sgh workflow approve --org my-org -r my-app --run 123456789 --yes
+sgh workflow approve --org my-org -r my-app --environment production --comment "ship it"
+sgh workflow approve --org my-org -r my-app --run 123456789 --reject --comment "not now"
 ```
 
 ## Security alerts

@@ -39,7 +39,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 
 | Command | Alias | Subcommands | Description |
 |---|---|---|---|
-| `workflow` | `wf` | `list`, `view`, `rerun`, `cancel`, `dispatch` | GitHub Actions workflow runs |
+| `workflow` | `wf` | `list`, `view`, `rerun`, `cancel`, `dispatch`, `approve` | GitHub Actions workflow runs |
 | `post-release` | — | — | Hotfix branch and/or release tag across repositories |
 
 ### Organization
@@ -110,10 +110,11 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 ### Workflow runs
 
 - `workflow list --org <org> [--running|--queued|--failed] [--branch <name>] [--workflow <name>]` — list runs
-- `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>]` — view or live-monitor a run
+- `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--json]` — view or live-monitor a run, including any approval decisions and pending approval gates; `--watch` and `--json` cannot be combined
 - `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
 - `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
 - `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` — trigger a `workflow_dispatch` event
+- `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`
 
 ### Security and audit
 
@@ -226,8 +227,12 @@ One rule governs every single-letter shorthand in the CLI:
 | `--running`, `--queued`, `--failed` | `workflow list` |
 | `--branch <name>` | `workflow list` |
 | `--workflow <name>` | `workflow list` (partial match) |
-| `--watch`, `--interval` | `workflow view` |
+| `--watch`, `--interval` | `workflow view` (not combinable with `--json`) |
 | `--input key=value` | `workflow dispatch` (repeatable) |
+| `-E, --environment <name>` | `workflow approve` (repeatable; only decide these gates) |
+| `--reject` | `workflow approve` (reject instead of approve) |
+| `--comment <text>` | `workflow approve` |
+| `-y, --yes` | `workflow approve`, `config reset` — skip the confirmation prompt |
 | `--short` | `version` |
 | `--json` | `health` |
 
