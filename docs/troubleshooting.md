@@ -107,7 +107,7 @@ which sgh   # Linux/macOS
 where sgh   # Windows
 ```
 
-If you installed with `go install`, the binary is named `sgh-cli` and lives in `$(go env GOPATH)/bin` — which may not be on your `PATH`. See [Installation](installation.md#option-1-go-install).
+If you installed with `go install`, the binary lives in `$(go env GOPATH)/bin` — which may not be on your `PATH`. See [Installation](installation.md#option-1-go-install).
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
