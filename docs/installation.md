@@ -71,7 +71,7 @@ sudo mv sgh /usr/local/bin/
 
 ## Upgrading
 
-There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect.
+There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect. sgh also checks for a newer release once a day and prints a stderr notice when one exists (disable with `--no-update-check` or `SGH_NO_UPDATE_CHECK=1`), so you don't have to check the releases page manually.
 
 **Go install:**
 

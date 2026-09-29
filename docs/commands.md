@@ -180,6 +180,7 @@ Available on every command:
 | `-J, --json` | Shorthand for `--output json` |
 | `--dry-run` | Preview changes without executing them |
 | `--no-color` | Disable colored output (env `NO_COLOR`) |
+| `--no-update-check` | Skip checking for a newer release (env `SGH_NO_UPDATE_CHECK`) |
 | `--limit <n>` | Cap the final combined output across all repos (0 = no cap) |
 
 > **`--limit` and `--last` are different controls.** `--last` (on `pr list`, `issue list`, `workflow list`) caps how many items are fetched **per repository** from the API. `--limit` truncates the **final combined output** across all repositories. They compose: `--last 20 --limit 50`.

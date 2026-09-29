@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pradyb/sgh-cli/cmd/version"
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/pkg/context"
 )
@@ -548,4 +549,151 @@ func runAPICallCommand(t *testing.T, extraArgs ...string) (string, string) {
 		t.Fatalf("Execute: %v", err)
 	}
 	return stdout.String(), stderr.String()
+}
+
+// --- printUpdateNotice ---
+
+func withVersionOverride(t *testing.T, ver, buildDate string) {
+	t.Helper()
+	origVer, origDate := version.Version, version.BuildDate
+	version.Version, version.BuildDate = ver, buildDate
+	t.Cleanup(func() { version.Version, version.BuildDate = origVer, origDate })
+}
+
+// withUpdateCheck stubs the network/cache-backed update.Check call and returns a
+// pointer to the number of times it was invoked, so tests can assert a skip path
+// never reaches the check at all.
+func withUpdateCheck(t *testing.T, latest string, hasNewer bool) *int {
+	t.Helper()
+	calls := 0
+	orig := updateCheck
+	updateCheck = func(string) (string, bool) {
+		calls++
+		return latest, hasNewer
+	}
+	t.Cleanup(func() { updateCheck = orig })
+	return &calls
+}
+
+func withInteractiveStderr(t *testing.T, interactive bool) {
+	t.Helper()
+	orig := isInteractiveStderr
+	isInteractiveStderr = func() bool { return interactive }
+	t.Cleanup(func() { isInteractiveStderr = orig })
+}
+
+// newUpdateNoticeCmd builds a minimal command with the --no-update-check flag the
+// real root command registers, and captures what printUpdateNotice writes to it.
+func newUpdateNoticeCmd() (*cobra.Command, *bytes.Buffer) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("no-update-check", false, "")
+	var buf bytes.Buffer
+	cmd.SetErr(&buf)
+	return cmd, &buf
+}
+
+// eligible sets every gate to "would show the notice", so each suppression test only
+// needs to flip the one condition it's testing.
+func eligible(t *testing.T) {
+	t.Helper()
+	withVersionOverride(t, "v1.0.0", "2026-01-01T00:00:00Z")
+	withInteractiveStderr(t, true)
+}
+
+func TestPrintUpdateNotice_ShowsNoticeWhenNewer(t *testing.T) {
+	eligible(t)
+	calls := withUpdateCheck(t, "v9.9.9", true)
+	cmd, buf := newUpdateNoticeCmd()
+
+	printUpdateNotice(cmd, newTestContext())
+
+	out := buf.String()
+	if !strings.Contains(out, "v1.0.0 -> v9.9.9") {
+		t.Errorf("expected an upgrade notice with both versions, got %q", out)
+	}
+	if !strings.Contains(out, "go install github.com/pradyb/sgh-cli@latest") {
+		t.Errorf("expected the upgrade command, got %q", out)
+	}
+	if *calls != 1 {
+		t.Errorf("updateCheck called %d times, want 1", *calls)
+	}
+}
+
+func TestPrintUpdateNotice_NoNoticeWhenNotNewer(t *testing.T) {
+	eligible(t)
+	withUpdateCheck(t, "v1.0.0", false)
+	cmd, buf := newUpdateNoticeCmd()
+
+	printUpdateNotice(cmd, newTestContext())
+
+	if buf.Len() != 0 {
+		t.Errorf("expected no output when not newer, got %q", buf.String())
+	}
+}
+
+func TestPrintUpdateNotice_Suppressed(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, cmd *cobra.Command, ctx *context.Context)
+	}{
+		{"json output", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) { ctx.JSON = true }},
+		{"compact output", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) { ctx.Compact = true }},
+		{"--no-update-check flag", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) {
+			cmd.Flags().Set("no-update-check", "true")
+		}},
+		{"SGH_NO_UPDATE_CHECK env", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) {
+			t.Setenv("SGH_NO_UPDATE_CHECK", "1")
+		}},
+		{"unbuilt/dev binary (default BuildDate sentinel)", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) {
+			withVersionOverride(t, "v1.0.0", "Beta") // overrides eligible()'s override back to the sentinel
+		}},
+		{"CI env", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) {
+			t.Setenv("CI", "true")
+		}},
+		{"non-interactive stderr", func(t *testing.T, cmd *cobra.Command, ctx *context.Context) {
+			withInteractiveStderr(t, false)
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eligible(t)
+			calls := withUpdateCheck(t, "v9.9.9", true)
+			cmd, buf := newUpdateNoticeCmd()
+			ctx := newTestContext()
+			tc.setup(t, cmd, ctx)
+
+			printUpdateNotice(cmd, ctx)
+
+			if buf.Len() != 0 {
+				t.Errorf("expected no output, got %q", buf.String())
+			}
+			if *calls != 0 {
+				t.Errorf("updateCheck should not be reached, was called %d times", *calls)
+			}
+		})
+	}
+}
+
+func TestPrintUpdateNotice_SuppressedForCompletionAndHelp(t *testing.T) {
+	for _, parentName := range []string{"completion", "help"} {
+		t.Run(parentName, func(t *testing.T) {
+			eligible(t)
+			calls := withUpdateCheck(t, "v9.9.9", true)
+			parent := &cobra.Command{Use: parentName}
+			child := &cobra.Command{Use: "child"}
+			child.Flags().Bool("no-update-check", false, "")
+			parent.AddCommand(child)
+			var buf bytes.Buffer
+			child.SetErr(&buf)
+
+			printUpdateNotice(child, newTestContext())
+
+			if buf.Len() != 0 {
+				t.Errorf("expected no output under %q, got %q", parentName, buf.String())
+			}
+			if *calls != 0 {
+				t.Errorf("updateCheck should not be reached under %q", parentName)
+			}
+		})
+	}
 }
