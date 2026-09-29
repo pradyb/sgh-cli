@@ -90,7 +90,7 @@ Full reference with every alias, subcommand, and flag: **[docs/commands.md](docs
 
 | | |
 |---|---|
-| [Installation](docs/installation.md) | Install methods, checksums, shell completion |
+| [Installation](docs/installation.md) | Install and upgrade methods, checksums, shell completion |
 | [Authentication](docs/authentication.md) | Token types and the permissions each feature needs |
 | [Configuration](docs/configuration.md) | Config file, per-owner tokens, repository filtering |
 | [Command reference](docs/commands.md) | Every command, flag, and shorthand |
