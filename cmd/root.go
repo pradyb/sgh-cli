@@ -30,12 +30,14 @@ import (
 	"github.com/pradyb/sgh-cli/cmd/version"
 	"github.com/pradyb/sgh-cli/cmd/whoami"
 	"github.com/pradyb/sgh-cli/cmd/workflow"
+	"github.com/pradyb/sgh-cli/internal/update"
 	"github.com/pradyb/sgh-cli/pkg/context"
 	"github.com/pradyb/sgh-cli/pkg/logger"
 	"github.com/pradyb/sgh-cli/pkg/ui"
 	"github.com/pradyb/sgh-cli/pkg/validation"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 )
 
 func NewRootCommand(ctx *context.Context) *cobra.Command {
@@ -65,6 +67,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			    SGH_ORG         Default organization name (optional)
 			    SGH_WORKERS     Number of concurrent workers (optional, default: 5)
 			    NO_COLOR        Disable colored output (optional)
+			    SGH_NO_UPDATE_CHECK  Skip checking for a newer release (optional)
 
 			  Config Files:
 			    Windows: ~/sgh.json
@@ -126,6 +129,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 			if ctx.HttpClient != nil && !ctx.JSON && !ctx.Compact {
 				printAPICallCount(cmd.ErrOrStderr(), ctx.HttpClient.APICallCount())
 			}
+			printUpdateNotice(cmd, ctx)
 			if ctx.HasError {
 				os.Exit(1)
 			}
@@ -157,6 +161,7 @@ func NewRootCommand(ctx *context.Context) *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("json", "J", false, "shorthand for --output json")
 	rootCmd.PersistentFlags().Bool("dry-run", false, "preview what would be changed without executing")
 	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output (env: NO_COLOR)")
+	rootCmd.PersistentFlags().Bool("no-update-check", false, "skip checking for a newer release (env: SGH_NO_UPDATE_CHECK)")
 	rootCmd.PersistentFlags().Int("limit", 0, "limit the total number of items returned in the global output (0 = no limit, see also: --last)")
 	rootCmd.MarkFlagsMutuallyExclusive("output", "compact", "json")
 
@@ -399,4 +404,47 @@ func printAPICallCount(w io.Writer, count int64) {
 		style := lipgloss.NewRenderer(w).NewStyle().Foreground(ui.Dimmed).Italic(true)
 		fmt.Fprintln(w, style.Render(fmt.Sprintf("  API calls: %d", count)))
 	}
+}
+
+// updateCheck and isInteractiveStderr are package vars (not direct calls) so tests can
+// substitute a fake result / TTY state without a real network call or terminal.
+var (
+	updateCheck         = update.Check
+	isInteractiveStderr = func() bool { return term.IsTerminal(int(os.Stderr.Fd())) }
+)
+
+// printUpdateNotice checks (cheaply — cached, short-timeout, see internal/update) for a
+// newer release and prints a one-line stderr notice. Skipped for: machine output
+// (--json/--compact), --no-update-check/SGH_NO_UPDATE_CHECK, an unbuilt/dev binary (no
+// release ldflags means no meaningful baseline to compare), help/completion, a
+// non-interactive stderr, and CI.
+func printUpdateNotice(cmd *cobra.Command, ctx *context.Context) {
+	if ctx.JSON || ctx.Compact {
+		return
+	}
+	if noCheck, _ := cmd.Flags().GetBool("no-update-check"); noCheck || os.Getenv("SGH_NO_UPDATE_CHECK") != "" {
+		return
+	}
+	if version.BuildDate == "Beta" { // sentinel default: not built via release ldflags
+		return
+	}
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "completion" || c.Name() == "help" {
+			return
+		}
+	}
+	if os.Getenv("CI") != "" || !isInteractiveStderr() {
+		return
+	}
+
+	latest, hasNewer := updateCheck(version.Version)
+	if !hasNewer {
+		return
+	}
+	style := stderrRenderer.NewStyle().Foreground(ui.Yellow)
+	w := cmd.ErrOrStderr()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, style.Render(fmt.Sprintf("  ↑ A new version is available: %s -> %s", version.Version, latest)))
+	fmt.Fprintln(w, style.Render("    Upgrade: go install github.com/pradyb/sgh-cli@latest"))
+	fmt.Fprintln(w, style.Render("    Release notes: https://github.com/pradyb/sgh-cli/releases/latest"))
 }

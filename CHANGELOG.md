@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Checks for a newer release at startup**: once a day, sgh checks GitHub for a newer release and prints a one-line stderr notice with the upgrade command if one exists (see [Upgrading](docs/installation.md#upgrading)). The check is cached (no added latency on ~24h of runs), bounded by a 2s timeout, and skipped automatically for machine output (`--json`/`--compact`), non-interactive/CI runs, and source builds without release version info; disable it explicitly with `--no-update-check` or `SGH_NO_UPDATE_CHECK`
+
 ### Changed
 - **`workflow approve --environment` shorthand changed from `-E` to `-e`**: `-e` was free on the command and follows the project's own lowercase-by-default shorthand convention (`-E` didn't fit it — nothing else on `approve` claims `-e`). Scripts using `-E` (shipped in v1.2.0) must switch to `-e`; the long form `--environment` is unaffected
 
