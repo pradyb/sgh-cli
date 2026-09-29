@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`brew test sgh` no longer fails**: the Homebrew formula's self-test ran `sgh version` without `SGH_TOKEN`, which sgh rejects, so `brew test` failed even though the installed binary was fine. The test now supplies a dummy token
+
 ## [1.3.1] - 2026-09-29
 
 ### Added
