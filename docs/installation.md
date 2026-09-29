@@ -91,7 +91,7 @@ sgh --help
 sgh version
 ```
 
-`sgh version` prints the version string, commit SHA, and build date. Binaries built from source without release ldflags report `dev` as the version — that is expected.
+`sgh version` prints the version string, commit SHA, and build date. Binaries built from source without release ldflags report the placeholder defaults `1.0.0` (version) and `Beta` (commit SHA, build date) — that is expected.
 
 To confirm your token and network path work end to end:
 

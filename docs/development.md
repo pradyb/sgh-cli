@@ -28,7 +28,7 @@ go build -ldflags="-s -w \
   -o sgh ./cmd/sgh
 ```
 
-Without those flags `sgh version` reports `dev`.
+Without those flags `sgh version` reports the placeholder defaults: `1.0.0` for the version, `Beta` for the commit SHA and build date.
 
 ## Git hooks
 
