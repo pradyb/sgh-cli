@@ -123,7 +123,23 @@ func UpgradeCommand() string {
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	return upgradeCommandFor(exe, goBinDirs())
+	return upgradeCommandFor(exe, resolvedGoBinDirs())
+}
+
+// resolvedGoBinDirs is goBinDirs() with each entry symlink-resolved (best-effort — a
+// candidate that doesn't exist or can't be resolved is kept as-is). Without this, a
+// symlinked GOBIN/GOPATH (e.g. macOS's /tmp -> /private/tmp, or a symlinked $HOME) never
+// matches the already-resolved executable path above, silently missing a real go-install.
+func resolvedGoBinDirs() []string {
+	dirs := goBinDirs()
+	out := make([]string, len(dirs))
+	for i, d := range dirs {
+		out[i] = d
+		if resolved, err := filepath.EvalSymlinks(d); err == nil {
+			out[i] = resolved
+		}
+	}
+	return out
 }
 
 // upgradeCommandFor maps an already-resolved executable path to an upgrade command.

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Update notice still missed the upgrade command when GOBIN/GOPATH itself was a symlink**: the running binary's path was resolved through symlinks before comparison (needed for Homebrew's `Cellar` symlink), but the `GOBIN`/`GOPATH` candidates from #53 weren't — so on macOS, where `/tmp` is a symlink to `/private/tmp` by default, a `go install`ed binary under a `/tmp`-rooted `GOBIN` was silently treated as unknown. Candidates are now resolved the same way (#56)
+
 ## [1.3.2] - 2026-09-29
 
 ### Fixed
