@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Update notice recognises `go install` binaries when `GOBIN`/`GOPATH` were set with `go env -w`**: the install-method detection only read process environment variables, so users who persisted their Go bin directory via `go env -w` fell back to the releases link instead of the `go install` command. It now also reads Go's env file (`$GOENV`, default `<user config dir>/go/env`) directly, with no `go` subprocess, and compares paths case-insensitively on Windows and macOS (#53)
+
 ## [1.3.2] - 2026-09-29
 
 ### Fixed
