@@ -34,6 +34,8 @@ sgh protected-branch list --org my-org --branch main
 ## Install
 
 ```bash
+brew install pradyb/tap/sgh
+# or
 go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 ```
 
