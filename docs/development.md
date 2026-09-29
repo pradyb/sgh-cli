@@ -30,6 +30,12 @@ go build -ldflags="-s -w \
 
 Without those flags `sgh version` reports the placeholder defaults: `1.0.0` for the version, `Beta` for the commit SHA and build date.
 
+Tagged releases are built by [GoReleaser](https://goreleaser.com) (`.goreleaser.yaml`), which also updates the Homebrew formula in `pradyb/homebrew-tap`. To dry-run a release locally without publishing anything:
+
+```bash
+goreleaser release --snapshot --clean --skip=publish   # output in dist/
+```
+
 ## Git hooks
 
 Enable once per clone:

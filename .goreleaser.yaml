@@ -1,0 +1,71 @@
+version: 2
+
+project_name: sgh
+
+# Never auto-detect another forge from stray tokens in the environment.
+force_token: github
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: sgh
+    main: ./cmd/sgh
+    binary: sgh
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/pradyb/sgh-cli/cmd/version.Version={{ .Tag }}
+      - -X github.com/pradyb/sgh-cli/cmd/version.CommitSHA={{ .ShortCommit }}
+      - -X github.com/pradyb/sgh-cli/cmd/version.BuildDate={{ .Date }}
+
+archives:
+  # Archives for Homebrew and manual installs.
+  - id: tarball
+    ids: [sgh]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "sgh_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md]
+  # Raw binaries, kept so existing download URLs (sgh-linux-amd64, ...) keep working.
+  - id: raw
+    ids: [sgh]
+    formats: [binary]
+    name_template: "sgh-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: pradyb
+    name: sgh-cli
+  prerelease: auto
+
+# `brews` is deprecated upstream in favour of `homebrew_casks`, but casks are macOS-only and
+# we want Linux Homebrew too. Keep until GoReleaser drops it.
+brews:
+  - name: sgh
+    ids: [tarball]
+    repository:
+      owner: pradyb
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/pradyb/sgh-cli
+    description: Command-line tool for GitHub across repositories and organizations
+    license: MIT
+    skip_upload: auto # don't publish the formula for prerelease tags
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/sgh version")

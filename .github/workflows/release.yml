@@ -29,38 +29,11 @@ jobs:
       - name: Run tests
         run: go test -v -race -short ./...
 
-      - name: Build release binaries
-        env:
-          CGO_ENABLED: "0"
-        run: |
-          VERSION=${GITHUB_REF_NAME}
-          COMMIT=$(git rev-parse --short HEAD)
-          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          LDFLAGS="-s -w \
-            -X github.com/pradyb/sgh-cli/cmd/version.Version=${VERSION} \
-            -X github.com/pradyb/sgh-cli/cmd/version.CommitSHA=${COMMIT} \
-            -X github.com/pradyb/sgh-cli/cmd/version.BuildDate=${BUILD_DATE}"
-
-          mkdir -p dist
-
-          # Linux
-          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-amd64 ./cmd/sgh
-          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-arm64 ./cmd/sgh
-
-          # macOS
-          GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-amd64 ./cmd/sgh
-          GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-arm64 ./cmd/sgh
-
-          # Windows
-          GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-windows-amd64.exe ./cmd/sgh
-
-          # Create checksums
-          cd dist && sha256sum * > checksums.txt
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+      - name: Build and publish release
+        uses: goreleaser/goreleaser-action@v6
         with:
-          files: dist/*
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
