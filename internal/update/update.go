@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -133,19 +134,63 @@ func upgradeCommandFor(exe string, goBins []string) string {
 	}
 	dir := filepath.ToSlash(filepath.Dir(exe))
 	for _, b := range goBins {
-		if b != "" && dir == filepath.ToSlash(filepath.Clean(b)) {
+		if b != "" && samePath(dir, filepath.ToSlash(filepath.Clean(b))) {
 			return "go install github.com/pradyb/sgh-cli/cmd/sgh@latest"
 		}
 	}
 	return ""
 }
 
+// caseInsensitiveFS is a var so tests can exercise both behaviours on any OS. Windows and
+// macOS (default APFS) compare paths case-insensitively, so a differing case is still the
+// same directory there.
+var caseInsensitiveFS = runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+
+func samePath(a, b string) bool {
+	if caseInsensitiveFS {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// goEnvSetting resolves a Go setting the way `go env` does, minus the subprocess: the
+// process environment wins, then the file `go env -w` writes ($GOENV, else
+// <UserConfigDir>/go/env). Reading a small file keeps this cheap and works on machines
+// with no Go toolchain installed.
+func goEnvSetting(key string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	path := os.Getenv("GOENV")
+	if path == "off" {
+		return ""
+	}
+	if path == "" {
+		dir, err := os.UserConfigDir()
+		if err != nil {
+			return ""
+		}
+		path = filepath.Join(dir, "go", "env")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	val := ""
+	for _, line := range strings.Split(string(b), "\n") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok && k == key {
+			val = v // last assignment wins
+		}
+	}
+	return val
+}
+
 // goBinDirs lists where `go install` puts binaries: $GOBIN, else <each GOPATH entry>/bin.
 func goBinDirs() []string {
-	if b := os.Getenv("GOBIN"); b != "" {
+	if b := goEnvSetting("GOBIN"); b != "" {
 		return []string{b}
 	}
-	gopath := os.Getenv("GOPATH")
+	gopath := goEnvSetting("GOPATH")
 	if gopath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

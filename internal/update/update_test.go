@@ -273,6 +273,7 @@ func TestUpgradeCommandFor_NoGoBins(t *testing.T) {
 }
 
 func TestGoBinDirs(t *testing.T) {
+	t.Setenv("GOENV", "off") // don't read the developer's real go env file
 	sep := string(os.PathListSeparator)
 
 	t.Setenv("GOBIN", "/custom/bin")
@@ -300,9 +301,105 @@ func TestGoBinDirs(t *testing.T) {
 // Smoke test: the real wrapper resolves the test binary, which is neither a Homebrew nor
 // a go-install location, so it must not invent an upgrade command.
 func TestUpgradeCommand_TestBinaryIsUnknown(t *testing.T) {
+	t.Setenv("GOENV", "off")
 	t.Setenv("GOBIN", "")
 	t.Setenv("GOPATH", t.TempDir())
 	if got := UpgradeCommand(); got != "" {
 		t.Errorf("UpgradeCommand() = %q for a go-test binary, want empty", got)
+	}
+}
+
+func writeGoEnv(t *testing.T, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "env")
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOENV", p)
+	return p
+}
+
+func TestGoEnvSetting(t *testing.T) {
+	writeGoEnv(t, "# comment\nGOBIN=/from/file\r\nGOPATH=/first\nGOPATH=/last\nMALFORMED\nGOFLAGS=-mod=mod\n")
+	t.Setenv("GOBIN", "")
+	t.Setenv("GOPATH", "")
+
+	if got := goEnvSetting("GOBIN"); got != "/from/file" {
+		t.Errorf("GOBIN from file (CRLF line) = %q, want /from/file", got)
+	}
+	if got := goEnvSetting("GOPATH"); got != "/last" {
+		t.Errorf("last assignment should win, got %q", got)
+	}
+	if got := goEnvSetting("GOFLAGS"); got != "-mod=mod" {
+		t.Errorf("value containing '=' = %q, want -mod=mod", got)
+	}
+	if got := goEnvSetting("GOMISSING"); got != "" {
+		t.Errorf("missing key = %q, want empty", got)
+	}
+
+	t.Setenv("GOBIN", "/from/process")
+	if got := goEnvSetting("GOBIN"); got != "/from/process" {
+		t.Errorf("process environment must beat the file, got %q", got)
+	}
+}
+
+func TestGoEnvSetting_OffAndMissingFile(t *testing.T) {
+	t.Setenv("GOBIN", "")
+	t.Setenv("GOENV", "off")
+	if got := goEnvSetting("GOBIN"); got != "" {
+		t.Errorf("GOENV=off should ignore files, got %q", got)
+	}
+	t.Setenv("GOENV", filepath.Join(t.TempDir(), "does-not-exist"))
+	if got := goEnvSetting("GOBIN"); got != "" {
+		t.Errorf("missing file should yield empty, got %q", got)
+	}
+}
+
+func TestGoEnvSetting_DefaultLocation(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("AppData", filepath.Join(home, "AppData"))
+	t.Setenv("GOENV", "")
+	t.Setenv("GOBIN", "")
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Skip("no user config dir on this platform")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "go"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go", "env"), []byte("GOBIN=/default/loc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := goEnvSetting("GOBIN"); got != "/default/loc" {
+		t.Errorf("default env file location: got %q, want /default/loc", got)
+	}
+}
+
+// The #53 scenario end to end: GOBIN only in the go env file, and the binary lives there.
+func TestGoBinDirs_HonoursGoEnvW(t *testing.T) {
+	t.Setenv("GOBIN", "")
+	t.Setenv("GOPATH", "")
+	writeGoEnv(t, "GOBIN=/tmp/x\n")
+	if got := upgradeCommandFor("/tmp/x/sgh", goBinDirs()); got == "" {
+		t.Error("a binary in a GOBIN set via `go env -w` should be recognised as go-installed")
+	}
+}
+
+func TestUpgradeCommandFor_CaseSensitivity(t *testing.T) {
+	orig := caseInsensitiveFS
+	t.Cleanup(func() { caseInsensitiveFS = orig })
+	const goInstall = "go install github.com/pradyb/sgh-cli/cmd/sgh@latest"
+	bins := []string{"C:/Users/U/go/bin"}
+
+	caseInsensitiveFS = true
+	if got := upgradeCommandFor("c:/users/u/GO/bin/sgh.exe", bins); got != goInstall {
+		t.Errorf("case-insensitive FS: got %q, want the go install command", got)
+	}
+	caseInsensitiveFS = false
+	if got := upgradeCommandFor("c:/users/u/GO/bin/sgh.exe", bins); got != "" {
+		t.Errorf("case-sensitive FS must not match different case, got %q", got)
 	}
 }
