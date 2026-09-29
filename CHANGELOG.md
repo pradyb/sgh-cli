@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-29
+
 ### Added
 - **Homebrew install**: `brew install pradyb/tap/sgh` installs the prebuilt binary on macOS and Linux (see [Installation](docs/installation.md#option-4-homebrew)). Each release now also publishes `.tar.gz`/`.zip` archives, and the formula in `pradyb/homebrew-tap` is updated automatically on every non-prerelease tag
 
@@ -91,7 +93,8 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/pradyb/sgh-cli/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pradyb/sgh-cli/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pradyb/sgh-cli/compare/v1.0.0...v1.1.0
