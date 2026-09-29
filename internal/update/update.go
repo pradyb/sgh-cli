@@ -111,6 +111,55 @@ func fetchLatestTag() (string, error) {
 	return r.TagName, nil
 }
 
+// UpgradeCommand returns the command that upgrades the running binary, chosen by where
+// it was installed from, or "" when the install method is unknown (e.g. a downloaded
+// release binary), in which case callers should point at the releases page instead.
+func UpgradeCommand() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return upgradeCommandFor(exe, goBinDirs())
+}
+
+// upgradeCommandFor maps an already-resolved executable path to an upgrade command.
+func upgradeCommandFor(exe string, goBins []string) string {
+	p := filepath.ToSlash(exe)
+	if strings.Contains(p, "/Cellar/") { // Homebrew and Linuxbrew both install under a Cellar
+		return "brew update && brew upgrade sgh"
+	}
+	dir := filepath.ToSlash(filepath.Dir(exe))
+	for _, b := range goBins {
+		if b != "" && dir == filepath.ToSlash(filepath.Clean(b)) {
+			return "go install github.com/pradyb/sgh-cli/cmd/sgh@latest"
+		}
+	}
+	return ""
+}
+
+// goBinDirs lists where `go install` puts binaries: $GOBIN, else <each GOPATH entry>/bin.
+func goBinDirs() []string {
+	if b := os.Getenv("GOBIN"); b != "" {
+		return []string{b}
+	}
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil
+		}
+		gopath = filepath.Join(home, "go")
+	}
+	var out []string
+	for _, p := range filepath.SplitList(gopath) {
+		out = append(out, filepath.Join(p, "bin"))
+	}
+	return out
+}
+
 // isNewer reports whether latest is a strictly greater SemVer than current. Either
 // string failing to parse as vMAJOR.MINOR.PATCH is "not newer" — fail safe, never
 // notify on a version format sgh doesn't recognise.

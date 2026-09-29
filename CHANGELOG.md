@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Update notice suggested a command that no longer works**: the "new version available" notice always printed `go install github.com/pradyb/sgh-cli@latest`, which has failed since v1.3.0 moved `main.go` to `cmd/sgh`. The notice now picks the upgrade command from where the binary is installed: `brew update && brew upgrade sgh` for Homebrew, `go install github.com/pradyb/sgh-cli/cmd/sgh@latest` for a `go install` binary, and only the releases link for anything else (e.g. a downloaded release binary) (#50)
 - **`brew test sgh` no longer fails**: the Homebrew formula's self-test ran `sgh version` without `SGH_TOKEN`, which sgh rejects, so `brew test` failed even though the installed binary was fine. The test now supplies a dummy token
 
 ## [1.3.1] - 2026-09-29

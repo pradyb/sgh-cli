@@ -605,9 +605,18 @@ func eligible(t *testing.T) {
 	t.Setenv("SGH_NO_UPDATE_CHECK", "")
 }
 
+// withUpgradeCommand stubs the install-method detection.
+func withUpgradeCommand(t *testing.T, cmd string) {
+	t.Helper()
+	orig := upgradeCommand
+	upgradeCommand = func() string { return cmd }
+	t.Cleanup(func() { upgradeCommand = orig })
+}
+
 func TestPrintUpdateNotice_ShowsNoticeWhenNewer(t *testing.T) {
 	eligible(t)
 	calls := withUpdateCheck(t, "v9.9.9", true)
+	withUpgradeCommand(t, "brew update && brew upgrade sgh")
 	cmd, buf := newUpdateNoticeCmd()
 
 	printUpdateNotice(cmd, newTestContext())
@@ -616,11 +625,31 @@ func TestPrintUpdateNotice_ShowsNoticeWhenNewer(t *testing.T) {
 	if !strings.Contains(out, "v1.0.0 -> v9.9.9") {
 		t.Errorf("expected an upgrade notice with both versions, got %q", out)
 	}
-	if !strings.Contains(out, "go install github.com/pradyb/sgh-cli@latest") {
-		t.Errorf("expected the upgrade command, got %q", out)
+	if !strings.Contains(out, "Upgrade: brew update && brew upgrade sgh") {
+		t.Errorf("expected the install-method upgrade command, got %q", out)
+	}
+	if strings.Contains(out, "go install github.com/pradyb/sgh-cli@latest") {
+		t.Errorf("must not suggest the broken pre-1.3.0 go install path, got %q", out)
 	}
 	if *calls != 1 {
 		t.Errorf("updateCheck called %d times, want 1", *calls)
+	}
+}
+
+func TestPrintUpdateNotice_UnknownInstallMethodOmitsUpgradeLine(t *testing.T) {
+	eligible(t)
+	withUpdateCheck(t, "v9.9.9", true)
+	withUpgradeCommand(t, "")
+	cmd, buf := newUpdateNoticeCmd()
+
+	printUpdateNotice(cmd, newTestContext())
+
+	out := buf.String()
+	if strings.Contains(out, "Upgrade:") {
+		t.Errorf("unknown install method should not print an Upgrade line, got %q", out)
+	}
+	if !strings.Contains(out, "https://github.com/pradyb/sgh-cli/releases/latest") {
+		t.Errorf("expected the releases link as the fallback, got %q", out)
 	}
 }
 

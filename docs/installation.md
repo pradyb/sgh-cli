@@ -76,7 +76,7 @@ This taps [`pradyb/homebrew-tap`](https://github.com/pradyb/homebrew-tap) and in
 
 ## Upgrading
 
-There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect. sgh also checks for a newer release once a day and prints a stderr notice when one exists (disable with `--no-update-check` or `SGH_NO_UPDATE_CHECK=1`), so you don't have to check the releases page manually.
+There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect. sgh also checks for a newer release once a day and prints a stderr notice when one exists, with the upgrade command matching how you installed it — Homebrew, `go install`, or just the releases link for a downloaded binary (disable with `--no-update-check` or `SGH_NO_UPDATE_CHECK=1`), so you don't have to check the releases page manually.
 
 **Go install:**
 
