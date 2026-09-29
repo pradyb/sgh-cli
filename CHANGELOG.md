@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-29
+
 ### Fixed
 - **Update notice suggested a command that no longer works**: the "new version available" notice always printed `go install github.com/pradyb/sgh-cli@latest`, which has failed since v1.3.0 moved `main.go` to `cmd/sgh`. The notice now picks the upgrade command from where the binary is installed: `brew update && brew upgrade sgh` for Homebrew, `go install github.com/pradyb/sgh-cli/cmd/sgh@latest` for a `go install` binary, and only the releases link for anything else (e.g. a downloaded release binary) (#50)
 - **`brew test sgh` no longer fails**: the Homebrew formula's self-test ran `sgh version` without `SGH_TOKEN`, which sgh rejects, so `brew test` failed even though the installed binary was fine. The test now supplies a dummy token
@@ -97,7 +99,8 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/pradyb/sgh-cli/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/pradyb/sgh-cli/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pradyb/sgh-cli/compare/v1.1.0...v1.2.0
