@@ -609,7 +609,7 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 
 	approveCmd.Flags().StringArrayVarP(&repoNames, "repository", "r", []string{}, "repository names (repeatable)")
 	approveCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID (defaults to the latest run waiting for approval)")
-	approveCmd.Flags().StringArrayVarP(&environments, "environment", "E", []string{}, "only decide these environment gates (repeatable)")
+	approveCmd.Flags().StringArrayVarP(&environments, "environment", "e", []string{}, "only decide these environment gates (repeatable)")
 	approveCmd.Flags().BoolVar(&reject, "reject", false, "reject instead of approve")
 	approveCmd.Flags().StringVar(&comment, "comment", "", "comment recorded with the decision")
 	approveCmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
