@@ -4,6 +4,7 @@
 - [Option 1: Go install](#option-1-go-install)
 - [Option 2: Prebuilt binary](#option-2-prebuilt-binary)
 - [Option 3: From source](#option-3-from-source)
+- [Upgrading](#upgrading)
 - [Verify the installation](#verify-the-installation)
 - [Shell completion](#shell-completion)
 
@@ -66,6 +67,27 @@ go build -o sgh .
 sudo mv sgh /usr/local/bin/
 
 # Windows — move sgh.exe to a directory on your PATH
+```
+
+## Upgrading
+
+There's no self-update command — upgrade the same way you installed, and check `sgh version` before/after to confirm it took effect.
+
+**Go install:**
+
+```bash
+go install github.com/pradyb/sgh-cli@latest
+```
+
+Re-running this rebuilds at the newest tag and overwrites the existing binary in place.
+
+**Prebuilt binary:** re-download from the [releases page](https://github.com/pradyb/sgh-cli/releases) (or `.../releases/latest/download/sgh-<platform>`) and overwrite the file at the same path — same steps as [Option 2](#option-2-prebuilt-binary), including re-verifying against the new `checksums.txt`.
+
+**From source:**
+
+```bash
+git pull
+go build -o sgh .
 ```
 
 ## Verify the installation
