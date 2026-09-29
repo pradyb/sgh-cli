@@ -48,8 +48,7 @@ curl -LO https://github.com/pradyb/sgh-cli/releases/latest/download/sgh-linux-am
 curl -LO https://github.com/pradyb/sgh-cli/releases/latest/download/checksums.txt
 sha256sum --check --ignore-missing checksums.txt
 
-chmod +x sgh-linux-amd64
-sudo mv sgh-linux-amd64 /usr/local/bin/sgh
+sudo install -m 0755 sgh-linux-amd64 /usr/local/bin/sgh
 ```
 
 On Windows, rename `sgh-windows-amd64.exe` to `sgh.exe` and place it in a directory on your `PATH`.
