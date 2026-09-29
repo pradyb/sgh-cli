@@ -598,6 +598,11 @@ func eligible(t *testing.T) {
 	t.Helper()
 	withVersionOverride(t, "v1.0.0", "2026-01-01T00:00:00Z")
 	withInteractiveStderr(t, true)
+	// CI providers (including GitHub Actions) set these in the runner environment by
+	// default, which would otherwise suppress the notice during CI even though these
+	// tests aren't testing that gate.
+	t.Setenv("CI", "")
+	t.Setenv("SGH_NO_UPDATE_CHECK", "")
 }
 
 func TestPrintUpdateNotice_ShowsNoticeWhenNewer(t *testing.T) {
