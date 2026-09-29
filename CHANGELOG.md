@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-09-29
+## [1.3.0] - 2026-09-29
 
 ### Added
 - **Checks for a newer release at startup**: once a day, sgh checks GitHub for a newer release and prints a one-line stderr notice with the upgrade command if one exists (see [Upgrading](docs/installation.md#upgrading)). The check is cached (no added latency on ~24h of runs), bounded by a 2s timeout, and skipped automatically for machine output (`--json`/`--compact`), non-interactive/CI runs, and source builds without release version info; disable it explicitly with `--no-update-check` or `SGH_NO_UPDATE_CHECK`
@@ -85,8 +85,8 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...v2.0.0
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pradyb/sgh-cli/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pradyb/sgh-cli/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/pradyb/sgh-cli/releases/tag/v1.0.0
