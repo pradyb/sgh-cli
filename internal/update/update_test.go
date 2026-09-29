@@ -239,3 +239,70 @@ func TestCheck_EmptyVersionIsSafeWithRealConfigDir(t *testing.T) {
 		t.Errorf("Check(\"\") = (%q, %v), want (\"\", false)", latest, hasNewer)
 	}
 }
+
+func TestUpgradeCommandFor(t *testing.T) {
+	const goInstall = "go install github.com/pradyb/sgh-cli/cmd/sgh@latest"
+	const brew = "brew update && brew upgrade sgh"
+	goBins := []string{"/home/u/go/bin", "/opt/gopath/bin"}
+	cases := []struct {
+		name string
+		exe  string
+		want string
+	}{
+		{"homebrew apple silicon", "/opt/homebrew/Cellar/sgh/1.3.1/bin/sgh", brew},
+		{"homebrew intel", "/usr/local/Cellar/sgh/1.3.1/bin/sgh", brew},
+		{"linuxbrew", "/home/linuxbrew/.linuxbrew/Cellar/sgh/1.3.1/bin/sgh", brew},
+		{"go install default", "/home/u/go/bin/sgh", goInstall},
+		{"go install second GOPATH entry", "/opt/gopath/bin/sgh", goInstall},
+		{"downloaded release binary", "/usr/local/bin/sgh", ""},
+		{"home local bin", "/home/u/.local/bin/sgh", ""},
+		{"go bin subdirectory is not go install", "/home/u/go/bin/tools/sgh", ""},
+		{"empty path", "", ""},
+	}
+	for _, tc := range cases {
+		if got := upgradeCommandFor(tc.exe, goBins); got != tc.want {
+			t.Errorf("%s: upgradeCommandFor(%q) = %q, want %q", tc.name, tc.exe, got, tc.want)
+		}
+	}
+}
+
+func TestUpgradeCommandFor_NoGoBins(t *testing.T) {
+	if got := upgradeCommandFor("/home/u/go/bin/sgh", nil); got != "" {
+		t.Errorf("with no known Go bin dirs got %q, want empty", got)
+	}
+}
+
+func TestGoBinDirs(t *testing.T) {
+	sep := string(os.PathListSeparator)
+
+	t.Setenv("GOBIN", "/custom/bin")
+	t.Setenv("GOPATH", "/ignored")
+	if got := goBinDirs(); len(got) != 1 || got[0] != "/custom/bin" {
+		t.Errorf("GOBIN should win, got %v", got)
+	}
+
+	t.Setenv("GOBIN", "")
+	t.Setenv("GOPATH", "/a"+sep+"/b")
+	got := goBinDirs()
+	if len(got) != 2 || got[0] != filepath.Join("/a", "bin") || got[1] != filepath.Join("/b", "bin") {
+		t.Errorf("GOPATH entries should each get /bin, got %v", got)
+	}
+
+	t.Setenv("GOPATH", "")
+	t.Setenv("HOME", "/home/x")
+	t.Setenv("USERPROFILE", "/home/x")
+	got = goBinDirs()
+	if len(got) != 1 || got[0] != filepath.Join("/home/x", "go", "bin") {
+		t.Errorf("default should be ~/go/bin, got %v", got)
+	}
+}
+
+// Smoke test: the real wrapper resolves the test binary, which is neither a Homebrew nor
+// a go-install location, so it must not invent an upgrade command.
+func TestUpgradeCommand_TestBinaryIsUnknown(t *testing.T) {
+	t.Setenv("GOBIN", "")
+	t.Setenv("GOPATH", t.TempDir())
+	if got := UpgradeCommand(); got != "" {
+		t.Errorf("UpgradeCommand() = %q for a go-test binary, want empty", got)
+	}
+}

@@ -410,6 +410,7 @@ func printAPICallCount(w io.Writer, count int64) {
 // substitute a fake result / TTY state without a real network call or terminal.
 var (
 	updateCheck         = update.Check
+	upgradeCommand      = update.UpgradeCommand
 	isInteractiveStderr = func() bool { return term.IsTerminal(int(os.Stderr.Fd())) }
 )
 
@@ -445,6 +446,8 @@ func printUpdateNotice(cmd *cobra.Command, ctx *context.Context) {
 	w := cmd.ErrOrStderr()
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, style.Render(fmt.Sprintf("  ↑ A new version is available: %s -> %s", version.Version, latest)))
-	fmt.Fprintln(w, style.Render("    Upgrade: go install github.com/pradyb/sgh-cli@latest"))
-	fmt.Fprintln(w, style.Render("    Release notes: https://github.com/pradyb/sgh-cli/releases/latest"))
+	if upgrade := upgradeCommand(); upgrade != "" {
+		fmt.Fprintln(w, style.Render("    Upgrade: "+upgrade))
+	}
+	fmt.Fprintln(w, style.Render("    Release notes and downloads: https://github.com/pradyb/sgh-cli/releases/latest"))
 }
