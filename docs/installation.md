@@ -18,15 +18,10 @@
 The shortest path if you already have Go:
 
 ```bash
-go install github.com/pradyb/sgh-cli@latest
+go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 ```
 
-This installs the binary as `sgh-cli` into `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`. Most of this documentation calls the tool `sgh`, so you may want to rename or symlink it:
-
-```bash
-# Linux/macOS
-ln -s "$(go env GOPATH)/bin/sgh-cli" "$(go env GOPATH)/bin/sgh"
-```
+This installs the binary as `sgh` into `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
 
 ## Option 2: Prebuilt binary
 
@@ -60,7 +55,7 @@ Useful if you want to build a specific branch or make local changes:
 ```bash
 git clone https://github.com/pradyb/sgh-cli.git
 cd sgh-cli
-go build -o sgh .
+go build -o sgh ./cmd/sgh
 
 # Linux/macOS — put it on your PATH
 sudo mv sgh /usr/local/bin/
@@ -75,7 +70,7 @@ There's no self-update command — upgrade the same way you installed, and check
 **Go install:**
 
 ```bash
-go install github.com/pradyb/sgh-cli@latest
+go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 ```
 
 Re-running this rebuilds at the newest tag and overwrites the existing binary in place.
@@ -86,7 +81,7 @@ Re-running this rebuilds at the newest tag and overwrites the existing binary in
 
 ```bash
 git pull
-go build -o sgh .
+go build -o sgh ./cmd/sgh
 ```
 
 ## Verify the installation

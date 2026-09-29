@@ -15,7 +15,7 @@
 git clone https://github.com/pradyb/sgh-cli.git
 cd sgh-cli
 go mod download
-go build -o sgh .
+go build -o sgh ./cmd/sgh
 ```
 
 Release binaries are built with version metadata injected at link time:
@@ -25,7 +25,7 @@ go build -ldflags="-s -w \
   -X github.com/pradyb/sgh-cli/cmd/version.Version=v1.2.3 \
   -X github.com/pradyb/sgh-cli/cmd/version.CommitSHA=$(git rev-parse --short HEAD) \
   -X github.com/pradyb/sgh-cli/cmd/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  -o sgh .
+  -o sgh ./cmd/sgh
 ```
 
 Without those flags `sgh version` reports `dev`.
@@ -104,13 +104,14 @@ go vet ./...
 
 ```
 sgh-cli/
-├── main.go                 # entrypoint, token validation, error formatting
-├── cmd/                    # one package per command — Cobra wiring only
+├── cmd/
+│   ├── sgh/                # binary entrypoint (main.go) — go install .../cmd/sgh@latest
+│   │                       # names the installed binary "sgh"; not a command package itself
 │   ├── root.go             # root command, global flags, group registration
 │   ├── shortcuts.go        # single-word shortcut expansion (brl, prl, ...)
 │   ├── audit/  branch/  clone/  commit/  config/  health/  issue/
 │   ├── org/  postrelease/  pr/  protectedbranch/  repo/  security/
-│   └── tag/  team/  tui/  version/  whoami/  workflow/
+│   └── tag/  team/  tui/  version/  whoami/  workflow/  # one package per command — Cobra wiring only
 ├── pkg/                    # business logic — importable, no Cobra dependency
 │   ├── apperrors/          # typed application errors
 │   ├── context/            # global application context, token resolution
@@ -131,6 +132,7 @@ sgh-cli/
 │   ├── ratelimit/          # GitHub API rate limit tracking
 │   ├── retry/              # exponential backoff
 │   ├── service/            # GitHub REST and GraphQL services
+│   ├── update/             # startup check for a newer release
 │   └── testutils/          # shared test helpers
 └── utils/                  # legacy helpers
 ```
