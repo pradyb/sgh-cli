@@ -34,7 +34,7 @@ sgh protected-branch list --org my-org --branch main
 ## Install
 
 ```bash
-go install github.com/pradyb/sgh-cli@latest
+go install github.com/pradyb/sgh-cli/cmd/sgh@latest
 ```
 
 Or download a prebuilt binary for Linux, macOS, or Windows from the [releases page](https://github.com/pradyb/sgh-cli/releases) — each release publishes `checksums.txt` alongside the binaries.

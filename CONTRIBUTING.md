@@ -55,7 +55,7 @@ need to — CI enforces the same rules regardless.
 
 ```bash
 # Build the binary
-go build -o sgh .
+go build -o sgh ./cmd/sgh
 
 # Run tests
 go test ./...

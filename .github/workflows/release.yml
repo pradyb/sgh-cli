@@ -44,15 +44,15 @@ jobs:
           mkdir -p dist
 
           # Linux
-          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-arm64 .
+          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-amd64 ./cmd/sgh
+          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-linux-arm64 ./cmd/sgh
 
           # macOS
-          GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-amd64 ./cmd/sgh
+          GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/sgh-darwin-arm64 ./cmd/sgh
 
           # Windows
-          GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-windows-amd64.exe .
+          GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/sgh-windows-amd64.exe ./cmd/sgh
 
           # Create checksums
           cd dist && sha256sum * > checksums.txt
