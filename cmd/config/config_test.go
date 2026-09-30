@@ -5,6 +5,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"runtime"
@@ -15,7 +16,15 @@ import (
 
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/keyring"
 )
+
+// TestMain forces an in-memory fake keyring for every test in this package, so tests
+// never read from or write to the developer's real OS keyring.
+func TestMain(m *testing.M) {
+	internalconfig.TokenKeyring = keyring.NewFake()
+	os.Exit(m.Run())
+}
 
 // isolateHome points the OS home directory lookup at a fresh temp dir so
 // Save() never touches the real user's sgh config.
@@ -51,6 +60,23 @@ func execCmd(cmd *cobra.Command, args ...string) error {
 	root := newTestRoot()
 	root.AddCommand(cmd)
 	root.SetArgs(args)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	return root.Execute()
+}
+
+// execCmdWithStdin is execCmd with scripted stdin, for `config set token`'s piped-input
+// path — go test's own stdin is never a real terminal, so isStdinTerminal already takes
+// this branch without needing to be forced, but forcing it makes the test explicit.
+func execCmdWithStdin(cmd *cobra.Command, stdin string, args ...string) error {
+	orig := isStdinTerminal
+	isStdinTerminal = func() bool { return false }
+	defer func() { isStdinTerminal = orig }()
+
+	root := newTestRoot()
+	root.AddCommand(cmd)
+	root.SetArgs(args)
+	root.SetIn(strings.NewReader(stdin))
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	return root.Execute()
@@ -383,6 +409,55 @@ func TestRemoveCommand_Org(t *testing.T) {
 	}
 }
 
+func TestRemoveCommand_Token(t *testing.T) {
+	ctx := newTestContext(t)
+	ctx.Config.AddOrganization("acme")
+	if err := execCmdWithStdin(setCommand(ctx), "ghp_1234567890abcdef1234567890abcdef1234\n", "set", "token", "--org", "acme"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := execCmd(removeCommand(ctx), "remove", "token", "--org", "acme"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.Config.HasToken("acme") {
+		t.Error("expected token to be removed")
+	}
+}
+
+func TestRemoveCommand_Token_NoTokenConfigured(t *testing.T) {
+	ctx := newTestContext(t)
+	ctx.Config.AddOrganization("acme")
+
+	out := captureOutput(t, func() {
+		if err := execCmd(removeCommand(ctx), "remove", "token", "--org", "acme"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "No token configured") {
+		t.Errorf("expected a 'no token configured' message, not a false success, got: %s", out)
+	}
+	if strings.Contains(out, "Token removed") {
+		t.Errorf("must not claim a token was removed when there was none, got: %s", out)
+	}
+}
+
+func TestRemoveCommand_Token_MissingOrg(t *testing.T) {
+	ctx := newTestContext(t)
+
+	if err := execCmd(removeCommand(ctx), "remove", "token"); err == nil {
+		t.Fatal("expected an error for missing --org")
+	}
+}
+
+func TestRemoveCommand_Token_RejectsPositionalValue(t *testing.T) {
+	ctx := newTestContext(t)
+
+	err := execCmd(removeCommand(ctx), "remove", "token", "some-value", "--org", "acme")
+	if err == nil {
+		t.Fatal("expected an error — token removal takes no value")
+	}
+}
+
 func TestRemoveCommand_Repo(t *testing.T) {
 	ctx := newTestContext(t)
 	ctx.Config.AddOrganization("acme")
@@ -455,7 +530,7 @@ func TestSetCommand_Token(t *testing.T) {
 	ctx := newTestContext(t)
 	ctx.Config.AddOrganization("acme")
 
-	err := execCmd(setCommand(ctx), "set", "token", "ghp_1234567890abcdef1234567890abcdef1234", "--org", "acme")
+	err := execCmdWithStdin(setCommand(ctx), "ghp_1234567890abcdef1234567890abcdef1234\n", "set", "token", "--org", "acme")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -464,12 +539,27 @@ func TestSetCommand_Token(t *testing.T) {
 	}
 }
 
+// A stale positional value (the pre-#1 CLI shape) must be rejected, not silently
+// accepted — that would keep the shell-history leak this change removes.
+func TestSetCommand_Token_RejectsPositionalValue(t *testing.T) {
+	ctx := newTestContext(t)
+	ctx.Config.AddOrganization("acme")
+
+	err := execCmd(setCommand(ctx), "set", "token", "ghp_1234567890abcdef1234567890abcdef1234", "--org", "acme")
+	if err == nil {
+		t.Fatal("expected an error for a positional token value")
+	}
+	if !strings.Contains(err.Error(), "interactively") {
+		t.Errorf("error = %q, want it to explain the interactive prompt", err.Error())
+	}
+}
+
 func TestSetCommand_Token_Invalid(t *testing.T) {
 	ctx := newTestContext(t)
 	ctx.Config.AddOrganization("acme")
 
 	out := captureOutput(t, func() {
-		err := execCmd(setCommand(ctx), "set", "token", "not-a-token", "--org", "acme")
+		err := execCmdWithStdin(setCommand(ctx), "not-a-token\n", "set", "token", "--org", "acme")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -479,6 +569,54 @@ func TestSetCommand_Token_Invalid(t *testing.T) {
 	}
 	if got := ctx.Config.TokenForOwner("acme"); got != "" {
 		t.Error("did not expect token to be set")
+	}
+}
+
+func TestSetCommand_Token_UsesKeyring(t *testing.T) {
+	ctx := newTestContext(t)
+	ctx.Config.AddOrganization("acme")
+
+	out := captureOutput(t, func() {
+		err := execCmdWithStdin(setCommand(ctx), "ghp_1234567890abcdef1234567890abcdef1234\n", "set", "token", "--org", "acme")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "OS keyring") {
+		t.Errorf("expected a keyring confirmation message, got: %s", out)
+	}
+	if strings.Contains(out, "plain text") {
+		t.Errorf("did not expect a plaintext-fallback warning, got: %s", out)
+	}
+	if got := ctx.Config.TokenSourceForOwner("acme"); got != internalconfig.TokenSourceKeyring {
+		t.Errorf("TokenSourceForOwner() = %q, want %q", got, internalconfig.TokenSourceKeyring)
+	}
+}
+
+func TestSetCommand_Token_FallsBackToPlaintextWhenKeyringUnavailable(t *testing.T) {
+	fake := keyring.NewFake()
+	fake.Unavailable = errors.New("no keyring backend")
+	orig := internalconfig.TokenKeyring
+	internalconfig.TokenKeyring = fake
+	defer func() { internalconfig.TokenKeyring = orig }()
+
+	ctx := newTestContext(t)
+	ctx.Config.AddOrganization("acme")
+
+	out := captureOutput(t, func() {
+		err := execCmdWithStdin(setCommand(ctx), "ghp_1234567890abcdef1234567890abcdef1234\n", "set", "token", "--org", "acme")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "keyring unavailable") || !strings.Contains(out, "plain text") {
+		t.Errorf("expected a plaintext-fallback warning, got: %s", out)
+	}
+	if got := ctx.Config.TokenSourceForOwner("acme"); got != "plaintext" {
+		t.Errorf("TokenSourceForOwner() = %q, want plaintext", got)
+	}
+	if got := ctx.Config.TokenForOwner("acme"); got != "ghp_1234567890abcdef1234567890abcdef1234" {
+		t.Errorf("token = %q, want the value to still be usable via the fallback", got)
 	}
 }
 
@@ -534,6 +672,14 @@ func TestSetCommand_MissingOrg(t *testing.T) {
 	ctx := newTestContext(t)
 
 	if err := execCmd(setCommand(ctx), "set", "tagger-name", "Jane Doe"); err == nil {
+		t.Fatal("expected an error when --org is missing")
+	}
+}
+
+func TestSetCommand_Token_MissingOrg(t *testing.T) {
+	ctx := newTestContext(t)
+
+	if err := execCmd(setCommand(ctx), "set", "token"); err == nil {
 		t.Fatal("expected an error when --org is missing")
 	}
 }
@@ -715,28 +861,5 @@ func TestResetCommand_ForceAlias(t *testing.T) {
 	}
 	if len(ctx.Config.OrganizationNames()) != 0 {
 		t.Error("expected all organizations to be removed via --force alias")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// helper functions
-// ---------------------------------------------------------------------------
-
-func TestMaskToken(t *testing.T) {
-	tests := []struct {
-		name string
-		tok  string
-		want string
-	}{
-		{"short token", "abc123", "***"},
-		{"exactly eight chars", "12345678", "***"},
-		{"long token", "ghp_1234567890abcdef", "ghp_***cdef"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := maskToken(tt.tok); got != tt.want {
-				t.Errorf("maskToken(%q) = %q, want %q", tt.tok, got, tt.want)
-			}
-		})
 	}
 }

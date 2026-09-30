@@ -57,6 +57,10 @@ func Init() (*Context, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize config: %w", err)
 	}
+	for _, org := range config.MigratedTokens {
+		fmt.Fprintf(os.Stderr, "  Moved token for %s into the OS keyring\n", org)
+	}
+	config.MigratedTokens = nil
 
 	// Get timeout from environment or use default
 	timeoutStr := os.Getenv("SGH_TIMEOUT")

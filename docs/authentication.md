@@ -88,9 +88,11 @@ For working across several organizations with a different token for each, store 
 
 For any given command, `sgh` looks for a token in this order and uses the first one it finds:
 
-1. The `token` field in your config file for the owner named by `--org`
+1. The per-owner token for `--org`, from the OS keyring — or the config file's `token` field, for a legacy plaintext entry or one set while no keyring was available (see [Per-owner tokens](configuration.md#per-owner-tokens))
 2. The `SGH_TOKEN` environment variable
 3. The `GITHUB_TOKEN` environment variable — deprecated fallback, kept for compatibility
+
+Environment variables always work exactly the same regardless of keyring availability — that's how CI and containers authenticate, and neither has a keyring.
 
 ## Token requirements
 

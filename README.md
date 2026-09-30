@@ -28,6 +28,7 @@ sgh protected-branch list --org my-org --branch main
 - **Repository lifecycle** — archive/unarchive and flip visibility in bulk
 - **Issues, teams, org audit log, and secret scanning alerts**
 - **Interactive TUI dashboard** — `sgh tui`
+- **Per-owner tokens in your OS keyring** — never the config file, with a plaintext fallback when no keyring is available
 - **Built for scale** — concurrent workers, rate-limit tracking, exponential backoff, circuit breaking
 - **Scriptable** — `--output table|compact|json`, shell completion for Bash/Zsh/Fish/PowerShell
 
@@ -107,7 +108,7 @@ To report a security vulnerability, **do not open a public GitHub issue.** See t
 
 Token safety:
 
-- The config file stores tokens in plain text — keep it out of version control
+- Per-owner tokens are stored in your OS keyring, not the config file — see [Per-owner tokens](docs/configuration.md#per-owner-tokens). If no keyring is available, `sgh` falls back to the config file in plain text (with a warning); keep it out of version control regardless
 - Prefer fine-grained PATs scoped to the repositories you actually need
 - Rotate immediately if you suspect exposure
 

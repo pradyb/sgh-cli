@@ -10,8 +10,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pradyb/sgh-cli/pkg/keyring"
 	"github.com/pradyb/sgh-cli/pkg/validation"
 )
+
+// TestMain forces an in-memory fake keyring for every test in this package, so tests
+// never read from or write to the developer's real OS keyring.
+func TestMain(m *testing.M) {
+	TokenKeyring = keyring.NewFake()
+	os.Exit(m.Run())
+}
 
 // Test constants to avoid duplication
 const (

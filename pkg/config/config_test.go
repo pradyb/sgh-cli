@@ -7,11 +7,20 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/keyring"
 )
+
+// TestMain forces an in-memory fake keyring for every test in this package, so tests
+// never read from or write to the developer's real OS keyring.
+func TestMain(m *testing.M) {
+	internalconfig.TokenKeyring = keyring.NewFake()
+	os.Exit(m.Run())
+}
 
 // isolateHome points the OS home directory lookup at a fresh temp dir so
 // Save() never touches the real user's sgh config.
@@ -118,10 +127,57 @@ func TestSetToken(t *testing.T) {
 	ctx := newTestContext()
 	ctx.Config.AddOrganization("acme")
 
-	SetToken(ctx, "acme", "ghp_secret")
+	usedKeyring := SetToken(ctx, "acme", "ghp_secret")
 
+	if !usedKeyring {
+		t.Error("expected usedKeyring = true")
+	}
 	if got := ctx.Config.TokenForOwner("acme"); got != "ghp_secret" {
 		t.Errorf("TokenForOwner() = %q, want %q", got, "ghp_secret")
+	}
+}
+
+func TestRemoveToken(t *testing.T) {
+	isolateHome(t)
+	ctx := newTestContext()
+	ctx.Config.AddOrganization("acme")
+	SetToken(ctx, "acme", "ghp_secret")
+
+	removed, err := RemoveToken(ctx, "acme")
+	if err != nil {
+		t.Fatalf("RemoveToken(): %v", err)
+	}
+	if !removed {
+		t.Error("expected removed = true")
+	}
+	if ctx.Config.HasToken("acme") {
+		t.Error("expected token to be removed")
+	}
+
+	// The removal must have been persisted to the file itself, not just applied in
+	// memory or to the (shared, process-wide) fake keyring — reading back via
+	// HasToken()/Init() alone wouldn't catch a missing save, since the underlying
+	// keyring entry is already gone either way.
+	data, err := os.ReadFile(ConfigFilePath())
+	if err != nil {
+		t.Fatalf("reading config file: %v", err)
+	}
+	if strings.Contains(string(data), "token_source") {
+		t.Errorf("expected token_source cleared from the saved file, got: %s", data)
+	}
+}
+
+func TestRemoveToken_NoTokenIsNoOp(t *testing.T) {
+	isolateHome(t)
+	ctx := newTestContext()
+	ctx.Config.AddOrganization("acme")
+
+	removed, err := RemoveToken(ctx, "acme")
+	if err != nil {
+		t.Fatalf("RemoveToken(): %v", err)
+	}
+	if removed {
+		t.Error("expected removed = false when there was nothing to remove")
 	}
 }
 

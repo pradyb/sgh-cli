@@ -123,6 +123,7 @@ sgh-cli/
 │   ├── context/            # global application context, token resolution
 │   ├── logger/             # structured logging (zerolog)
 │   ├── ui/                 # table rendering, colors, progress bars
+│   ├── keyring/            # OS keyring wrapper for per-owner tokens, + an in-memory fake for tests
 │   ├── validation/         # token and input validation
 │   ├── utils/              # shared helpers
 │   └── audit/ branch/ clone/ commit/ config/ issue/ org/ postrelease/

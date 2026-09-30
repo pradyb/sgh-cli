@@ -18,7 +18,24 @@ import (
 	"github.com/pradyb/sgh-cli/cmd/version"
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/keyring"
 )
+
+// TestMain isolates HOME so every context.Init() call in this file reads and writes a
+// fresh, empty config, never the developer's real ~/.config/sgh/sgh.json — important
+// now that Init() can migrate a plaintext token and save the config as a side effect.
+// It also forces an in-memory fake keyring, so no test touches the real OS keyring.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "sgh-cmd-test-home")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(home)
+	os.Setenv("HOME", home)
+	os.Setenv("USERPROFILE", home)
+	internalconfig.TokenKeyring = keyring.NewFake()
+	os.Exit(m.Run())
+}
 
 func newTestContext() *context.Context {
 	return &context.Context{Config: &internalconfig.Config{}}

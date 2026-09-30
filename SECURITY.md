@@ -24,9 +24,9 @@ You can expect an acknowledgement within **72 hours** and a resolution timeline 
 
 ## Token & Credential Safety
 
-`sgh-cli` stores per-org tokens in plain text in the config file (`~/sgh.json` on Windows, `~/.config/sgh/sgh.json` on Linux/macOS). Take these precautions:
+`sgh-cli` stores per-org tokens in your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service) — the config file (`~/sgh.json` on Windows, `~/.config/sgh/sgh.json` on Linux/macOS) records only that a token exists and where, never its value. If no keyring is available (e.g. some headless Linux/container setups), `sgh` falls back to storing the token in the config file in plain text, with a warning. Take these precautions:
 
-- **Never commit the config file to version control** — add it to `.gitignore`
+- **Never commit the config file to version control** — add it to `.gitignore`, regardless of which storage mode is in use
 - The config file is written with `0600` permissions (owner read/write only) on Unix systems
 - Prefer fine-grained PATs scoped to specific repositories over classic PATs
 - Rotate tokens immediately if you suspect exposure
