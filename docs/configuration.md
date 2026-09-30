@@ -15,7 +15,7 @@
 | Windows | `~/sgh.json` |
 | Linux / macOS | `~/.config/sgh/sgh.json` |
 
-The file lives in your home directory, never inside a repository. It stores tokens in plain text, so keep it out of version control and never copy it into a project folder.
+The file lives in your home directory, never inside a repository — keep it out of version control and never copy it into a project folder regardless. Per-owner tokens themselves live in your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service), not this file; see [Per-owner tokens](#per-owner-tokens).
 
 ## Managing configuration
 
@@ -56,22 +56,35 @@ sgh config reset --yes
 
 If you work across several organizations, or use a personal account alongside an org, store a dedicated fine-grained token for each owner. `sgh` picks the right one automatically based on `--org` — no manual switching.
 
+```bash
+sgh config set token --org my-org
+```
+
+The value is entered interactively (masked, like a password prompt) rather than as a command argument, so it never lands in your shell history. Piping a value works too, for scripts and CI:
+
+```bash
+echo "$MY_ORG_TOKEN" | sgh config set token --org my-org
+```
+
+The token is stored in your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service) under service `sgh`, account `<org name>` — never in the config file. The file only records that it's there:
+
 ```json
 {
   "organizations": [
-    { "name": "my-org",       "token": "github_pat_orgtoken..." },
-    { "name": "your-username", "token": "github_pat_personaltoken..." }
+    { "name": "my-org", "token_source": "keyring" }
   ]
 }
 ```
 
-Set one from the command line:
+`sgh config list` shows presence and source (`keyring` or `plaintext`) per owner, never the token value itself. Remove one with:
 
 ```bash
-sgh config set token github_pat_xxx --org my-org
+sgh config remove token --org my-org
 ```
 
-The `token` field is optional. Omit it for any owner that should fall back to the `SGH_TOKEN` environment variable. See [token resolution order](authentication.md#token-resolution-order).
+**If no keyring is available** (headless Linux, some containers), `sgh` falls back to storing the token in the config file in plain text, printing a warning when it does — the tool stays usable either way. An org with no token configured at all falls back to the `SGH_TOKEN` environment variable. See [token resolution order](authentication.md#token-resolution-order).
+
+**Upgrading from an older version:** a plaintext `token` field from a prior release is moved into the keyring automatically the first time you run any command, with a one-line notice (`Moved token for <org> into the OS keyring`) — no action needed. If no keyring is available at that moment, the token stays in the file exactly as before.
 
 ## Owner type auto-detection
 
@@ -92,7 +105,7 @@ sgh config set owner-type Organization --org my-org
   "organizations": [
     {
       "name": "my-org",
-      "token": "github_pat_xxx",
+      "token_source": "keyring",
       "repositories": ["api-gateway", "service-auth", "service-billing"],
       "repo_patterns": {
         "include": ["^api-", "^service-"],
@@ -106,7 +119,7 @@ sgh config set owner-type Organization --org my-org
     },
     {
       "name": "your-username",
-      "token": "github_pat_yyy",
+      "token_source": "keyring",
       "owner_type": "User"
     }
   ]

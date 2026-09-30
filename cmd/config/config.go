@@ -4,13 +4,17 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	internalconfig "github.com/pradyb/sgh-cli/internal/config"
 	"github.com/pradyb/sgh-cli/pkg/config"
@@ -18,6 +22,28 @@ import (
 	"github.com/pradyb/sgh-cli/pkg/logger"
 	"github.com/pradyb/sgh-cli/pkg/ui"
 )
+
+// isStdinTerminal is a var so tests can force the non-interactive path deterministically
+// without needing a real terminal.
+var isStdinTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+// readToken reads a token value: masked and interactive if stdin is a real terminal (via
+// term.ReadPassword, so it never lands in shell history), otherwise a single trimmed
+// line from in. The non-terminal path also makes scripted/CI usage work:
+// echo "$TOKEN" | sgh config set token --org my-org.
+func readToken(in io.Reader) (string, error) {
+	if isStdinTerminal() {
+		fmt.Fprint(os.Stderr, "  Token: ")
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		return strings.TrimSpace(string(b)), err
+	}
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
 
 func NewConfigCommand(ctx *context.Context) *cobra.Command {
 	configCmd := &cobra.Command{
@@ -275,6 +301,7 @@ func removeCommand(ctx *context.Context) *cobra.Command {
 			  repo         Remove a repository from an org  (requires --org)
 			  pattern      Remove an include/exclude repo filter pattern  (requires --org and --include or --exclude)
 			  pr-assignee  Remove a default PR assignee from an org  (requires --org)
+			  token        Remove the token for an org, from the OS keyring if that's where it lives  (requires --org)
 		`),
 		Example: heredoc.Doc(`
 			$ sgh config remove org my-org
@@ -282,13 +309,26 @@ func removeCommand(ctx *context.Context) *cobra.Command {
 			$ sgh config remove pattern "^api-" --org my-org --include
 			$ sgh config remove pattern "-legacy$" --org my-org --exclude
 			$ sgh config remove pr-assignee john-doe --org my-org
+			$ sgh config remove token --org my-org
 		`),
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 2 {
-				return fmt.Errorf("expected exactly 2 arguments: <key> <value>, got %d", len(args))
+			if len(args) == 0 {
+				return fmt.Errorf("expected a key, got no arguments")
 			}
 			key := strings.ToLower(args[0])
 			orgName, _ := cmd.Flags().GetString("org")
+			if key == "token" {
+				if len(args) != 1 {
+					return fmt.Errorf("key %q takes no value — run: sgh config remove token --org <organization>", args[0])
+				}
+				if orgName == "" {
+					return fmt.Errorf("key %q requires --org <organization>", args[0])
+				}
+				return nil
+			}
+			if len(args) != 2 {
+				return fmt.Errorf("expected exactly 2 arguments: <key> <value>, got %d", len(args))
+			}
 			if key == "repo" || key == "repository" || key == "pattern" || key == "pr-assignee" {
 				if orgName == "" {
 					return fmt.Errorf("key %q requires --org <organization>", args[0])
@@ -302,11 +342,25 @@ func removeCommand(ctx *context.Context) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			key := args[0]
-			value := args[1]
+			key := strings.ToLower(args[0])
 			orgName, _ := cmd.Flags().GetString("org")
 
-			switch strings.ToLower(key) {
+			if key == "token" {
+				removed, err := config.RemoveToken(ctx, orgName)
+				if err != nil {
+					ui.PrintCLIError(fmt.Sprintf("Failed to remove token: %s", err), "")
+					return
+				}
+				if removed {
+					fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Token removed for %s", orgName)))
+				} else {
+					fmt.Println(lipgloss.NewStyle().Foreground(ui.Yellow).Render(fmt.Sprintf("  No token configured for %s", orgName)))
+				}
+				return
+			}
+
+			value := args[1]
+			switch key {
 			case "org", "organization":
 				config.RemoveOrganization(ctx, value)
 			case "repo", "repository":
@@ -318,7 +372,7 @@ func removeCommand(ctx *context.Context) *cobra.Command {
 			default:
 				ui.PrintCLIError(
 					fmt.Sprintf("Unknown key %q", key),
-					"Valid keys: org, repo, pattern, pr-assignee",
+					"Valid keys: org, repo, pattern, pr-assignee, token",
 				)
 			}
 		},
@@ -344,17 +398,24 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			  tagger-email   Git commit tagger email address  (requires --org)
 		`),
 		Example: heredoc.Doc(`
-			$ sgh config set token github_pat_xxx --org my-org
+			$ sgh config set token --org my-org
 			$ sgh config set owner-type User --org pradyb
 			$ sgh config set tagger-name "Jane Doe" --org my-org
 			$ sgh config set tagger-email "jane@example.com" --org my-org
 		`),
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 2 {
-				return fmt.Errorf("expected exactly 2 arguments: <key> <value>, got %d", len(args))
+			if len(args) == 0 {
+				return fmt.Errorf("expected a key, got no arguments")
 			}
 			key := strings.ToLower(args[0])
 			orgName, _ := cmd.Flags().GetString("org")
+			if key == "token" {
+				if len(args) != 1 {
+					return fmt.Errorf("the token value is entered interactively, not as an argument — run: sgh config set token --org <organization>")
+				}
+			} else if len(args) != 2 {
+				return fmt.Errorf("expected exactly 2 arguments: <key> <value>, got %d", len(args))
+			}
 			if (key == "token" || key == "owner-type" || key == "tagger-name" || key == "tagger-email") && orgName == "" {
 				return fmt.Errorf("key %q requires --org <organization>", args[0])
 			}
@@ -367,21 +428,32 @@ func setCommand(ctx *context.Context) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			key := args[0]
-			value := args[1]
+			key := strings.ToLower(args[0])
 			orgName, _ := cmd.Flags().GetString("org")
 
-			switch strings.ToLower(key) {
-			case "token":
+			if key == "token" {
+				value, err := readToken(cmd.InOrStdin())
+				if err != nil {
+					ui.PrintCLIError(fmt.Sprintf("Failed to read token: %s", err), "")
+					return
+				}
 				if err := context.ValidateGitHubToken(value); err != nil {
 					ui.PrintCLIError(fmt.Sprintf("Invalid token: %s", err), "Expected a GitHub PAT (e.g. github_pat_... or ghp_...)")
 					return
 				}
-				warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow)
-				fmt.Println(warnStyle.Render("  ⚠ Token stored in plain text in the config file."))
-				fmt.Println(warnStyle.Render("    Keep the config file out of version control."))
-				config.SetToken(ctx, orgName, value)
-				fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Token set for %s", orgName)))
+				if config.SetToken(ctx, orgName, value) {
+					fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Token for %s stored in the OS keyring", orgName)))
+				} else {
+					warnStyle := lipgloss.NewStyle().Foreground(ui.Yellow)
+					fmt.Println(warnStyle.Render("  ⚠ OS keyring unavailable — token stored in plain text in the config file."))
+					fmt.Println(warnStyle.Render("    Keep the config file out of version control."))
+					fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Token set for %s", orgName)))
+				}
+				return
+			}
+
+			value := args[1]
+			switch key {
 			case "owner-type":
 				config.SetOwnerType(ctx, orgName, value)
 				fmt.Println(lipgloss.NewStyle().Foreground(ui.Green).Render(fmt.Sprintf("  Owner type for %s set to %q", orgName, value)))
@@ -479,13 +551,6 @@ func resetCommand(ctx *context.Context) *cobra.Command {
 	return resetCmd
 }
 
-func maskToken(tok string) string {
-	if len(tok) <= 8 {
-		return "***"
-	}
-	return tok[:4] + "***" + tok[len(tok)-4:]
-}
-
 func printConfigTable(ctx *context.Context, orgs []string) {
 	headerStyle := lipgloss.NewStyle().Padding(0, 1).Foreground(ui.Cyan).Bold(true).Align(lipgloss.Center)
 	cellStyle := lipgloss.NewStyle().Padding(0, 1)
@@ -494,6 +559,7 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 	excludeStyle := cellStyle.Foreground(ui.Red)
 	mutedStyle := cellStyle.Foreground(ui.Subtle)
 	dimStyle := cellStyle.Foreground(ui.Dimmed).Italic(true)
+	warnStyle := cellStyle.Foreground(ui.Yellow)
 	borderStyle := lipgloss.NewStyle().Foreground(ui.Dimmed)
 
 	bullet := func(items []string, style lipgloss.Style) string {
@@ -526,9 +592,13 @@ func printConfigTable(ctx *context.Context, orgs []string) {
 			repoCell += "\n" + dimStyle.Render(fmt.Sprintf("(%d, fuzzy-match dict)", len(repos)))
 		}
 
+		// Presence and source only — the token value is never displayed.
 		tokenCell := dimStyle.Render("—")
-		if tok := ctx.Config.TokenForOwner(orgName); tok != "" {
-			tokenCell = mutedStyle.Render(maskToken(tok))
+		switch ctx.Config.TokenSourceForOwner(orgName) {
+		case internalconfig.TokenSourceKeyring:
+			tokenCell = includeStyle.Render("✓ keyring")
+		case "plaintext":
+			tokenCell = warnStyle.Render("✓ plaintext")
 		}
 		ownerTypeCell := dimStyle.Render("—")
 		if ot := ctx.Config.OwnerTypeFor(orgName); ot != "" {

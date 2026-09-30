@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Per-owner tokens are now stored in the OS keyring** (macOS Keychain, Windows Credential Manager, Linux Secret Service), not the config file. `sgh config set token --org <owner>` prompts for the value interactively (masked, or reads piped stdin for scripts/CI) instead of taking it as a command argument, so it never lands in shell history or the config file. `sgh config list` shows presence and source (`keyring`/`plaintext`) per owner, never the value; `sgh config remove token --org <owner>` removes it. A pre-existing plaintext token is migrated into the keyring automatically on first run, with a one-line notice. If no keyring is available (headless Linux, some containers), `sgh` falls back to the config file in plain text, with a warning — every command keeps working either way (#1)
+
+### Changed
+- **BREAKING: `sgh config set token <value> --org <owner>` no longer accepts the token as a positional argument.** Run `sgh config set token --org <owner>` and enter the value at the prompt (or pipe it: `echo "$TOKEN" | sgh config set token --org <owner>`)
+
 ### Fixed
 - **Update notice still missed the upgrade command when GOBIN/GOPATH itself was a symlink**: the running binary's path was resolved through symlinks before comparison (needed for Homebrew's `Cellar` symlink), but the `GOBIN`/`GOPATH` candidates from #53 weren't — so on macOS, where `/tmp` is a symlink to `/private/tmp` by default, a `go install`ed binary under a `/tmp`-rooted `GOBIN` was silently treated as unknown. Candidates are now resolved the same way (#56)
 

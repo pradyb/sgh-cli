@@ -127,11 +127,11 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 
 - `org list` — organizations the token belongs to (no `--org` needed)
 - `team list --org <org> [--team <name>] [--all]` — teams and members
-- `config list` (alias `show`) — current configuration, token status, owner type
+- `config list` (alias `show`) — current configuration, token presence/source (never the value), owner type
 - `config validate` — check config for errors
 - `config add <key> <value>` — add org, repo, pattern, or PR assignee
-- `config set <key> <value>` — set token, tagger identity, or owner type
-- `config remove <key> <value>` (aliases `rm`, `delete`) — remove an org, repo, pattern, or PR assignee
+- `config set <key> <value>` — set tagger identity or owner type; `config set token --org <owner>` prompts interactively (or reads piped stdin) instead of taking the value as an argument, and stores it in the OS keyring when available
+- `config remove <key> <value>` (aliases `rm`, `delete`) — remove an org, repo, pattern, or PR assignee; `config remove token --org <owner>` takes no value
 - `config reset [--org <name>] [--yes]` — remove one or all organizations
 
 ## Shortcuts

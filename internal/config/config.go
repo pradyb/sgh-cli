@@ -15,6 +15,7 @@ import (
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
+	"github.com/pradyb/sgh-cli/pkg/keyring"
 	"github.com/pradyb/sgh-cli/pkg/logger"
 	"github.com/pradyb/sgh-cli/pkg/ui"
 	"github.com/pradyb/sgh-cli/pkg/validation"
@@ -23,17 +24,33 @@ import (
 
 const DefaultFilename = "sgh.json"
 
+// TokenSourceKeyring marks an Organization whose token lives in the OS keyring, not the
+// config file. Empty TokenSource means "plaintext" (legacy, or the keyring was
+// unavailable when the token was set).
+const TokenSourceKeyring = "keyring"
+
+// TokenKeyring is a var so tests (in this package and others across the module, since it's
+// exported) can substitute keyring.NewFake() for the real OS keyring.
+var TokenKeyring keyring.Keyring = keyring.New()
+
 type Config struct {
 	NoOfWorkers      int                       `json:"no_of_workers,omitempty"`
 	Organizations    []Organization            `json:"organizations"`
 	orgData          map[string]Organization   `json:"-"`
 	compiledPatterns map[string]*regexp.Regexp `json:"-"`
-	ownerTypeMu      sync.Mutex                `json:"-"`
+	// MigratedTokens lists the orgs whose plaintext token was just moved into the OS
+	// keyring during Load(). Transient — read once by the caller (pkg/context.Init) to
+	// print a one-line notice, then discarded; never persisted.
+	MigratedTokens []string   `json:"-"`
+	ownerTypeMu    sync.Mutex `json:"-"`
 }
 
 type Organization struct {
-	Name                 string                `json:"name"`
+	Name string `json:"name"`
+	// Token holds the token in plaintext. Only ever non-empty for a legacy entry not
+	// yet migrated, or one set while the OS keyring was unavailable — see TokenSource.
 	Token                string                `json:"token,omitempty"`
+	TokenSource          string                `json:"token_source,omitempty"`
 	OwnerType            string                `json:"owner_type,omitempty"`
 	Repositories         []string              `json:"repositories,omitempty"`
 	RepoPatterns         IncludeExcludePattern `json:"repo_patterns,omitempty"`
@@ -71,7 +88,38 @@ func Init() (*Config, error) {
 		return nil, err
 	}
 	config.rebuildOrgData()
+	config.migrateTokens()
 	return config, nil
+}
+
+// migrateTokens moves any plaintext token into the OS keyring, one organization at a
+// time. An organization already on the keyring, or with no token at all, is untouched.
+// A failure (no keyring backend available, e.g. headless Linux) leaves that
+// organization's token in plaintext exactly as before — migration is best-effort, never
+// destructive, and never blocks the command that triggered it. Migrated organization
+// names are recorded in MigratedTokens and the config is saved so the change persists;
+// the caller (pkg/context.Init) reports what happened to the user.
+func (config *Config) migrateTokens() {
+	changed := false
+	for i, org := range config.Organizations {
+		if org.Token == "" || org.TokenSource != "" {
+			continue
+		}
+		if err := TokenKeyring.Set(org.Name, org.Token); err != nil {
+			logger.Glog.Debug().Err(err).Str("org", org.Name).Msg("Could not migrate token to keyring")
+			continue
+		}
+		config.Organizations[i].Token = ""
+		config.Organizations[i].TokenSource = TokenSourceKeyring
+		config.MigratedTokens = append(config.MigratedTokens, org.Name)
+		changed = true
+	}
+	if changed {
+		config.rebuildOrgData()
+		if err := config.Save(); err != nil {
+			logger.Glog.Error().Err(err).Msg("Failed to save config after migrating tokens to keyring")
+		}
+	}
 }
 
 func (config *Config) OrganizationNames() []string {
@@ -197,6 +245,12 @@ func (config *Config) SetOwnerType(orgName, ownerType string) {
 	config.rebuildOrgData()
 }
 
+// TokenForOwner returns the resolved token for orgName: from the keyring if that's
+// where it lives, otherwise the plaintext field (legacy entry, or the keyring was
+// unavailable when it was set). Returns "" if there's no token, or if TokenSource says
+// keyring but the entry can't actually be read right now (backend gone since it was
+// set) — never panics or errors, so a token becoming unreadable degrades to "not
+// configured" rather than crashing the command that needed it.
 func (config *Config) TokenForOwner(orgName string) string {
 	if config == nil || config.orgData == nil {
 		return ""
@@ -205,7 +259,55 @@ func (config *Config) TokenForOwner(orgName string) string {
 	if !exists {
 		return ""
 	}
+	if org.TokenSource == TokenSourceKeyring {
+		token, ok, err := TokenKeyring.Get(org.Name)
+		if err != nil {
+			logger.Glog.Warn().Err(err).Str("org", org.Name).Msg("Keyring token unavailable")
+			return ""
+		}
+		if !ok {
+			return ""
+		}
+		return token
+	}
 	return org.Token
+}
+
+// HasToken reports whether orgName has a token configured, without reading its value
+// (used by `sgh config list`, which must never display the token itself).
+func (config *Config) HasToken(orgName string) bool {
+	if config == nil || config.orgData == nil {
+		return false
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return false
+	}
+	if org.TokenSource == TokenSourceKeyring {
+		_, ok, err := TokenKeyring.Get(org.Name)
+		return err == nil && ok
+	}
+	return org.Token != ""
+}
+
+// TokenSourceForOwner returns "keyring", "plaintext", or "" (no token) for display —
+// e.g. `sgh config list` — never the token value itself.
+func (config *Config) TokenSourceForOwner(orgName string) string {
+	if config == nil || config.orgData == nil {
+		return ""
+	}
+	org, exists := config.orgData[strings.ToLower(orgName)]
+	if !exists {
+		return ""
+	}
+	switch {
+	case org.TokenSource == TokenSourceKeyring:
+		return "keyring"
+	case org.Token != "":
+		return "plaintext"
+	default:
+		return ""
+	}
 }
 
 func (config *Config) IsOrganizationPresent(orgName string) bool {
@@ -524,16 +626,53 @@ func (config *Config) CanSelectRepositoryForProcessing(orgName, repoName string)
 	return true
 }
 
-func (config *Config) SetToken(orgName, token string) {
+// SetToken stores token for orgName, preferring the OS keyring; usedKeyring reports
+// which happened, so the caller can tell the user. On keyring failure it falls back to
+// plaintext exactly as sgh always has, rather than losing the token.
+func (config *Config) SetToken(orgName, token string) (usedKeyring bool) {
+	plaintextToken, source := token, ""
+	if err := TokenKeyring.Set(orgName, token); err == nil {
+		plaintextToken, source = "", TokenSourceKeyring
+		usedKeyring = true
+	} else {
+		logger.Glog.Warn().Err(err).Str("org", orgName).Msg("Keyring unavailable, storing token in plaintext")
+	}
+
 	for i, org := range config.Organizations {
 		if strings.EqualFold(org.Name, orgName) {
-			config.Organizations[i].Token = token
+			config.Organizations[i].Token = plaintextToken
+			config.Organizations[i].TokenSource = source
 			config.rebuildOrgData()
-			return
+			return usedKeyring
 		}
 	}
-	config.Organizations = append(config.Organizations, Organization{Name: orgName, Token: token})
+	config.Organizations = append(config.Organizations, Organization{Name: orgName, Token: plaintextToken, TokenSource: source})
 	config.rebuildOrgData()
+	return usedKeyring
+}
+
+// RemoveToken deletes orgName's token, from the keyring if that's where it lives.
+// removed reports whether there was actually a token to remove, so the caller can tell
+// the user "removed" apart from "there was nothing to remove" — a no-op is not an error.
+func (config *Config) RemoveToken(orgName string) (removed bool, err error) {
+	for i, org := range config.Organizations {
+		if !strings.EqualFold(org.Name, orgName) {
+			continue
+		}
+		if org.Token == "" && org.TokenSource == "" {
+			return false, nil
+		}
+		if org.TokenSource == TokenSourceKeyring {
+			if err := TokenKeyring.Delete(org.Name); err != nil {
+				return false, fmt.Errorf("failed to delete keyring entry for %s: %w", org.Name, err)
+			}
+		}
+		config.Organizations[i].Token = ""
+		config.Organizations[i].TokenSource = ""
+		config.rebuildOrgData()
+		return true, nil
+	}
+	return false, nil
 }
 
 func (config *Config) SetTaggerName(orgName, taggerName string) {

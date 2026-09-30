@@ -67,9 +67,26 @@ func SaveRepositoryNamesForFuzzySearch(ctx *context.Context, orgName string, rep
 	saveConfig(ctx)
 }
 
-func SetToken(ctx *context.Context, orgName, token string) {
-	ctx.Config.SetToken(orgName, token)
+// SetToken stores token for orgName, preferring the OS keyring; usedKeyring reports
+// which happened, so the CLI can tell the user.
+func SetToken(ctx *context.Context, orgName, token string) (usedKeyring bool) {
+	usedKeyring = ctx.Config.SetToken(orgName, token)
 	saveConfig(ctx)
+	return usedKeyring
+}
+
+// RemoveToken deletes orgName's token, from the keyring if that's where it lives.
+// RemoveToken deletes orgName's token, from the keyring if that's where it lives.
+// removed reports whether there was actually a token to remove.
+func RemoveToken(ctx *context.Context, orgName string) (removed bool, err error) {
+	removed, err = ctx.Config.RemoveToken(orgName)
+	if err != nil {
+		return false, err
+	}
+	if removed {
+		saveConfig(ctx)
+	}
+	return removed, nil
 }
 
 func SetOwnerType(ctx *context.Context, orgName, ownerType string) {
