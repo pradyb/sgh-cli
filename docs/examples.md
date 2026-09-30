@@ -165,6 +165,10 @@ sgh workflow view --org my-org -r my-app --run 123456789 --watch
 sgh workflow view --org my-org -r my-app --run 123456789 --watch --interval 5
 sgh workflow view --org my-org -r my-app --run 123456789 --json | jq .
 
+# Stream job/step status transitions as NDJSON until the run completes (for scripting/logging)
+sgh workflow view --org my-org -r my-app --run 123456789 --watch --json | jq .
+sgh workflow view --org my-org -r my-app --run 123456789 --watch --json --interval 5 >> run.ndjson
+
 sgh workflow rerun  --org my-org -r my-app --run 123456789
 sgh workflow cancel --org my-org -r my-app --run 123456789
 

@@ -55,8 +55,9 @@ func NewWorkflowCommand(ctx *context.Context) *cobra.Command {
 			  --status    Filter by any status: completed, in_progress, queued, failure, success, cancelled
 
 			Live Monitoring (view command):
-			  --watch       Poll every 10s and refresh until the run completes
-			  --interval N  Set the polling interval in seconds (default: 10)
+			  --watch          Poll every 10s and refresh until the run completes
+			  --interval N     Set the polling interval in seconds (default: 10)
+			  --watch --json   Stream each job/step status transition as NDJSON instead
 		`),
 		Example: heredoc.Doc(`
 			List all workflow runs:
@@ -184,7 +185,8 @@ func ViewCommand(ctx *context.Context) *cobra.Command {
 		Use:   "view",
 		Short: "View details of a workflow run including jobs and steps",
 		Long: `View detailed information about a specific GitHub Actions workflow run, including all jobs and their step-level status.
-Use --watch to poll for updates until the run completes.
+Use --watch to poll for updates until the run completes. --watch --json streams each job/step
+status transition as NDJSON instead of the interactive view, for scripting or logging.
 If --run is omitted, automatically picks the latest in-progress or most recent run.`,
 		Aliases: []string{"detail", "info"},
 		Example: heredoc.Doc(`
@@ -192,15 +194,11 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789
 			$ sgh workflow view --org sample-org -r sample-repo1 --watch
 			$ sgh workflow view --org sample-org -r sample-repo1 --run 123456789 --watch --interval 5
+			$ sgh workflow view --org sample-org -r sample-repo1 --watch --json
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			if watch && ctx.JSON {
-				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch cannot be combined with --json: --watch is an interactive, human-readable view")
-				ctx.HasError = true
-				return
-			}
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
 			if len(resolvedNames) == 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
@@ -227,6 +225,14 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 			}
 
 			detail := workflow.GetWorkflowRunDetail(ctx, req)
+
+			if ctx.JSON && watch {
+				detail = runWatchLoopJSON(cmd, ctx, req, detail, watchInterval)
+				if detail.ErrorMessage != "" {
+					ctx.HasError = true
+				}
+				return
+			}
 
 			if ctx.JSON {
 				ui.PrintJSON(detail)
@@ -336,6 +342,24 @@ func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial
 	if wm, ok := finalModel.(watchModel); ok && wm.detail.Run.ID != 0 {
 		ui.PrintWorkflowRunDetail(wm.detail)
 	}
+}
+
+// viewWatchSleep is a var so tests can force polling not to really wait.
+var viewWatchSleep = time.Sleep
+
+// runWatchLoopJSON is `view --watch --json`'s loop: instead of the interactive bubbletea view,
+// it streams each job/step status transition as a compact single-line JSON object (NDJSON),
+// terminated by a final run_done event once the run completes.
+func runWatchLoopJSON(cmd *cobra.Command, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) model.WorkflowRunDetail {
+	notify := func(e workflow.ViewWatchEvent) {
+		b, _ := json.Marshal(e)
+		fmt.Println(string(b))
+	}
+	return workflow.WatchViewRun(cmd.Context(), ctx, req, initial, workflow.WatchViewOptions{
+		Interval: time.Duration(watchInterval) * time.Second,
+		Notify:   notify,
+		Sleep:    viewWatchSleep,
+	})
 }
 
 func rerunCommand(ctx *context.Context) *cobra.Command {
