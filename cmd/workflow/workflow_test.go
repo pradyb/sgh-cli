@@ -945,20 +945,80 @@ func TestViewCommand_JSONOutput_ErrorSetsHasError(t *testing.T) {
 	}
 }
 
-func TestViewCommand_WatchAndJSONRejected(t *testing.T) {
+// withNoViewWatchSleep replaces viewWatchSleep with a no-op for one test, so a
+// `view --watch --json` test needing several poll iterations doesn't really wait between them.
+func withNoViewWatchSleep(t *testing.T) {
+	t.Helper()
+	orig := viewWatchSleep
+	viewWatchSleep = func(time.Duration) {}
+	t.Cleanup(func() { viewWatchSleep = orig })
+}
+
+func TestViewCommand_WatchJSON_StreamsNDJSONUntilRunCompletes(t *testing.T) {
+	withNoViewWatchSleep(t)
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()
+	mockServer.SetResponseSequence("/repos/acme/repo1/actions/runs/123", []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "in_progress"}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "completed", "conclusion": "success"}},
+	})
+	mockServer.SetResponseSequence("/repos/acme/repo1/actions/runs/123/jobs", []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{
+			"total_count": 1,
+			"jobs":        []map[string]interface{}{{"id": 1, "run_id": 123, "name": "build-job", "status": "in_progress"}},
+		}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{
+			"total_count": 1,
+			"jobs":        []map[string]interface{}{{"id": 1, "run_id": 123, "name": "build-job", "status": "completed", "conclusion": "success"}},
+		}},
+	})
 	ctx := servicetest.NewMockContext(t, mockServer)
 	ctx.JSON = true
 
-	if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--watch"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	out := captureStdout(t, func() {
+		if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3 (job_started, job_completed, run_done): %q", len(lines), out)
 	}
+	wantKinds := []string{"job_started", "job_completed", "run_done"}
+	for i, line := range lines {
+		var e workflow.ViewWatchEvent
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("line %d not valid JSON: %v (%q)", i, err, line)
+		}
+		if e.Kind != wantKinds[i] {
+			t.Errorf("line %d kind = %q, want %q", i, e.Kind, wantKinds[i])
+		}
+	}
+	if ctx.HasError {
+		t.Error("expected HasError to stay false on a clean run")
+	}
+}
+
+func TestViewCommand_WatchJSON_RunLookupErrorSetsHasError(t *testing.T) {
+	withNoViewWatchSleep(t)
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs/123", testutils.MockResponse{
+		StatusCode: http.StatusNotFound,
+		Body:       map[string]interface{}{"message": "Not Found"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.JSON = true
+
+	captureStdout(t, func() {
+		if err := execCmd(ViewCommand(ctx), "view", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
 	if !ctx.HasError {
-		t.Error("expected HasError for --watch combined with --json")
-	}
-	if len(mockServer.GetRequests()) != 0 {
-		t.Errorf("expected no network requests, got %d", len(mockServer.GetRequests()))
+		t.Error("expected HasError when the initial run lookup fails")
 	}
 }
 

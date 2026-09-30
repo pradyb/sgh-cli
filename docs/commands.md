@@ -110,7 +110,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 ### Workflow runs
 
 - `workflow list --org <org> [--running|--queued|--failed] [--branch <name>] [--workflow <name>]` — list runs
-- `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--json]` — view or live-monitor a run, including any approval decisions and pending approval gates; `--watch` and `--json` cannot be combined
+- `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--json]` — view or live-monitor a run, including any approval decisions and pending approval gates; `--watch` alone is an interactive, human-readable live view, `--watch --json` streams each job/step status transition as compact NDJSON (one JSON object per line) until the run completes
 - `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
 - `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
 - `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` — trigger a `workflow_dispatch` event
@@ -228,7 +228,7 @@ One rule governs every single-letter shorthand in the CLI:
 | `--running`, `--queued`, `--failed` | `workflow list` |
 | `--branch <name>` | `workflow list` |
 | `--workflow <name>` | `workflow list` (partial match) |
-| `--watch`, `--interval` | `workflow view` (not combinable with `--json`) |
+| `--watch`, `--interval` | `workflow view` (with `--json`, streams NDJSON job/step transitions instead of the interactive view) |
 | `--input key=value` | `workflow dispatch` (repeatable) |
 | `-e, --environment <name>` | `workflow approve` (repeatable; only decide these gates) |
 | `--reject` | `workflow approve` (reject instead of approve) |
