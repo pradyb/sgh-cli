@@ -1194,3 +1194,176 @@ func TestApproveCommand_Watch_JSONOutput(t *testing.T) {
 		t.Errorf("lines = %v, want gate_decided then run_done", lines)
 	}
 }
+
+// --- workflow approve --watch ---
+
+const approveRunPath = "/repos/acme/repo1/actions/runs/123"
+
+// withStdinTerminal forces isStdinTerminal for the duration of one test.
+func withStdinTerminal(t *testing.T, terminal bool) {
+	t.Helper()
+	orig := isStdinTerminal
+	isStdinTerminal = func() bool { return terminal }
+	t.Cleanup(func() { isStdinTerminal = orig })
+}
+
+// withNoWatchSleep replaces watchSleep with a no-op for one test, so a --watch test
+// needing several poll iterations doesn't really wait between them.
+func withNoWatchSleep(t *testing.T) {
+	t.Helper()
+	orig := watchSleep
+	watchSleep = func(time.Duration) {}
+	t.Cleanup(func() { watchSleep = orig })
+}
+
+func TestApproveCommand_Watch_RequiresSingleRepo(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "-r", "repo2", "--watch", "--yes", "-e", "approval-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(mockServer.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want an error and no requests", ctx.HasError, len(mockServer.GetRequests()))
+	}
+}
+
+func TestApproveCommand_Watch_YesRequiresEnvironment(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--yes")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(mockServer.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want an error and no requests", ctx.HasError, len(mockServer.GetRequests()))
+	}
+}
+
+func TestApproveCommand_Watch_MinimumInterval(t *testing.T) {
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--yes", "-e", "approval-1", "--interval", "2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(mockServer.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want an error and no requests", ctx.HasError, len(mockServer.GetRequests()))
+	}
+}
+
+func TestApproveCommand_Watch_NonTTYWithoutYes(t *testing.T) {
+	withStdinTerminal(t, false)
+	mockServer := approveServer(t, true)
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(mockServer.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want an error and no requests", ctx.HasError, len(mockServer.GetRequests()))
+	}
+}
+
+func TestApproveCommand_Watch_YesEndToEnd(t *testing.T) {
+	withNoWatchSleep(t)
+	mockServer := approveServer(t, true)
+	mockServer.SetResponseSequence(approveRunPath, []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "waiting"}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "completed", "conclusion": "success"}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	out := captureStdout(t, func() {
+		err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--yes", "-e", "approval-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if ctx.HasError {
+		t.Errorf("unexpected HasError; output: %s", out)
+	}
+	if !strings.Contains(out, "New gate: approval-1") || !strings.Contains(out, "Run completed: success") {
+		t.Errorf("output missing expected lines, got: %s", out)
+	}
+	if postCount(mockServer) != 1 {
+		t.Errorf("posts = %d, want 1", postCount(mockServer))
+	}
+}
+
+func TestApproveCommand_Watch_InteractivePromptAccepted(t *testing.T) {
+	withStdinTerminal(t, true)
+	withNoWatchSleep(t)
+	mockServer := approveServer(t, true)
+	mockServer.SetResponseSequence(approveRunPath, []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "waiting"}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "completed", "conclusion": "success"}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmdWithStdin(approveCommand(ctx), "yes\n", "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if postCount(mockServer) != 1 {
+		t.Errorf("posts = %d, want 1", postCount(mockServer))
+	}
+}
+
+func TestApproveCommand_Watch_InteractivePromptDeclinedThenTimesOut(t *testing.T) {
+	withStdinTerminal(t, true)
+	withNoWatchSleep(t) // no real delay between polls; --timeout itself is still real wall-clock time
+	mockServer := approveServer(t, true)
+	mockServer.SetResponse(approveRunPath, testutils.MockResponse{
+		StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "waiting"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	err := execCmdWithStdin(approveCommand(ctx), "no\n", "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--timeout", "50ms")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError {
+		t.Error("expected HasError after the watch times out")
+	}
+	if postCount(mockServer) != 0 {
+		t.Errorf("posts = %d, want 0 — the gate was declined, never approved", postCount(mockServer))
+	}
+}
+
+func TestApproveCommand_Watch_JSONOutput(t *testing.T) {
+	withNoWatchSleep(t)
+	mockServer := approveServer(t, true)
+	mockServer.SetResponseSequence(approveRunPath, []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "waiting"}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "completed", "conclusion": "success"}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		err := execCmd(approveCommand(ctx), "approve", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--yes", "-e", "approval-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 NDJSON lines (gate_decided, run_done), got %d: %s", len(lines), out)
+	}
+	for _, line := range lines {
+		var e map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Errorf("line not valid JSON: %s (%v)", line, err)
+		}
+	}
+	if !strings.Contains(lines[0], `"gate_decided"`) || !strings.Contains(lines[1], `"run_done"`) {
+		t.Errorf("lines = %v, want gate_decided then run_done", lines)
+	}
+}
