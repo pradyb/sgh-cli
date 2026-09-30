@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-30
+
 ### Added
 - **`workflow view --watch --json`**: streams each job/step status transition as compact NDJSON (one JSON object per line: `job_started`, `job_completed`, `step_started`, `step_completed`, `run_done`) until the run completes, for scripting or logging a watched run — previously `--watch` and `--json` on `view` were mutually exclusive (#64)
 - **`workflow approve --watch`**: stays attached to a run and decides each new environment approval gate as it appears (after confirmation, unless `--yes`), until the run completes — no more re-running `workflow approve` after every gate on a multi-stage deployment. Polls every `--interval` seconds (default 10, minimum 5) and can give up after `--timeout` (e.g. `30m`, default: no timeout). `--watch --yes` additionally requires `--environment`, so an unattended watch never approves a gate that didn't exist when it started. Ctrl-C stops cleanly without deciding anything further (#26)
@@ -111,7 +113,8 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/pradyb/sgh-cli/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/pradyb/sgh-cli/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/pradyb/sgh-cli/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/pradyb/sgh-cli/compare/v1.2.0...v1.3.0
