@@ -5,7 +5,9 @@ package workflow
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/pradyb/sgh-cli/internal/model"
 	"github.com/pradyb/sgh-cli/pkg/context"
@@ -522,6 +525,9 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 	var reject bool
 	var comment string
 	var yes bool
+	var watch bool
+	var interval int
+	var timeout time.Duration
 
 	approveCmd := &cobra.Command{
 		Use:   "approve",
@@ -533,7 +539,10 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 			If --run is omitted, the latest run waiting for approval in each repository is used.
 			Only gates you are a required reviewer of can be decided; others are skipped.
 			A run with several sequential gates exposes one at a time, so run the command again
-			after each approval. Asks for confirmation unless --yes is given.
+			after each approval — or pass --watch to stay attached and decide each new gate as
+			it appears, until the run completes. Asks for confirmation unless --yes is given;
+			--watch --yes additionally requires --environment, so an unattended watch never
+			approves a gate that didn't exist when it started.
 		`),
 		Example: heredoc.Doc(`
 			$ sgh workflow approve --org sample-org -r sample-repo1
@@ -541,11 +550,17 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 			$ sgh workflow approve --org sample-org -r sample-repo1 --environment production --comment "ship it"
 			$ sgh workflow approve --org sample-org -r sample-repo1 --run 123456789 --reject --comment "not now"
 			$ sgh workflow approve --org sample-org -r app1 -r app2 --yes
+			$ sgh workflow approve --org sample-org -r sample-repo1 --watch
+			$ sgh workflow approve --org sample-org -r sample-repo1 --watch --yes --environment approval-1 --environment approval-2
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
-			if runID != 0 && len(repoNames) != 1 {
-				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --run requires exactly one --repository")
+			if (runID != 0 || watch) && len(repoNames) != 1 {
+				flag := "--run"
+				if watch {
+					flag = "--watch"
+				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s requires exactly one --repository\n", flag)
 				ctx.HasError = true
 				return
 			}
@@ -565,6 +580,16 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 			if reject {
 				verb = "reject"
 			}
+
+			if watch && !ctx.DryRun {
+				runApproveWatch(cmd, ctx, watchOptions{
+					orgName: orgName, repoName: resolved[0], runID: runID,
+					environments: environments, reject: reject, comment: comment,
+					yes: yes, interval: interval, timeout: timeout, verb: verb,
+				})
+				return
+			}
+
 			stdin := bufio.NewReader(cmd.InOrStdin())
 			confirm := func(r workflow.ApproveResult) bool {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  %s %s (run %d) gates [%s]? Type 'yes' to confirm: ",
@@ -613,9 +638,117 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 	approveCmd.Flags().BoolVar(&reject, "reject", false, "reject instead of approve")
 	approveCmd.Flags().StringVar(&comment, "comment", "", "comment recorded with the decision")
 	approveCmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	approveCmd.Flags().BoolVarP(&watch, "watch", "W", false, "stay attached and decide each new approval gate as it appears, until the run completes")
+	approveCmd.Flags().IntVar(&interval, "interval", 10, "polling interval in seconds when using --watch (minimum 5)")
+	approveCmd.Flags().DurationVar(&timeout, "timeout", 0, "give up watching after this long when using --watch, e.g. 30m (0 = no timeout)")
 	approveCmd.MarkFlagRequired("repository")
 
 	return approveCmd
+}
+
+// isStdinTerminal is a var so tests can force the non-interactive path deterministically
+// without needing a real terminal.
+var isStdinTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+// watchSleep defaults to time.Sleep; tests override it so a --watch test needing
+// several poll iterations doesn't really wait --interval seconds between each.
+var watchSleep = time.Sleep
+
+type watchOptions struct {
+	orgName, repoName string
+	runID             int
+	environments      []string
+	reject            bool
+	comment           string
+	yes               bool
+	interval          int
+	timeout           time.Duration
+	verb              string
+}
+
+// runApproveWatch validates --watch's flag combination, wires workflow.WatchApprovals
+// to this command's stdin/stdout/stderr, and reports the outcome.
+func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions) {
+	if opt.yes && len(opt.environments) == 0 {
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch with --yes requires --environment so unseen gates are never approved blindly")
+		ctx.HasError = true
+		return
+	}
+	if opt.interval < 5 {
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval must be at least 5 seconds when using --watch")
+		ctx.HasError = true
+		return
+	}
+	if !opt.yes && !isStdinTerminal() {
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch needs to prompt for confirmation, but stdin is not a terminal — pass --yes (with --environment)")
+		ctx.HasError = true
+		return
+	}
+
+	stdin := bufio.NewReader(cmd.InOrStdin())
+	var confirm func(workflow.WatchGate) bool
+	if !opt.yes {
+		confirm = func(g workflow.WatchGate) bool {
+			reviewers := "none"
+			if len(g.Reviewers) > 0 {
+				reviewers = strings.Join(g.Reviewers, ", ")
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "  New gate on %s (run %d): environment %q (reviewers: %s)\n",
+				opt.repoName, opt.runID, g.Environment, reviewers)
+			fmt.Fprint(cmd.ErrOrStderr(), "  Approve? Type 'yes' to confirm, anything else to skip: ")
+			line, _ := stdin.ReadString('\n')
+			return strings.EqualFold(strings.TrimSpace(line), "yes")
+		}
+	}
+
+	notify := func(e workflow.WatchEvent) {
+		if ctx.JSON {
+			// One compact object per line (true NDJSON) — ui.PrintJSON pretty-prints
+			// across multiple lines, which a streaming consumer can't process incrementally.
+			if b, err := json.Marshal(e); err == nil {
+				fmt.Println(string(b))
+			}
+			return
+		}
+		switch e.Kind {
+		case "gate_decided":
+			fmt.Printf("  New gate: %s ... %s\n", e.Environment, e.State)
+		case "gate_skipped":
+			fmt.Fprintf(cmd.ErrOrStderr(), "  ! %s: skipped (%s)\n", e.Environment, e.Reason)
+		case "gate_error":
+			fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", e.Environment, e.Reason)
+		case "run_done":
+			fmt.Printf("  Run completed: %s\n", e.Conclusion)
+		}
+	}
+
+	if !ctx.JSON {
+		fmt.Printf("  Watching %s run %d   [Ctrl-C to stop]\n", opt.repoName, opt.runID)
+	}
+
+	res, err := workflow.WatchApprovals(cmd.Context(), ctx, workflow.WatchApproveRequest{
+		OrgName:      opt.orgName,
+		RepoName:     opt.repoName,
+		RunID:        opt.runID,
+		Environments: opt.environments,
+		Reject:       opt.reject,
+		Comment:      opt.comment,
+		Interval:     time.Duration(opt.interval) * time.Second,
+		Timeout:      opt.timeout,
+		Yes:          opt.yes,
+		Confirm:      confirm,
+		Notify:       notify,
+		Sleep:        watchSleep,
+	})
+
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", opt.repoName, err)
+		ctx.HasError = true
+		return
+	}
+	if res.HadFailures {
+		ctx.HasError = true
+	}
 }
 
 func printApproveResult(cmd *cobra.Command, r workflow.ApproveResult, verb string) {

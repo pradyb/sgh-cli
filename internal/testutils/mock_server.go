@@ -23,6 +23,10 @@ type MockGitHubServer struct {
 	mu        sync.RWMutex
 	requests  []MockRequest
 	responses map[string]MockResponse
+	// sequences holds a queue of responses per path, for simulating state that changes
+	// across successive polls (e.g. a workflow run gaining a new approval gate). Each
+	// request to the path pops the next entry; once exhausted, the last entry repeats.
+	sequences map[string][]MockResponse
 }
 
 // RateLimitInfo represents GitHub API rate limit information
@@ -57,6 +61,7 @@ func NewMockGitHubServer() *MockGitHubServer {
 		rateLimit: &RateLimitInfo{Limit: 5000, Remaining: 4999, Reset: time.Now().Add(time.Hour), Used: 1},
 		requests:  make([]MockRequest, 0),
 		responses: make(map[string]MockResponse),
+		sequences: make(map[string][]MockResponse),
 	}
 
 	// Set up default routes
@@ -124,6 +129,16 @@ func (m *MockGitHubServer) SetResponse(path string, response MockResponse) {
 	m.responses[path] = response
 }
 
+// SetResponseSequence configures path to return each response in order across
+// successive requests, so a test can simulate a run's state changing over polls (e.g. a
+// gate appearing after a prior one is approved). Once exhausted, the last response
+// repeats for any further request. Takes priority over a plain SetResponse for path.
+func (m *MockGitHubServer) SetResponseSequence(path string, responses []MockResponse) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sequences[path] = responses
+}
+
 // SetRateLimit sets the rate limit information
 func (m *MockGitHubServer) SetRateLimit(limit, remaining int, reset time.Time) {
 	m.mu.Lock()
@@ -173,9 +188,7 @@ func (m *MockGitHubServer) recordRequest(r *http.Request) {
 // path, if any, and reports whether it did so. Callers should return
 // immediately when it returns true.
 func (m *MockGitHubServer) respondWithOverride(w http.ResponseWriter, path string) bool {
-	m.mu.RLock()
-	response, exists := m.responses[path]
-	m.mu.RUnlock()
+	response, exists := m.nextResponse(path)
 	if !exists {
 		return false
 	}
@@ -192,6 +205,24 @@ func (m *MockGitHubServer) respondWithOverride(w http.ResponseWriter, path strin
 		json.NewEncoder(w).Encode(response.Body)
 	}
 	return true
+}
+
+// nextResponse returns the response respondWithOverride should serve for path: the next
+// entry in its sequence if one is configured (advancing the queue, repeating the last
+// entry once exhausted), else its plain SetResponse value, else (false) no override.
+func (m *MockGitHubServer) nextResponse(path string) (MockResponse, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if seq := m.sequences[path]; len(seq) > 0 {
+		next := seq[0]
+		if len(seq) > 1 {
+			m.sequences[path] = seq[1:]
+		}
+		return next, true
+	}
+	response, exists := m.responses[path]
+	return response, exists
 }
 
 // writeJSONResponse writes a JSON response with standard headers

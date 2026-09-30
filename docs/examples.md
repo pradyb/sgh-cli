@@ -179,6 +179,11 @@ sgh workflow approve --org my-org -r my-app                              # lates
 sgh workflow approve --org my-org -r my-app --run 123456789 --yes
 sgh workflow approve --org my-org -r my-app --environment production --comment "ship it"
 sgh workflow approve --org my-org -r my-app --run 123456789 --reject --comment "not now"
+
+# Stay attached and decide each new gate as it appears, until the run completes
+sgh workflow approve --org my-org -r my-app --watch
+sgh workflow approve --org my-org -r my-app --watch --interval 30 --timeout 1h
+sgh workflow approve --org my-org -r my-app --watch --yes --environment approval-1 --environment approval-2
 ```
 
 ## Security alerts
