@@ -114,7 +114,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 - `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
 - `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
 - `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` — trigger a `workflow_dispatch` event
-- `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`
+- `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes] [--watch] [--interval <sec>] [--timeout <duration>]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`; `--watch` stays attached and decides each new gate as it appears until the run completes, polling every `--interval` seconds (default 10, minimum 5) and optionally giving up after `--timeout` (e.g. `30m`); `--watch --yes` additionally requires `--environment`
 
 ### Security and audit
 
@@ -207,7 +207,7 @@ One rule governs every single-letter shorthand in the CLI:
 | `-R` | `--reviewer` | `pr list` | `-r` = `--repository` |
 | `-R` | `--run` | `workflow view/rerun/cancel` | `-r` = `--repository` |
 | `-R` | `--ref` | `post-release` | `-r` = `--repository` |
-| `-W` | `--watch` | `workflow view` | `-w` = global `--workers` |
+| `-W` | `--watch` | `workflow view`, `workflow approve` | `-w` = global `--workers` |
 | `-W` | `--workflow` | `workflow dispatch` | `-w` = global `--workers` |
 | `-V` | `--visibility` | `repo visibility` | `-v` = global `--verbose` |
 
@@ -234,6 +234,9 @@ One rule governs every single-letter shorthand in the CLI:
 | `--reject` | `workflow approve` (reject instead of approve) |
 | `--comment <text>` | `workflow approve` |
 | `-y, --yes` | `workflow approve`, `config reset` — skip the confirmation prompt |
+| `-W, --watch` | `workflow approve` (stay attached, decide each new gate until the run completes; requires exactly one `-r`; with `--dry-run`, just prints the currently pending gates without looping) |
+| `--interval <sec>` | `workflow approve --watch` (polling interval, default 10, minimum 5) |
+| `--timeout <duration>` | `workflow approve --watch` (give up after this long, e.g. `30m`; 0 = no timeout) |
 | `--short` | `version` |
 | `--json` | `health` |
 
