@@ -114,7 +114,29 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 - `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
 - `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
 - `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` — trigger a `workflow_dispatch` event
-- `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes] [--watch] [--interval <sec>] [--timeout <duration>]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`; `--watch` stays attached and decides each new gate as it appears until the run completes, polling every `--interval` seconds (default 10, minimum 5) and optionally giving up after `--timeout` (e.g. `30m`); `--watch --yes` additionally requires `--environment`
+- `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes] [--watch] [--interval <sec>] [--timeout <duration>]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`; `--watch` stays attached and decides each new gate as it appears until the run completes, showing each job/step as it starts and finishes (`--watch --json` streams these, the gate events and a leading `watch_started` with the resolved `run_id` as NDJSON), polling every `--interval` seconds (default 10, minimum 5) and optionally giving up after `--timeout` (e.g. `30m`); `--watch --yes` additionally requires `--environment`
+
+Example: watch a run with two sequential approval gates (environments `approval-1` and `approval-2`), approving each as it appears and following the run's progress until it completes:
+
+```bash
+sgh workflow approve --org my-org -r my-app --watch --yes \
+  --environment approval-1 --environment approval-2 --interval 5 --timeout 30m
+```
+
+```
+  Watching my-app run 37882429788   [Ctrl-C to stop]
+    ✓ Build / Set up job (success)
+    ✓ Build / Complete job (success)
+  ✓ Build (success)
+  New gate: approval-1 ... approved
+  ✓ Approval 1 (success)
+  New gate: approval-2 ... approved
+  ✓ Approval 2 (success)
+  ✓ Deploy (success)
+  Run completed: success
+```
+
+Drop `--yes` (and `--environment`) to be asked before each gate instead, or add `--json` to get the same events as NDJSON.
 
 ### Security and audit
 
@@ -234,7 +256,7 @@ One rule governs every single-letter shorthand in the CLI:
 | `--reject` | `workflow approve` (reject instead of approve) |
 | `--comment <text>` | `workflow approve` |
 | `-y, --yes` | `workflow approve`, `config reset` — skip the confirmation prompt |
-| `-W, --watch` | `workflow approve` (stay attached, decide each new gate until the run completes; requires exactly one `-r`; with `--dry-run`, just prints the currently pending gates without looping) |
+| `-W, --watch` | `workflow approve` (stay attached, decide each new gate and show job/step progress until the run completes; with `--json`, streams NDJSON events; requires exactly one `-r`; with `--dry-run`, just prints the currently pending gates without looping) |
 | `--interval <sec>` | `workflow approve --watch` (polling interval, default 10, minimum 5) |
 | `--timeout <duration>` | `workflow approve --watch` (give up after this long, e.g. `30m`; 0 = no timeout) |
 | `--short` | `version` |

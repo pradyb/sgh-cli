@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,7 +50,8 @@ func TestWatchApprovals_ApprovesGateThenRunCompletes(t *testing.T) {
 	if res.Conclusion != "success" || len(res.Decided) != 1 || res.Decided[0] != "approval-1" {
 		t.Errorf("res = %+v", res)
 	}
-	if len(events) != 2 || events[0].Kind != "gate_decided" || events[1].Kind != "run_done" {
+	if len(events) != 3 || events[0].Kind != "watch_started" || events[0].RunID != 42 ||
+		events[1].Kind != "gate_decided" || events[2].Kind != "run_done" {
 		t.Fatalf("events = %+v", events)
 	}
 	req, ok := lastReview(mockServer)
@@ -222,7 +224,7 @@ func TestWatchApprovals_NotAReviewerSkippedAndReported(t *testing.T) {
 	if len(res.Decided) != 0 {
 		t.Errorf("Decided = %v, want none", res.Decided)
 	}
-	if len(events) < 1 || events[0].Kind != "gate_skipped" || events[0].Reason != "not a required reviewer" {
+	if len(events) < 2 || events[1].Kind != "gate_skipped" || events[1].Reason != "not a required reviewer" {
 		t.Errorf("events = %+v", events)
 	}
 	if len(mockServer.GetRequests()) == 0 {
@@ -353,6 +355,129 @@ func TestWatchApprovals_ResolvesLatestWaitingRun(t *testing.T) {
 	}
 	if res.RunID != 42 {
 		t.Errorf("RunID = %d, want 42", res.RunID)
+	}
+}
+
+func TestWatchApprovals_ResolvedRunIDReportedInWatchStarted(t *testing.T) {
+	mockServer, ctx := newApproveCtx(t)
+	mockServer.SetResponse("/repos/testorg/repo1/actions/runs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"total_count":   1,
+			"workflow_runs": []map[string]interface{}{{"id": 42, "status": "waiting"}},
+		},
+	})
+	mockServer.SetResponse(runPath, runStatus("completed", "success"))
+
+	var first WatchEvent
+	_, err := WatchApprovals(context.Background(), ctx, WatchApproveRequest{
+		OrgName: "testorg", RepoName: "repo1",
+		Yes: true, Environments: []string{"approval-1"},
+		Sleep: noSleep,
+		Notify: func(e WatchEvent) {
+			if first.Kind == "" {
+				first = e
+			}
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("WatchApprovals(): %v", err)
+	}
+	if first.Kind != "watch_started" || first.RunID != 42 {
+		t.Errorf("first event = %+v, want watch_started with the resolved run ID 42", first)
+	}
+}
+
+const jobsPath = runPath + "/jobs"
+
+func jobsBody(jobs ...map[string]interface{}) testutils.MockResponse {
+	return testutils.MockResponse{StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": len(jobs), "jobs": jobs}}
+}
+
+func jobJSON(id int, name, status, conclusion string, steps ...map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{"id": id, "name": name, "status": status, "conclusion": conclusion, "steps": steps}
+}
+
+func stepJSON(number int, name, status, conclusion string) map[string]interface{} {
+	return map[string]interface{}{"number": number, "name": name, "status": status, "conclusion": conclusion}
+}
+
+func TestWatchApprovals_ReportsJobAndStepProgressAroundGates(t *testing.T) {
+	mockServer, ctx := newApproveCtx(t)
+	mockServer.SetResponseSequence(runPath, []testutils.MockResponse{
+		runStatus("in_progress", ""),
+		runStatus("waiting", ""),
+		runStatus("completed", "success"),
+	})
+	mockServer.SetResponseSequence(jobsPath, []testutils.MockResponse{
+		jobsBody(jobJSON(1, "build", "in_progress", "", stepJSON(1, "compile", "in_progress", ""))),
+		jobsBody(jobJSON(1, "build", "completed", "success", stepJSON(1, "compile", "completed", "success")),
+			jobJSON(2, "deploy", "waiting", "")),
+		jobsBody(jobJSON(1, "build", "completed", "success", stepJSON(1, "compile", "completed", "success")),
+			jobJSON(2, "deploy", "completed", "success")),
+	})
+	mockServer.SetResponseSequence(pendingPath, []testutils.MockResponse{
+		pendingBody(), // poll 1: build still running, no gate yet
+		pendingBody(gate(1, "approval-1", true)),
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{}}, // poll 2's POST (decide)
+	})
+
+	var got []string
+	_, err := WatchApprovals(context.Background(), ctx, WatchApproveRequest{
+		OrgName: "testorg", RepoName: "repo1", RunID: 42,
+		Yes: true, Environments: []string{"approval-1"},
+		Sleep: noSleep,
+		Notify: func(e WatchEvent) {
+			got = append(got, e.Kind+":"+e.Job+"/"+e.Step+"/"+e.Environment+"/"+e.Conclusion)
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("WatchApprovals(): %v", err)
+	}
+	want := []string{
+		"watch_started:///",
+		"job_started:build///",
+		"step_started:build/compile//",
+		"step_completed:build/compile//success",
+		"job_completed:build///success", // after its steps
+		"gate_decided://approval-1/",
+		"job_completed:deploy///success", // never observed in_progress, so only completed
+		"run_done:///success",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("events =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestWatchApprovals_JobsFetchErrorDoesNotStopWatchAndCatchesUp(t *testing.T) {
+	mockServer, ctx := newApproveCtx(t)
+	mockServer.SetResponseSequence(runPath, []testutils.MockResponse{
+		runStatus("in_progress", ""),
+		runStatus("completed", "success"),
+	})
+	mockServer.SetResponseSequence(jobsPath, []testutils.MockResponse{
+		{StatusCode: http.StatusInternalServerError, Body: map[string]interface{}{"message": "boom"}},
+		jobsBody(jobJSON(1, "build", "completed", "success")),
+	})
+
+	var kinds []string
+	res, err := WatchApprovals(context.Background(), ctx, WatchApproveRequest{
+		OrgName: "testorg", RepoName: "repo1", RunID: 42,
+		Yes: true, Environments: []string{"approval-1"},
+		Sleep:  noSleep,
+		Notify: func(e WatchEvent) { kinds = append(kinds, e.Kind) },
+	})
+
+	if err != nil {
+		t.Fatalf("a failed jobs fetch must not stop the watch: %v", err)
+	}
+	if res.HadFailures {
+		t.Error("a failed jobs fetch is not a gate failure; HadFailures should stay false")
+	}
+	if strings.Join(kinds, ",") != "watch_started,job_completed,run_done" {
+		t.Errorf("kinds = %v, want the missed job reported on the next successful poll", kinds)
 	}
 }
 

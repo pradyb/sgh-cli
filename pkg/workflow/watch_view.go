@@ -103,10 +103,6 @@ func (s *viewWatchState) diff(detail model.WorkflowRunDetail) []ViewWatchEvent {
 			p.started = true
 			events = append(events, ViewWatchEvent{Kind: "job_started", Job: j.Name})
 		}
-		if j.Status == "completed" && !p.completed {
-			p.completed = true
-			events = append(events, ViewWatchEvent{Kind: "job_completed", Job: j.Name, Conclusion: j.Conclusion})
-		}
 
 		for _, st := range j.Steps {
 			key := fmt.Sprintf("%d:%d", j.ID, st.Number)
@@ -123,6 +119,12 @@ func (s *viewWatchState) diff(detail model.WorkflowRunDetail) []ViewWatchEvent {
 				sp.completed = true
 				events = append(events, ViewWatchEvent{Kind: "step_completed", Job: j.Name, Step: st.Name, Conclusion: st.Conclusion})
 			}
+		}
+
+		// After its steps, so a job that finished within one poll reads in order.
+		if j.Status == "completed" && !p.completed {
+			p.completed = true
+			events = append(events, ViewWatchEvent{Kind: "job_completed", Job: j.Name, Conclusion: j.Conclusion})
 		}
 	}
 	return events

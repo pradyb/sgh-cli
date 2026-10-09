@@ -6,6 +6,7 @@ package workflow
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +93,25 @@ func TestViewWatchState_Diff_StepStartedAndCompleted(t *testing.T) {
 	}})
 	if len(events) != 1 || events[0].Kind != "step_started" || events[0].Step != "test" {
 		t.Fatalf("events = %+v, want one step_started for test", events)
+	}
+}
+
+func TestViewWatchState_Diff_JobCompletedAfterItsStepsInOnePoll(t *testing.T) {
+	s := newViewWatchState()
+
+	// The whole job finished between polls: its steps must read before the job's completion.
+	events := s.diff(model.WorkflowRunDetail{Jobs: []model.WorkflowJob{
+		job(1, "build", "completed", "success",
+			step(1, "checkout", "completed", "success"),
+			step(2, "test", "completed", "success"),
+		),
+	}})
+	var got []string
+	for _, e := range events {
+		got = append(got, e.Kind+":"+e.Step)
+	}
+	if strings.Join(got, ",") != "step_completed:checkout,step_completed:test,job_completed:" {
+		t.Fatalf("events = %v, want both step_completed before job_completed", got)
 	}
 }
 

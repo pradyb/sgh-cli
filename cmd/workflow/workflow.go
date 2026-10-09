@@ -564,9 +564,10 @@ func approveCommand(ctx *context.Context) *cobra.Command {
 			Only gates you are a required reviewer of can be decided; others are skipped.
 			A run with several sequential gates exposes one at a time, so run the command again
 			after each approval — or pass --watch to stay attached and decide each new gate as
-			it appears, until the run completes. Asks for confirmation unless --yes is given;
-			--watch --yes additionally requires --environment, so an unattended watch never
-			approves a gate that didn't exist when it started.
+			it appears, until the run completes, showing each job/step as it starts and finishes
+			(--watch --json streams these and the gate events as NDJSON). Asks for confirmation
+			unless --yes is given; --watch --yes additionally requires --environment, so an
+			unattended watch never approves a gate that didn't exist when it started.
 		`),
 		Example: heredoc.Doc(`
 			$ sgh workflow approve --org sample-org -r sample-repo1
@@ -710,6 +711,7 @@ func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions)
 	}
 
 	stdin := bufio.NewReader(cmd.InOrStdin())
+	runID := opt.runID // replaced by the resolved ID on watch_started, which precedes any prompt
 	var confirm func(workflow.WatchGate) bool
 	if !opt.yes {
 		confirm = func(g workflow.WatchGate) bool {
@@ -718,7 +720,7 @@ func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions)
 				reviewers = strings.Join(g.Reviewers, ", ")
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "  New gate on %s (run %d): environment %q (reviewers: %s)\n",
-				opt.repoName, opt.runID, g.Environment, reviewers)
+				opt.repoName, runID, g.Environment, reviewers)
 			fmt.Fprint(cmd.ErrOrStderr(), "  Approve? Type 'yes' to confirm, anything else to skip: ")
 			line, _ := stdin.ReadString('\n')
 			return strings.EqualFold(strings.TrimSpace(line), "yes")
@@ -735,6 +737,17 @@ func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions)
 			return
 		}
 		switch e.Kind {
+		case "watch_started":
+			runID = e.RunID
+			fmt.Printf("  Watching %s run %d   [Ctrl-C to stop]\n", opt.repoName, runID)
+		case "job_started":
+			fmt.Printf("  %s %s\n", ui.StatusIcon("in_progress"), e.Job)
+		case "job_completed":
+			fmt.Printf("  %s %s (%s)\n", ui.StatusIcon(e.Conclusion), e.Job, e.Conclusion)
+		case "step_started":
+			fmt.Printf("    %s %s / %s\n", ui.StatusIcon("in_progress"), e.Job, e.Step)
+		case "step_completed":
+			fmt.Printf("    %s %s / %s (%s)\n", ui.StatusIcon(e.Conclusion), e.Job, e.Step, e.Conclusion)
 		case "gate_decided":
 			fmt.Printf("  New gate: %s ... %s\n", e.Environment, e.State)
 		case "gate_skipped":
@@ -744,10 +757,6 @@ func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions)
 		case "run_done":
 			fmt.Printf("  Run completed: %s\n", e.Conclusion)
 		}
-	}
-
-	if !ctx.JSON {
-		fmt.Printf("  Watching %s run %d   [Ctrl-C to stop]\n", opt.repoName, opt.runID)
 	}
 
 	res, err := workflow.WatchApprovals(cmd.Context(), ctx, workflow.WatchApproveRequest{
