@@ -11,9 +11,11 @@ import (
 	"slices"
 	"time"
 
+	"github.com/pradyb/sgh-cli/internal/model"
 	"github.com/pradyb/sgh-cli/internal/service"
 	"github.com/pradyb/sgh-cli/pkg/apperrors"
 	appcontext "github.com/pradyb/sgh-cli/pkg/context"
+	"github.com/pradyb/sgh-cli/pkg/logger"
 )
 
 // ErrWatchTimeout is returned by WatchApprovals when Timeout elapses before the run
@@ -57,8 +59,15 @@ type WatchGate struct {
 
 // WatchEvent is one thing that happened during a watch, in order.
 type WatchEvent struct {
-	// Kind is one of: "gate_decided", "gate_skipped", "gate_error", "run_done".
+	// Kind is one of: "watch_started", "job_started", "job_completed", "step_started",
+	// "step_completed", "gate_decided", "gate_skipped", "gate_error", "run_done".
 	Kind string `json:"kind"`
+	// RunID is the run being watched (resolved, if none was given), set for watch_started.
+	RunID int `json:"run_id,omitempty"`
+	// Job is set for job_started/job_completed/step_started/step_completed.
+	Job string `json:"job,omitempty"`
+	// Step is set for step_started/step_completed.
+	Step string `json:"step,omitempty"`
 	// Environment is set for gate_decided / gate_skipped / gate_error.
 	Environment string `json:"environment,omitempty"`
 	// State is "approved" or "rejected", set for gate_decided.
@@ -66,12 +75,14 @@ type WatchEvent struct {
 	// Reason is set for gate_skipped ("not a required reviewer" / "declined") and
 	// gate_error (the submit failure).
 	Reason string `json:"reason,omitempty"`
-	// Conclusion is the run's conclusion, set for run_done.
+	// Conclusion is the run's conclusion for run_done, or the job/step's for
+	// job_completed/step_completed.
 	Conclusion string `json:"conclusion,omitempty"`
 }
 
 // WatchApprovals stays attached to one run, deciding each newly-appearing environment
-// gate as it shows up (after confirmation, unless Yes), until the run completes, ctx is
+// gate as it shows up (after confirmation, unless Yes) and reporting each job/step
+// transition (as `view --watch --json` does), until the run completes, ctx is
 // cancelled (e.g. Ctrl-C — returns nil, deciding nothing further), or Timeout elapses.
 // The returned error is nil on a clean stop; non-nil only for a hard failure (the run or
 // gate list couldn't be fetched, an auth error, or Timeout). A gate-level submit failure
@@ -105,6 +116,7 @@ func WatchApprovals(ctx context.Context, appCtx *appcontext.Context, req WatchAp
 		}
 		result.RunID = id
 	}
+	notify(WatchEvent{Kind: "watch_started", RunID: result.RunID})
 
 	var deadline time.Time
 	if req.Timeout > 0 {
@@ -122,6 +134,7 @@ func WatchApprovals(ctx context.Context, appCtx *appcontext.Context, req WatchAp
 
 	seen := make(map[int]bool)     // environment ID -> already handled (decided or declined) this run
 	reported := make(map[int]bool) // environment ID -> already reported as outside the allowlist
+	progress := newViewWatchState()
 	for {
 		if err := ctx.Err(); err != nil {
 			return result, nil // Ctrl-C or similar: stop cleanly, decide nothing further
@@ -134,6 +147,18 @@ func WatchApprovals(ctx context.Context, appCtx *appcontext.Context, req WatchAp
 		if err != nil {
 			return result, fmt.Errorf("failed to get workflow run: %w", err)
 		}
+
+		// Job/step progress is supplementary: a failed fetch must not stop the watch. It
+		// just skips reporting this poll; the next successful poll catches up, because
+		// diff reports by tracked state rather than per poll.
+		jobs, err := service.GetWorkflowRunJobs(appCtx, req.OrgName, req.RepoName, result.RunID)
+		if err != nil {
+			logger.Glog.Debug().Err(err).Str("repo", req.RepoName).Int("runID", result.RunID).Msg("Could not get workflow jobs while watching")
+		}
+		for _, e := range progress.diff(model.WorkflowRunDetail{Jobs: jobs}) {
+			notify(WatchEvent{Kind: e.Kind, Job: e.Job, Step: e.Step, Conclusion: e.Conclusion})
+		}
+
 		if run.Status == "completed" {
 			notify(WatchEvent{Kind: "run_done", Conclusion: run.Conclusion})
 			result.Conclusion = run.Conclusion

@@ -1181,8 +1181,8 @@ func TestApproveCommand_Watch_JSONOutput(t *testing.T) {
 	})
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 NDJSON lines (gate_decided, run_done), got %d: %s", len(lines), out)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 NDJSON lines (watch_started, gate_decided, run_done), got %d: %s", len(lines), out)
 	}
 	for _, line := range lines {
 		var e map[string]interface{}
@@ -1190,7 +1190,60 @@ func TestApproveCommand_Watch_JSONOutput(t *testing.T) {
 			t.Errorf("line not valid JSON: %s (%v)", line, err)
 		}
 	}
-	if !strings.Contains(lines[0], `"gate_decided"`) || !strings.Contains(lines[1], `"run_done"`) {
-		t.Errorf("lines = %v, want gate_decided then run_done", lines)
+	if lines[0] != `{"kind":"watch_started","run_id":123}` ||
+		!strings.Contains(lines[1], `"gate_decided"`) || !strings.Contains(lines[2], `"run_done"`) {
+		t.Errorf("lines = %v, want watch_started then gate_decided then run_done", lines)
+	}
+}
+
+func TestApproveCommand_Watch_ShowsProgressAndResolvedRunID(t *testing.T) {
+	withStdinTerminal(t, true)
+	withNoWatchSleep(t)
+	mockServer := approveServer(t, true)
+	mockServer.SetResponse("/repos/acme/repo1/actions/runs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"total_count":   1,
+			"workflow_runs": []map[string]interface{}{{"id": 123, "status": "waiting"}},
+		},
+	})
+	mockServer.SetResponseSequence(approveRunPath, []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "waiting"}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"id": 123, "status": "completed", "conclusion": "success"}},
+	})
+	mockServer.SetResponseSequence(approveRunPath+"/jobs", []testutils.MockResponse{
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": 1, "jobs": []map[string]interface{}{
+			{"id": 1, "name": "build", "status": "in_progress", "steps": []map[string]interface{}{
+				{"number": 1, "name": "compile", "status": "in_progress"},
+			}},
+		}}},
+		{StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": 1, "jobs": []map[string]interface{}{
+			{"id": 1, "name": "build", "status": "completed", "conclusion": "success", "steps": []map[string]interface{}{
+				{"number": 1, "name": "compile", "status": "completed", "conclusion": "success"},
+			}},
+		}}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+
+	var stderr bytes.Buffer
+	out := captureStdout(t, func() {
+		root := newTestRoot()
+		root.AddCommand(approveCommand(ctx))
+		root.SetArgs([]string{"approve", "--org", "acme", "-r", "repo1", "--watch"}) // no --run: resolved
+		root.SetIn(strings.NewReader("yes\n"))
+		root.SetOut(io.Discard)
+		root.SetErr(&stderr)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	for _, want := range []string{"Watching repo1 run 123", "build\n", "build / compile\n", "build (success)", "build / compile (success)", "New gate: approval-1", "Run completed: success"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout missing %q, got:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(stderr.String(), "(run 123)") {
+		t.Errorf("prompt should name the resolved run, got stderr:\n%s", stderr.String())
 	}
 }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **`workflow approve --watch` shows the run's progress**: each job and step is printed as it starts and finishes, interleaved with the gate prompts and decisions, so you no longer need `workflow view --watch` in a second terminal to see what the run is doing between gates. With `--json`, the NDJSON stream gains the same `job_started`, `job_completed`, `step_started`, `step_completed` events as `view --watch --json`, plus a leading `watch_started` event carrying the `run_id` being watched (useful when `--run` was omitted) — consumers that assumed only gate/`run_done` events should ignore unknown `kind`s. Costs one extra API call per poll; a failed jobs fetch never stops the watch (#67)
+
+### Fixed
+- **`workflow approve --watch` without `--run` printed `run 0`** in the "Watching …" header and the per-gate confirmation prompt; it now shows the latest waiting run that was actually resolved (#67)
+- **`workflow view --watch --json` reported a job's `job_completed` before its own steps** when the whole job finished between two polls; a job's step events now always come before its completion (#67)
+
 ## [1.4.0] - 2026-09-30
 
 ### Added
