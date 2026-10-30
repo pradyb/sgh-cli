@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"bufio"
+	stdctx "context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -226,9 +227,9 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 
 			detail := workflow.GetWorkflowRunDetail(ctx, req)
 
-			if ctx.JSON && watch {
-				detail = runWatchLoopJSON(cmd, ctx, req, detail, watchInterval)
-				if detail.ErrorMessage != "" {
+			if watch {
+				detail = followRun(cmd, ctx, req, detail, watchInterval, 0)
+				if ctx.JSON && detail.ErrorMessage != "" {
 					ctx.HasError = true
 				}
 				return
@@ -242,12 +243,7 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 				return
 			}
 
-			if !watch || !detail.IsInProgress() {
-				ui.PrintWorkflowRunDetail(detail)
-				return
-			}
-
-			runWatchLoop(ctx, req, detail, watchInterval)
+			ui.PrintWorkflowRunDetail(detail)
 		},
 	}
 
@@ -258,6 +254,46 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 	viewCmd.MarkFlagRequired("repository")
 
 	return viewCmd
+}
+
+// followRun follows a run from its already-fetched initial detail until it completes: the
+// interactive view for a human, NDJSON events under --json. Shared by view --watch and
+// dispatch --watch. A positive timeout gives up on a run still in progress after that long,
+// reporting it on stderr and setting HasError. Returns the last detail fetched (only
+// meaningful under --json).
+func followRun(cmd *cobra.Command, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, interval int, timeout time.Duration) model.WorkflowRunDetail {
+	parent := cmd.Context()
+	if parent == nil {
+		parent = stdctx.Background()
+	}
+	wctx, cancel := parent, stdctx.CancelFunc(func() {})
+	if timeout > 0 {
+		wctx, cancel = stdctx.WithTimeout(parent, timeout)
+	}
+	defer cancel()
+
+	detail := initial
+	switch {
+	case ctx.JSON:
+		detail = runWatchLoopJSON(wctx, ctx, req, initial, interval)
+	case !initial.IsInProgress():
+		ui.PrintWorkflowRunDetail(initial)
+		return initial
+	default:
+		if err := runWatchLoop(wctx, ctx, req, initial, interval); err != nil {
+			// The run is untouched and still going; don't let this exit 0 as if it had been watched.
+			fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: could not open the live view (%v); run %d is still in progress: %s\n",
+				req.RepoName, err, req.RunID, initial.Run.HTMLUrl)
+			ctx.HasError = true
+			return initial
+		}
+		detail.Run.Status = "in_progress" // only the deadline check below needs this
+	}
+	if timeout > 0 && wctx.Err() == stdctx.DeadlineExceeded && detail.IsInProgress() {
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", req.RepoName, workflow.ErrWatchTimeout)
+		ctx.HasError = true
+	}
+	return detail
 }
 
 // --- Bubble Tea watch model ---
@@ -330,18 +366,26 @@ func (m watchModel) fetchDetail() tea.Msg {
 	return watchDataMsg{detail: detail}
 }
 
-func runWatchLoop(ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) {
+// runWatchProgram runs the interactive view; a var so tests can fail it without needing a terminal.
+var runWatchProgram = func(p *tea.Program) (tea.Model, error) { return p.Run() }
+
+// runWatchLoop runs the interactive live view. It returns an error only when the view itself
+// could not run (e.g. no terminal); a cancelled wctx (timeout, Ctrl-C) is not an error.
+func runWatchLoop(wctx stdctx.Context, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) error {
 	interval := time.Duration(watchInterval) * time.Second
 	m := newWatchModel(ctx, req, interval, initial)
-	p := tea.NewProgram(m, tea.WithAltScreen())
-	finalModel, err := p.Run()
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(wctx))
+	finalModel, err := runWatchProgram(p)
 	if err != nil {
-		logger.Glog.Error().Err(err).Msg("Watch mode error")
-		return
+		if wctx.Err() != nil {
+			return nil
+		}
+		return err
 	}
 	if wm, ok := finalModel.(watchModel); ok && wm.detail.Run.ID != 0 {
 		ui.PrintWorkflowRunDetail(wm.detail)
 	}
+	return nil
 }
 
 // viewWatchSleep is a var so tests can force polling not to really wait.
@@ -350,12 +394,12 @@ var viewWatchSleep = time.Sleep
 // runWatchLoopJSON is `view --watch --json`'s loop: instead of the interactive bubbletea view,
 // it streams each job/step status transition as a compact single-line JSON object (NDJSON),
 // terminated by a final run_done event once the run completes.
-func runWatchLoopJSON(cmd *cobra.Command, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) model.WorkflowRunDetail {
+func runWatchLoopJSON(wctx stdctx.Context, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, watchInterval int) model.WorkflowRunDetail {
 	notify := func(e workflow.ViewWatchEvent) {
 		b, _ := json.Marshal(e)
 		fmt.Println(string(b))
 	}
-	return workflow.WatchViewRun(cmd.Context(), ctx, req, initial, workflow.WatchViewOptions{
+	return workflow.WatchViewRun(wctx, ctx, req, initial, workflow.WatchViewOptions{
 		Interval: time.Duration(watchInterval) * time.Second,
 		Notify:   notify,
 		Sleep:    viewWatchSleep,
@@ -470,6 +514,12 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 	var workflowID string
 	var ref string
 	var inputPairs []string
+	var watch bool
+	var watchInterval int
+	var watchTimeout time.Duration
+	var approve bool
+	var environments []string
+	var yes bool
 
 	dispatchCmd := &cobra.Command{
 		Use:     "dispatch",
@@ -481,11 +531,25 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 
 			The workflow must have a 'workflow_dispatch' trigger defined in its YAML file.
 			Use --input key=value to pass input parameters to the workflow.
+
+			The run ID and URL of each dispatched run are shown when GitHub returns them (always,
+			except on older GitHub Enterprise Server). --watch then follows each returned run in turn,
+			one repository at a time, like 'workflow view --watch'; with --json it streams NDJSON.
+			--timeout gives up on a run after that long (per run).
+
+			With --watch, --approve also decides the run's environment approval gates as they appear,
+			like 'workflow approve --watch' (it asks for confirmation unless --yes is given, and
+			--yes requires --environment so an unattended run never approves a gate that wasn't
+			named). All of this is checked before anything is dispatched.
 		`),
 		Example: heredoc.Doc(`
 			$ sgh workflow dispatch --org my-org --workflow deploy.yml --ref main
 			$ sgh workflow dispatch --org my-org -r app1 -r app2 --workflow build.yml --ref develop
 			$ sgh workflow dispatch --org my-org --workflow release.yml --ref main --input env=production --input dry_run=false
+			$ sgh workflow dispatch --org my-org -r app1 --workflow deploy.yml --ref main --watch
+			$ sgh workflow dispatch --org my-org --workflow build.yml --ref main --json
+			$ sgh workflow dispatch --org my-org -r app1 --workflow deploy.yml --ref main --watch --timeout 30m
+			$ sgh workflow dispatch --org my-org -r app1 --workflow deploy.yml --ref main --watch --approve --yes --environment staging
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
@@ -495,6 +559,36 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %v\n", err)
 				ctx.HasError = true
 				return
+			}
+
+			if !watch && (approve || watchTimeout != 0) {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --approve and --timeout require --watch")
+				ctx.HasError = true
+				return
+			}
+			if !approve && (yes || len(environments) > 0) {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --yes and --environment require --approve")
+				ctx.HasError = true
+				return
+			}
+			if watch && watchInterval < 5 {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval must be at least 5 seconds when using --watch")
+				ctx.HasError = true
+				return
+			}
+			watchOpt := watchOptions{
+				orgName: orgName, environments: environments, yes: yes,
+				interval: watchInterval, timeout: watchTimeout, verb: "approve",
+			}
+			if approve {
+				if ctx.JSON && !yes {
+					fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --json cannot prompt for confirmation; pass --yes")
+					ctx.HasError = true
+					return
+				}
+				if !ctx.DryRun && !validateApproveWatch(cmd, ctx, watchOpt) {
+					return
+				}
 			}
 
 			if ctx.DryRun {
@@ -518,15 +612,19 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 				Ref:              ref,
 				Inputs:           inputs,
 			}
-			results := workflow.DispatchWorkflow(ctx, req)
-			for _, r := range results {
-				if r.ErrorMessage != "" {
-					logger.Glog.Error().Str("repo", r.RepositoryName).Msg(r.ErrorMessage)
-					fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", r.RepositoryName, r.ErrorMessage)
-				} else {
-					fmt.Printf("  ✓ %s: workflow '%s' dispatched on '%s'\n", r.RepositoryName, r.WorkflowID, r.Ref)
-				}
+			if ctx.JSON {
+				ctx.Silent = true // the progress bar and summary banner would land on stdout
 			}
+			results := workflow.DispatchWorkflow(ctx, req)
+			if watch {
+				followDispatched(cmd, ctx, results, watchOpt, approve)
+				return
+			}
+			if ctx.JSON {
+				ui.PrintJSON(results)
+				return
+			}
+			printDispatchResults(cmd, results)
 		},
 	}
 
@@ -536,10 +634,88 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 	dispatchCmd.Flags().StringVarP(&ref, "ref", "f", "", "branch or tag to run the workflow on")
 	dispatchCmd.Flags().StringArrayVarP(&inputPairs, "input", "i", []string{}, "workflow input as key=value (repeatable)")
 
+	dispatchCmd.Flags().BoolVar(&watch, "watch", false, "follow each dispatched run until it completes, one repository at a time")
+	dispatchCmd.Flags().IntVar(&watchInterval, "interval", 10, "polling interval in seconds when using --watch (minimum 5)")
+	dispatchCmd.Flags().DurationVar(&watchTimeout, "timeout", 0, "give up on each watched run after this long, e.g. 30m (0 = no timeout)")
+	dispatchCmd.Flags().BoolVar(&approve, "approve", false, "with --watch, also decide each run's environment approval gates as they appear")
+	dispatchCmd.Flags().StringArrayVar(&environments, "environment", []string{}, "with --approve, only decide this environment's gate (repeatable)")
+	dispatchCmd.Flags().BoolVarP(&yes, "yes", "y", false, "with --approve, skip the confirmation prompt (requires --environment)")
+
 	dispatchCmd.MarkFlagRequired("workflow")
 	dispatchCmd.MarkFlagRequired("ref")
 
 	return dispatchCmd
+}
+
+func printDispatchResults(cmd *cobra.Command, results []workflow.WorkflowDispatchResult) {
+	for _, r := range results {
+		switch {
+		case r.ErrorMessage != "":
+			logger.Glog.Error().Str("repo", r.RepositoryName).Msg(r.ErrorMessage)
+			fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", r.RepositoryName, r.ErrorMessage)
+		case r.RunID != 0:
+			fmt.Printf("  ✓ %s: workflow '%s' dispatched on '%s' (run %d: %s)\n", r.RepositoryName, r.WorkflowID, r.Ref, r.RunID, r.HTMLURL)
+		default:
+			fmt.Printf("  ✓ %s: workflow '%s' dispatched on '%s' (run ID not returned by GitHub)\n", r.RepositoryName, r.WorkflowID, r.Ref)
+		}
+	}
+}
+
+// dispatchWatchEvent is the NDJSON line `dispatch --watch --json` prints per repository before
+// that repository's watch events. Repositories are followed sequentially, so every event up to
+// the next run_done belongs to the repository named by the preceding line.
+type dispatchWatchEvent struct {
+	Kind       string `json:"kind"` // dispatched | dispatch_error | watch_skipped
+	Repository string `json:"repository"`
+	RunID      int    `json:"run_id,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// followDispatched follows each dispatched run sequentially: with approve it decides the run's
+// gates too (the same code as `workflow approve --watch`), otherwise it only watches. Repos that
+// failed to dispatch, or whose dispatch returned no run ID (204), are reported and skipped.
+// Stdout stays clean NDJSON under --json. ponytail: sequential, concurrent following needs an
+// interleaved-output design.
+func followDispatched(cmd *cobra.Command, ctx *context.Context, results []workflow.WorkflowDispatchResult, opt watchOptions, approve bool) {
+	emit := func(e dispatchWatchEvent) {
+		b, _ := json.Marshal(e)
+		fmt.Println(string(b))
+	}
+	if !ctx.JSON {
+		printDispatchResults(cmd, results)
+	}
+	for _, r := range results {
+		switch {
+		case r.ErrorMessage != "":
+			ctx.HasError = true
+			if ctx.JSON {
+				emit(dispatchWatchEvent{Kind: "dispatch_error", Repository: r.RepositoryName, Reason: r.ErrorMessage})
+			}
+		case r.RunID == 0:
+			if ctx.JSON {
+				emit(dispatchWatchEvent{Kind: "watch_skipped", Repository: r.RepositoryName, Reason: "run ID not returned by GitHub"})
+			} else {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  ! %s: not watching, GitHub did not return a run ID\n", r.RepositoryName)
+			}
+		default:
+			if ctx.JSON {
+				emit(dispatchWatchEvent{Kind: "dispatched", Repository: r.RepositoryName, RunID: r.RunID})
+			}
+			if approve {
+				o := opt
+				o.repoName, o.runID = r.RepositoryName, r.RunID
+				runApproveWatch(cmd, ctx, o) // prints its own "Watching <repo> run <id>"
+				continue
+			}
+			if !ctx.JSON {
+				fmt.Printf("\n  Watching %s run %d\n", r.RepositoryName, r.RunID)
+			}
+			req := workflow.WorkflowRunRequest{OrgName: opt.orgName, RepoName: r.RepositoryName, RunID: r.RunID}
+			if detail := followRun(cmd, ctx, req, workflow.GetWorkflowRunDetail(ctx, req), opt.interval, opt.timeout); detail.ErrorMessage != "" {
+				ctx.HasError = true
+			}
+		}
+	}
 }
 
 func approveCommand(ctx *context.Context) *cobra.Command {
@@ -691,22 +867,28 @@ type watchOptions struct {
 	verb              string
 }
 
+// validateApproveWatch checks --watch's flag combination, reporting the first problem on stderr
+// and setting HasError. dispatch --approve calls it before dispatching, so nothing is sent
+// when the watch could not run.
+func validateApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions) bool {
+	switch {
+	case opt.yes && len(opt.environments) == 0:
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch with --yes requires --environment so unseen gates are never approved blindly")
+	case opt.interval < 5:
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval must be at least 5 seconds when using --watch")
+	case !opt.yes && !isStdinTerminal():
+		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch needs to prompt for confirmation, but stdin is not a terminal — pass --yes (with --environment)")
+	default:
+		return true
+	}
+	ctx.HasError = true
+	return false
+}
+
 // runApproveWatch validates --watch's flag combination, wires workflow.WatchApprovals
 // to this command's stdin/stdout/stderr, and reports the outcome.
 func runApproveWatch(cmd *cobra.Command, ctx *context.Context, opt watchOptions) {
-	if opt.yes && len(opt.environments) == 0 {
-		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch with --yes requires --environment so unseen gates are never approved blindly")
-		ctx.HasError = true
-		return
-	}
-	if opt.interval < 5 {
-		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval must be at least 5 seconds when using --watch")
-		ctx.HasError = true
-		return
-	}
-	if !opt.yes && !isStdinTerminal() {
-		fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --watch needs to prompt for confirmation, but stdin is not a terminal — pass --yes (with --environment)")
-		ctx.HasError = true
+	if !validateApproveWatch(cmd, ctx, opt) {
 		return
 	}
 

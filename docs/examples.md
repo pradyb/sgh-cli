@@ -182,6 +182,14 @@ sgh workflow dispatch --org my-org -r app1 -r app2 \
   --workflow release.yml --ref main \
   --input env=production --input dry_run=false
 
+# See which run each dispatch created, or follow it until it finishes
+sgh workflow dispatch --org my-org -r app1 --workflow deploy.yml --ref main --json
+sgh workflow dispatch --org my-org -r app1 -r app2 --workflow deploy.yml --ref main --watch
+
+# Dispatch a multi-gate deploy and approve its gates as they appear (asks per gate; --yes needs --environment)
+sgh workflow dispatch --org my-org -r app1 --workflow deploy.yml --ref main \
+  --watch --approve --yes --environment staging --environment production --timeout 30m
+
 # Approve or reject a run waiting on an environment gate
 sgh workflow approve --org my-org -r my-app                              # latest waiting run, asks to confirm
 sgh workflow approve --org my-org -r my-app --run 123456789 --yes

@@ -41,24 +41,31 @@ type WorkflowDispatchRequest struct {
 }
 
 type WorkflowDispatchResult struct {
-	RepositoryName string
-	WorkflowID     string
-	Ref            string
-	ErrorMessage   string
+	RepositoryName string `json:"repository"`
+	WorkflowID     string `json:"workflow"`
+	Ref            string `json:"ref"`
+	// RunID, RunURL and HTMLURL are empty when GitHub did not return the created run (204).
+	RunID        int    `json:"run_id,omitempty"`
+	RunURL       string `json:"run_url,omitempty"`
+	HTMLURL      string `json:"html_url,omitempty"`
+	ErrorMessage string `json:"error,omitempty"`
 }
 
 func DispatchWorkflow(ctx *context.Context, req WorkflowDispatchRequest) []WorkflowDispatchResult {
 	results := make([]WorkflowDispatchResult, 0)
 
 	processor.ProcessRepositoriesOperation(ctx, req.OrgName, req.RepoNames, req.ExcludeRepoNames, processor.OperationListWorkflowRuns,
-		func(ctx *context.Context, orgName, repoName string) (bool, error) {
-			return true, service.DispatchWorkflow(ctx, orgName, repoName, req.WorkflowID, req.Ref, req.Inputs)
+		func(ctx *context.Context, orgName, repoName string) (model.DispatchRun, error) {
+			return service.DispatchWorkflow(ctx, orgName, repoName, req.WorkflowID, req.Ref, req.Inputs)
 		},
-		func(repoName string, _ processor.RepoOperationResult[bool]) {
+		func(repoName string, res processor.RepoOperationResult[model.DispatchRun]) {
 			results = append(results, WorkflowDispatchResult{
 				RepositoryName: repoName,
 				WorkflowID:     req.WorkflowID,
 				Ref:            req.Ref,
+				RunID:          res.Result.RunID,
+				RunURL:         res.Result.RunURL,
+				HTMLURL:        res.Result.HTMLURL,
 			})
 		},
 		func(repoName string, err error) {

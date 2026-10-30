@@ -113,7 +113,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 - `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--json]` — view or live-monitor a run, including any approval decisions and pending approval gates; `--watch` alone is an interactive, human-readable live view, `--watch --json` streams each job/step status transition as compact NDJSON (one JSON object per line) until the run completes
 - `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
 - `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
-- `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value]` — trigger a `workflow_dispatch` event
+- `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value] [--watch] [--interval <sec>] [--timeout <duration>] [--approve] [--environment <name>...] [--yes] [--json]` — trigger a `workflow_dispatch` event; the run ID and URL GitHub returns for each repository are printed (and included in `--json`; older GitHub Enterprise Server returns none, which is reported rather than treated as a failure); `--watch` then follows each returned run one repository at a time, like `workflow view --watch`, giving up on a run after `--timeout` (per run, e.g. `30m`); `--watch --approve` also decides each run's environment approval gates as they appear, exactly like `workflow approve --watch` (asks for confirmation unless `--yes`; `--yes` requires `--environment`; `--json` requires `--yes`), and everything is validated before anything is dispatched; `--watch --json` streams NDJSON: a `dispatched` line with `repository` and `run_id` before each repository's events, plus `dispatch_error` / `watch_skipped` lines for repositories that failed or returned no run ID
 - `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes] [--watch] [--interval <sec>] [--timeout <duration>]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`; `--watch` stays attached and decides each new gate as it appears until the run completes, showing each job/step as it starts and finishes (`--watch --json` streams these, the gate events and a leading `watch_started` with the resolved `run_id` as NDJSON), polling every `--interval` seconds (default 10, minimum 5) and optionally giving up after `--timeout` (e.g. `30m`); `--watch --yes` additionally requires `--environment`
 
 Example: watch a run with two sequential approval gates (environments `approval-1` and `approval-2`), approving each as it appears and following the run's progress until it completes:
@@ -251,11 +251,15 @@ One rule governs every single-letter shorthand in the CLI:
 | `--branch <name>` | `workflow list` |
 | `--workflow <name>` | `workflow list` (partial match) |
 | `--watch`, `--interval` | `workflow view` (with `--json`, streams NDJSON job/step transitions instead of the interactive view) |
+| `--watch`, `--interval <sec>` | `workflow dispatch` (long form only: `-W` is `--workflow` here; follows each dispatched run in turn; interval default 10, minimum 5) |
+| `--timeout <duration>` | `workflow dispatch --watch` (give up on each watched run after this long; 0 = no timeout) |
+| `--approve` | `workflow dispatch --watch` (also decide each run's environment gates as they appear) |
+| `--environment <name>` | `workflow dispatch --approve` (repeatable; long form only: `-e` is `--exclude-repository` here) |
 | `--input key=value` | `workflow dispatch` (repeatable) |
 | `-e, --environment <name>` | `workflow approve` (repeatable; only decide these gates) |
 | `--reject` | `workflow approve` (reject instead of approve) |
 | `--comment <text>` | `workflow approve` |
-| `-y, --yes` | `workflow approve`, `config reset` — skip the confirmation prompt |
+| `-y, --yes` | `workflow approve`, `workflow dispatch --approve`, `config reset` — skip the confirmation prompt |
 | `-W, --watch` | `workflow approve` (stay attached, decide each new gate and show job/step progress until the run completes; with `--json`, streams NDJSON events; requires exactly one `-r`; with `--dry-run`, just prints the currently pending gates without looping) |
 | `--interval <sec>` | `workflow approve --watch` (polling interval, default 10, minimum 5) |
 | `--timeout <duration>` | `workflow approve --watch` (give up after this long, e.g. `30m`; 0 = no timeout) |

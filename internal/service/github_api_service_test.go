@@ -889,7 +889,7 @@ func TestDispatchWorkflow(t *testing.T) {
 			StatusCode: http.StatusNoContent,
 		})
 
-		err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, map[string]string{"env": "prod"})
+		_, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, map[string]string{"env": "prod"})
 
 		require.NoError(t, err)
 		requests := mockServer.GetRequests()
@@ -903,7 +903,7 @@ func TestDispatchWorkflow(t *testing.T) {
 			StatusCode: http.StatusNoContent,
 		})
 
-		err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, nil)
+		_, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, nil)
 
 		require.NoError(t, err)
 		requests := mockServer.GetRequests()
@@ -918,9 +918,55 @@ func TestDispatchWorkflow(t *testing.T) {
 			Body:       map[string]interface{}{"message": "Not Found"},
 		})
 
-		err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ghost.yml", mainBranchName, nil)
+		_, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ghost.yml", mainBranchName, nil)
 
 		require.Error(t, err)
+	})
+}
+
+func TestDispatchWorkflow_RunDetails(t *testing.T) {
+	const path = "/repos/testorg/test-repo/actions/workflows/ci.yml/dispatches"
+
+	t.Run("requests and parses run details", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse(path, testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body: map[string]interface{}{
+				"workflow_run_id": 4242,
+				"run_url":         "https://api.github.com/repos/testorg/test-repo/actions/runs/4242",
+				"html_url":        "https://github.com/testorg/test-repo/actions/runs/4242",
+			},
+		})
+
+		run, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, 4242, run.RunID)
+		assert.Equal(t, "https://github.com/testorg/test-repo/actions/runs/4242", run.HTMLURL)
+		assert.Contains(t, run.RunURL, "/actions/runs/4242")
+		requests := mockServer.GetRequests()
+		require.Len(t, requests, 1)
+		assert.Contains(t, requests[0].Body, `"return_run_details":true`)
+	})
+
+	t.Run("204 means no run ID, not a failure", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse(path, testutils.MockResponse{StatusCode: http.StatusNoContent})
+
+		run, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, model.DispatchRun{}, run)
+	})
+
+	t.Run("unparseable success body means no run ID, not a failure", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse(path, testutils.MockResponse{StatusCode: http.StatusOK, Body: "not json"})
+
+		run, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ci.yml", mainBranchName, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, model.DispatchRun{}, run)
 	})
 }
 
