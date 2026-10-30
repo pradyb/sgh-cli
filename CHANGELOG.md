@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-30
+
 ### Added
 - **`workflow rerun --watch`**: follows the rerun until it completes, with the same live view as `workflow view --watch` (`--interval`, `--timeout`; `--json` streams NDJSON). A rerun keeps the run ID and GitHub briefly still reports the previous attempt as completed, so the watch starts once the new attempt is visible instead of ending immediately (#72)
 - **`pr merge --watch`**: follows the CI/deploy run(s) the merge triggers on the base branch (`--interval`, `--timeout`; `--json` streams NDJSON). Runs are found by the merge commit and the `push` event rather than "latest run", so a push by someone else is never followed; if no run appears within a minute it says so and exits cleanly (#72)
@@ -137,7 +139,8 @@ First public release.
 - **NO_COLOR support**: Respects the `NO_COLOR` environment variable
 - **Global org/worker env vars**: `SGH_ORG` and `SGH_WORKERS` to avoid repeating flags
 
-[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/pradyb/sgh-cli/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/pradyb/sgh-cli/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/pradyb/sgh-cli/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/pradyb/sgh-cli/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/pradyb/sgh-cli/compare/v1.3.1...v1.3.2
