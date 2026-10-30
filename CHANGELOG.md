@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`pr create --label` now applies the label**: the flag was accepted but silently dropped, so PRs were created unlabelled. The label is now added to each new PR after it is created, and `--dry-run` lists it. If the PR is created but labelling fails (e.g. the label doesn't exist), that repo is reported as failed with the PR number and URL so you can fix it by hand (#71)
+- **`pr create` no longer logs "Pull request created successfully" when repos failed**: it now warns with the count of failed repositories, and failed repos are listed under their own name instead of a blank one (#71)
+
 ## [1.5.0] - 2026-10-09
 
 ### Changed

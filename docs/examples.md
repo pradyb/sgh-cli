@@ -73,6 +73,10 @@ sgh issue create --org my-org -r my-app \
 sgh pr create --org my-org --title "Security Update" \
   --body "Update dependencies" --head security-patch --base main
 
+# Label each new PR (the label must already exist in the repo)
+sgh pr create --org my-org --title "Security Update" \
+  --head security-patch --base main --label security
+
 # List — open only by default
 sgh pr list --org my-org -r app1 -r app2 --base main
 sgh pr list --org my-org -r app1 -r app2 --state all

@@ -26,6 +26,7 @@ type PullRequestRequest struct {
 	HeadRef  string
 	Title    string
 	Body     string
+	Label    string
 }
 
 // PRDetailsRequest contains parameters for getting PR details.
@@ -74,6 +75,7 @@ func CreateNewPullRequest(ctx *context.Context, prRequest PRRequest) []model.Pul
 				HeadRef:  prRequest.HeadRef,
 				Title:    prRequest.Title,
 				Body:     prRequest.Body,
+				Label:    prRequest.Label,
 			}
 			return CreateNewPullRequestForRepo(ctx, request, false)
 		},
@@ -81,7 +83,9 @@ func CreateNewPullRequest(ctx *context.Context, prRequest PRRequest) []model.Pul
 			responses = append(responses, result.Result)
 		},
 		func(repoName string, err error) {
-			responses = append(responses, model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to create pull request: %v", err)})
+			errResp := model.PullRequestResponse{ErrorMessage: fmt.Sprintf("failed to create pull request: %v", err)}
+			errResp.Base.Repo.Name = repoName
+			responses = append(responses, errResp)
 		})
 	return responses
 }
@@ -95,6 +99,12 @@ func CreateNewPullRequestForRepo(ctx *context.Context, request PullRequestReques
 	response, err := service.CreateNewPullRequest(ctx, request.OrgName, actualRepoNames[0], request.Title, request.Body, request.BaseRef, request.HeadRef)
 	if err != nil {
 		return model.PullRequestResponse{}, fmt.Errorf("failed to create pull request: %w", err)
+	}
+
+	if request.Label != "" {
+		if err := service.AddIssueLabels(ctx, request.OrgName, actualRepoNames[0], response.PRNumber, []string{request.Label}); err != nil {
+			return model.PullRequestResponse{}, fmt.Errorf("pull request #%d was created (%s) but adding label %q failed: %w", response.PRNumber, response.HTMLUrl, request.Label, err)
+		}
 	}
 
 	return response, nil
