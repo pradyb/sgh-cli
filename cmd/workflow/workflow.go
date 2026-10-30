@@ -712,9 +712,6 @@ func dispatchCommand(ctx *context.Context) *cobra.Command {
 				Ref:              ref,
 				Inputs:           inputs,
 			}
-			if ctx.JSON {
-				ctx.Silent = true // the progress bar and summary banner would land on stdout
-			}
 			results := workflow.DispatchWorkflow(ctx, req)
 			if watch {
 				followDispatched(cmd, ctx, results, watchOpt, approve)

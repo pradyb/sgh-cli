@@ -4,8 +4,11 @@
 package processor
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -443,5 +446,79 @@ func TestProcessRepositoriesOperationConcurrency(t *testing.T) {
 	}
 	if done.Load() != int32(len(repos)) {
 		t.Errorf("expected %d jobs done, got %d", len(repos), done.Load())
+	}
+}
+
+// captureOutput runs fn and returns everything it wrote to os.Stdout and os.Stderr.
+func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	capture := func(f **os.File) (restore func() string) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("creating pipe: %v", err)
+		}
+		orig := *f
+		*f = w
+		done := make(chan string, 1)
+		go func() {
+			var buf bytes.Buffer
+			_, _ = io.Copy(&buf, r)
+			done <- buf.String()
+		}()
+		return func() string {
+			*f = orig
+			_ = w.Close()
+			return <-done
+		}
+	}
+	restoreOut := capture(&os.Stdout)
+	restoreErr := capture(&os.Stderr)
+	fn()
+	stderr = restoreErr()
+	stdout = restoreOut()
+	return stdout, stderr
+}
+
+// The progress bar, repo list and summary banner are for humans; --json / --compact (and the TUI's
+// Silent) need stdout, and stderr diagnostics, kept clean.
+func TestProcessRepositoriesOperation_ProgressOutput(t *testing.T) {
+	for name, tc := range map[string]struct {
+		set        func(*context.Context)
+		wantOutput bool
+	}{
+		"table (default)": {set: func(*context.Context) {}, wantOutput: true},
+		"json":            {set: func(c *context.Context) { c.JSON = true }},
+		"compact":         {set: func(c *context.Context) { c.Compact = true }},
+		"silent":          {set: func(c *context.Context) { c.Silent = true }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mockServer := testutils.NewMockGitHubServer()
+			defer mockServer.Close()
+			mockServer.SetResponse("/graphql", testutils.MockResponse{StatusCode: http.StatusOK, Body: graphqlRepoSearchBody()})
+			ctx := servicetest.NewMockContext(t, mockServer)
+			ctx.Config.AddOrganization("testorg")
+			tc.set(ctx)
+
+			// No explicit repos, so the "selected repos" line is printed too.
+			stdout, stderr := captureOutput(t, func() {
+				err := ProcessRepositoriesOperation(ctx, "testorg", nil, nil, OperationListWorkflowRuns,
+					func(*context.Context, string, string) (bool, error) { return true, nil },
+					func(string, RepoOperationResult[bool]) {},
+					func(string, error) {})
+				if err != nil {
+					t.Fatalf(unexpectedErrorMsg, err)
+				}
+			})
+
+			if tc.wantOutput {
+				if stdout == "" || stderr == "" {
+					t.Errorf("expected the progress bar/banner on stdout and the repo list on stderr, got stdout=%q stderr=%q", stdout, stderr)
+				}
+				return
+			}
+			if stdout != "" || stderr != "" {
+				t.Errorf("machine-readable mode must print nothing, got stdout=%q stderr=%q", stdout, stderr)
+			}
+		})
 	}
 }
