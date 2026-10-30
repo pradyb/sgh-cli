@@ -5,6 +5,7 @@ package pr
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/pradyb/sgh-cli/internal/service/servicetest"
@@ -123,6 +124,87 @@ func TestCreateNewPullRequest_MultiRepo(t *testing.T) {
 	}
 	if !sawError {
 		t.Errorf("expected a failed create response, got %+v", responses)
+	}
+}
+
+func TestCreateNewPullRequest_AppliesLabel(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/testorg/repo-a/pulls", testutils.MockResponse{
+		StatusCode: http.StatusCreated,
+		Body:       map[string]interface{}{"number": 7, "title": "t", "html_url": "https://github.com/testorg/repo-a/pull/7"},
+	})
+	mockServer.SetResponse("/repos/testorg/repo-a/issues/7/labels", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       []map[string]interface{}{{"name": "bug"}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	responses := CreateNewPullRequest(ctx, PRRequest{
+		OrgName: "testorg", RepoNames: []string{"repo-a"}, BaseRef: "main", HeadRef: "feature", Title: "t", Label: "bug",
+	})
+
+	if len(responses) != 1 || responses[0].ErrorMessage != "" {
+		t.Fatalf("expected one successful response, got %+v", responses)
+	}
+	var labelBody string
+	for _, r := range mockServer.GetRequests() {
+		if r.Method == "POST" && r.Path == "/repos/testorg/repo-a/issues/7/labels" {
+			labelBody = r.Body
+		}
+	}
+	if !strings.Contains(labelBody, `"labels":["bug"]`) {
+		t.Errorf("label request body = %q, want labels [bug]", labelBody)
+	}
+}
+
+func TestCreateNewPullRequest_NoLabelMakesNoLabelRequest(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/testorg/repo-a/pulls", testutils.MockResponse{
+		StatusCode: http.StatusCreated,
+		Body:       map[string]interface{}{"number": 7, "title": "t"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	CreateNewPullRequest(ctx, PRRequest{OrgName: "testorg", RepoNames: []string{"repo-a"}, BaseRef: "main", HeadRef: "feature", Title: "t"})
+
+	for _, r := range mockServer.GetRequests() {
+		if strings.HasSuffix(r.Path, "/labels") {
+			t.Errorf("unexpected label request: %s %s", r.Method, r.Path)
+		}
+	}
+}
+
+func TestCreateNewPullRequest_LabelFailureReported(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/testorg/repo-a/pulls", testutils.MockResponse{
+		StatusCode: http.StatusCreated,
+		Body:       map[string]interface{}{"number": 7, "title": "t", "html_url": "https://github.com/testorg/repo-a/pull/7"},
+	})
+	mockServer.SetResponse("/repos/testorg/repo-a/issues/7/labels", testutils.MockResponse{
+		StatusCode: http.StatusNotFound,
+		Body:       map[string]interface{}{"message": "Not Found"},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	responses := CreateNewPullRequest(ctx, PRRequest{
+		OrgName: "testorg", RepoNames: []string{"repo-a"}, BaseRef: "main", HeadRef: "feature", Title: "t", Label: "nope",
+	})
+
+	if len(responses) != 1 {
+		t.Fatalf("len(responses) = %d, want 1", len(responses))
+	}
+	msg := responses[0].ErrorMessage
+	if !strings.Contains(msg, "#7") || !strings.Contains(msg, `"nope"`) {
+		t.Errorf("ErrorMessage = %q, want PR number and label named", msg)
+	}
+	if responses[0].RepositoryName() != "repo-a" {
+		t.Errorf("RepositoryName() = %q, want repo-a", responses[0].RepositoryName())
 	}
 }
 

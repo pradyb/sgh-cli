@@ -312,6 +312,16 @@ func CreateNewPullRequest(ctx *appcontext.Context, orgName, repoName, title, bod
 	return prResponse, nil
 }
 
+// AddIssueLabels adds labels to an issue or pull request (PRs are issues in the labels API).
+func AddIssueLabels(ctx *appcontext.Context, orgName, repoName string, number int, labels []string) error {
+	jsonBody, err := json.Marshal(map[string]interface{}{"labels": labels})
+	if err != nil {
+		return err
+	}
+	_, err = invokeAPI(ctx, "POST", fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels", githubBaseURL, orgName, repoName, number), bytes.NewReader(jsonBody))
+	return err
+}
+
 func GetPullRequestInfo(ctx *appcontext.Context, orgName, repoName string, prNumber int) (model.PullRequestResponse, error) {
 	prResponseByte, err := invokeAPI(ctx, "GET", fmt.Sprintf("%s/repos/%s/%s/pulls/%d", githubBaseURL, orgName, repoName, prNumber), nil)
 	if err != nil {

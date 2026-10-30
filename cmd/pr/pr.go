@@ -70,13 +70,25 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
 				repos, _ := processor.ResolveRepositoryNames(ctx, orgName, repoNames, excludeRepoNames)
-				ui.PrintDryRunActions("Create Pull Request", orgName, repos, map[string]string{
-					"Title": title, "Base": baseRef, "Head": headRef,
-				})
+				details := map[string]string{"Title": title, "Base": baseRef, "Head": headRef}
+				if label != "" {
+					details["Label"] = label
+				}
+				ui.PrintDryRunActions("Create Pull Request", orgName, repos, details)
 				return
 			}
-			responses := pr.CreateNewPullRequest(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: excludeRepoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body})
-			logger.Flog.Info().Msg("Pull request created successfully")
+			responses := pr.CreateNewPullRequest(ctx, pr.PRRequest{OrgName: orgName, RepoNames: repoNames, ExcludeRepoNames: excludeRepoNames, BaseRef: baseRef, HeadRef: headRef, Title: title, Body: body, Label: label})
+			failed := 0
+			for _, r := range responses {
+				if r.ErrorMessage != "" {
+					failed++
+				}
+			}
+			if failed == 0 {
+				logger.Flog.Info().Msg("Pull request created successfully")
+			} else {
+				logger.Flog.Warn().Msgf("Pull request creation failed for %d of %d repositories", failed, len(responses))
+			}
 			ui.PrintPullRequestResponses(responses, "", ctx.Compact)
 		},
 	}

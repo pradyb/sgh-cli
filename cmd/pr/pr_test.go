@@ -107,6 +107,36 @@ func TestCreateCommand_MultiRepoMixedResults(t *testing.T) {
 	}
 }
 
+func TestCreateCommand_LabelApplied(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/acme/repo1/pulls", testutils.MockResponse{
+		StatusCode: http.StatusCreated,
+		Body:       map[string]interface{}{"number": 5, "title": "t"},
+	})
+	mockServer.SetResponse("/repos/acme/repo1/issues/5/labels", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       []map[string]interface{}{{"name": "bug"}},
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	err := execCmd(CreateCommand(ctx), "create", "--org", "acme", "-r", "repo1",
+		"--title", "t", "--base", "main", "--head", "feature", "--label", "bug")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var applied bool
+	for _, r := range mockServer.GetRequests() {
+		if r.Method == "POST" && r.Path == "/repos/acme/repo1/issues/5/labels" {
+			applied = true
+		}
+	}
+	if !applied {
+		t.Error("--label did not result in a label request")
+	}
+}
+
 func TestCreateCommand_DryRun(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()

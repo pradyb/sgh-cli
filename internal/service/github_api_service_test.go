@@ -413,6 +413,34 @@ func TestDeleteTag(t *testing.T) {
 // Pull request functions
 // ---------------------------------------------------------------------
 
+func TestAddIssueLabels(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/issues/5/labels", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body:       []map[string]interface{}{{"name": "bug"}},
+		})
+
+		require.NoError(t, AddIssueLabels(ctx, testOrgName, testRepoName, 5, []string{"bug"}))
+
+		reqs := mockServer.GetRequests()
+		require.NotEmpty(t, reqs)
+		last := reqs[len(reqs)-1]
+		assert.Equal(t, "POST", last.Method)
+		assert.JSONEq(t, `{"labels":["bug"]}`, last.Body)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/issues/5/labels", testutils.MockResponse{
+			StatusCode: http.StatusNotFound,
+			Body:       map[string]interface{}{"message": "Not Found"},
+		})
+
+		assert.Error(t, AddIssueLabels(ctx, testOrgName, testRepoName, 5, []string{"bug"}))
+	})
+}
+
 func TestCreateNewPullRequest(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mockServer, ctx := newTestCtx(t)
