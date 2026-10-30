@@ -6,6 +6,8 @@ package workflow
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -369,6 +371,372 @@ func TestDispatchCommand_MultiRepoMixedResults(t *testing.T) {
 		"--workflow", "build.yml", "--ref", "main")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// dispatchRunServer mocks a dispatch endpoint that returns run 555 for repo1 (already completed),
+// a 204 (no run ID) for repo2, and a 404 for repo3.
+func dispatchRunServer(t *testing.T) *testutils.MockGitHubServer {
+	t.Helper()
+	m := testutils.NewMockGitHubServer()
+	t.Cleanup(m.Close)
+	m.SetResponse("/repos/acme/repo1/actions/workflows/build.yml/dispatches", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"workflow_run_id": 555,
+			"run_url":         "https://api.github.com/repos/acme/repo1/actions/runs/555",
+			"html_url":        "https://github.com/acme/repo1/actions/runs/555",
+		},
+	})
+	m.SetResponse("/repos/acme/repo2/actions/workflows/build.yml/dispatches", testutils.MockResponse{StatusCode: http.StatusNoContent})
+	m.SetResponse("/repos/acme/repo3/actions/workflows/build.yml/dispatches", testutils.MockResponse{
+		StatusCode: http.StatusNotFound,
+		Body:       map[string]interface{}{"message": "Not Found"},
+	})
+	m.SetResponse("/repos/acme/repo1/actions/runs/555", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"id": 555, "status": "completed", "conclusion": "success"},
+	})
+	m.SetResponse("/repos/acme/repo1/actions/runs/555/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	return m
+}
+
+func TestDispatchCommand_PrintsRunIDOrSaysItWasNotReturned(t *testing.T) {
+	ctx := servicetest.NewMockContext(t, dispatchRunServer(t))
+	ctx.Silent = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "-r", "repo2",
+			"--workflow", "build.yml", "--ref", "main"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "repo1: workflow 'build.yml' dispatched on 'main' (run 555: https://github.com/acme/repo1/actions/runs/555)") {
+		t.Errorf("repo1 line missing run ID/URL: %q", out)
+	}
+	if !strings.Contains(out, "repo2: workflow 'build.yml' dispatched on 'main' (run ID not returned by GitHub)") {
+		t.Errorf("repo2 line should say the run ID was not returned: %q", out)
+	}
+}
+
+func TestDispatchCommand_JSONIncludesRunDetails(t *testing.T) {
+	ctx := servicetest.NewMockContext(t, dispatchRunServer(t))
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "-r", "repo2", "-r", "repo3",
+			"--workflow", "build.yml", "--ref", "main"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	var results []workflow.WorkflowDispatchResult
+	if err := json.Unmarshal([]byte(out), &results); err != nil {
+		t.Fatalf("stdout is not clean JSON: %v (%q)", err, out)
+	}
+	byRepo := map[string]workflow.WorkflowDispatchResult{}
+	for _, r := range results {
+		byRepo[r.RepositoryName] = r
+	}
+	if r := byRepo["repo1"]; r.RunID != 555 || r.HTMLURL == "" {
+		t.Errorf("repo1 = %+v, want run 555 with html_url", r)
+	}
+	if r := byRepo["repo2"]; r.RunID != 0 || r.ErrorMessage != "" {
+		t.Errorf("repo2 = %+v, want no run_id and no error", r)
+	}
+	if r := byRepo["repo3"]; r.ErrorMessage == "" {
+		t.Errorf("repo3 = %+v, want an error", r)
+	}
+}
+
+func TestDispatchCommand_WatchJSON_FollowsReturnedRunsOnly(t *testing.T) {
+	withNoViewWatchSleep(t)
+	m := dispatchRunServer(t)
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "-r", "repo2", "-r", "repo3",
+			"--workflow", "build.yml", "--ref", "main", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	var kinds []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var e map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("stdout line is not JSON (%v): %q", err, line)
+		}
+		kinds = append(kinds, e["kind"].(string)+":"+fmt.Sprint(e["repository"]))
+	}
+	// repo order is not guaranteed; check each repo's lines instead.
+	joined := strings.Join(kinds, " ")
+	for _, want := range []string{"dispatched:repo1", "watch_skipped:repo2", "dispatch_error:repo3"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in %v", want, kinds)
+		}
+	}
+	if !strings.Contains(out, `"kind":"run_done","conclusion":"success"`) {
+		t.Errorf("expected repo1's run_done in the stream: %q", out)
+	}
+	var runRequests int
+	for _, r := range m.GetRequests() {
+		if strings.Contains(r.Path, "/actions/runs/") {
+			runRequests++
+			if !strings.Contains(r.Path, "/repo1/actions/runs/555") {
+				t.Errorf("unexpected run lookup %s (only repo1's run should be followed)", r.Path)
+			}
+		}
+	}
+	if runRequests == 0 {
+		t.Error("repo1's run was never followed")
+	}
+	if !ctx.HasError {
+		t.Error("expected HasError because repo3 failed to dispatch")
+	}
+}
+
+func TestDispatchCommand_Watch_HumanFollowsCompletedRun(t *testing.T) {
+	ctx := servicetest.NewMockContext(t, dispatchRunServer(t))
+	ctx.Silent = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1",
+			"--workflow", "build.yml", "--ref", "main", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "Watching repo1 run 555") {
+		t.Errorf("expected a 'Watching repo1 run 555' line: %q", out)
+	}
+	if ctx.HasError {
+		t.Error("expected HasError to stay false")
+	}
+}
+
+func TestDispatchCommand_WatchIntervalTooLowSendsNothing(t *testing.T) {
+	m := dispatchRunServer(t)
+	ctx := servicetest.NewMockContext(t, m)
+
+	err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1",
+		"--workflow", "build.yml", "--ref", "main", "--watch", "--interval", "1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError || len(m.GetRequests()) != 0 {
+		t.Errorf("HasError=%v requests=%d, want an error and no requests", ctx.HasError, len(m.GetRequests()))
+	}
+}
+
+// dispatchGateServer is a dispatch to repo1 that returns run 123, which waits on one approval-1 gate
+// and then completes (the same run the approve --watch tests use).
+func dispatchGateServer(t *testing.T, states ...string) *testutils.MockGitHubServer {
+	t.Helper()
+	if len(states) == 0 {
+		states = []string{"waiting", "completed"}
+	}
+	m := approveServer(t, true)
+	m.SetResponse("/repos/acme/repo1/actions/workflows/build.yml/dispatches", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body:       map[string]interface{}{"workflow_run_id": 123, "html_url": "https://github.com/acme/repo1/actions/runs/123"},
+	})
+	var seq []testutils.MockResponse
+	for _, st := range states {
+		body := map[string]interface{}{"id": 123, "status": st}
+		if st == "completed" {
+			body["conclusion"] = "success"
+		}
+		seq = append(seq, testutils.MockResponse{StatusCode: http.StatusOK, Body: body})
+	}
+	m.SetResponseSequence(approveRunPath, seq)
+	return m
+}
+
+func TestDispatchCommand_WatchApprove_YesEndToEnd(t *testing.T) {
+	withNoWatchSleep(t)
+	m := dispatchGateServer(t)
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.Silent = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main",
+			"--watch", "--approve", "--yes", "--environment", "approval-1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if ctx.HasError {
+		t.Errorf("unexpected HasError; output: %s", out)
+	}
+	if !strings.Contains(out, "Watching repo1 run 123") || !strings.Contains(out, "New gate: approval-1") || !strings.Contains(out, "Run completed: success") {
+		t.Errorf("output missing expected lines: %s", out)
+	}
+	if postCount(m) != 1 {
+		t.Errorf("approval posts = %d, want 1", postCount(m))
+	}
+}
+
+func TestDispatchCommand_WatchApprove_JSON(t *testing.T) {
+	withNoWatchSleep(t)
+	m := dispatchGateServer(t)
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main",
+			"--watch", "--approve", "--yes", "--environment", "approval-1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	want := []string{`"kind":"dispatched","repository":"repo1","run_id":123`, `"kind":"watch_started","run_id":123`, `"gate_decided"`, `"run_done"`}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d lines, want %d: %q", len(lines), len(want), out)
+	}
+	for i, line := range lines {
+		var e map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Errorf("line %d not valid JSON: %q", i, line)
+		}
+		if !strings.Contains(line, want[i]) {
+			t.Errorf("line %d = %q, want it to contain %s", i, line, want[i])
+		}
+	}
+}
+
+func TestDispatchCommand_InvalidWatchFlagsSendNothing(t *testing.T) {
+	withStdinTerminal(t, false)
+	base := []string{"dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main"}
+	for name, tc := range map[string]struct {
+		extra []string
+		json  bool
+	}{
+		"approve without watch":       {extra: []string{"--approve", "--yes", "--environment", "approval-1"}},
+		"timeout without watch":       {extra: []string{"--timeout", "5m"}},
+		"yes without approve":         {extra: []string{"--watch", "--yes", "--environment", "approval-1"}},
+		"environment without approve": {extra: []string{"--watch", "--environment", "approval-1"}},
+		"approve yes needs env":       {extra: []string{"--watch", "--approve", "--yes"}},
+		"approve needs a tty":         {extra: []string{"--watch", "--approve"}},
+		"approve json needs yes":      {extra: []string{"--watch", "--approve"}, json: true},
+		"approve interval too low":    {extra: []string{"--watch", "--approve", "--yes", "--environment", "approval-1", "--interval", "2"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := dispatchGateServer(t)
+			ctx := servicetest.NewMockContext(t, m)
+			ctx.JSON = tc.json
+
+			if err := execCmd(dispatchCommand(ctx), append(append([]string{}, base...), tc.extra...)...); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !ctx.HasError || len(m.GetRequests()) != 0 {
+				t.Errorf("HasError=%v requests=%d, want an error and nothing dispatched", ctx.HasError, len(m.GetRequests()))
+			}
+		})
+	}
+}
+
+func TestDispatchCommand_WatchTimeout_JSON(t *testing.T) {
+	withNoViewWatchSleep(t) // no real delay between polls; --timeout itself is real wall-clock time
+	m := dispatchGateServer(t, "in_progress")
+	m.SetResponse(approveRunPath+"/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main",
+			"--watch", "--timeout", "50ms"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError {
+		t.Error("expected HasError after the watch times out")
+	}
+	if strings.Contains(out, "run_done") {
+		t.Errorf("a timed-out watch must not report run_done: %q", out)
+	}
+}
+
+func TestDispatchCommand_WatchApprove_Timeout(t *testing.T) {
+	withNoWatchSleep(t)
+	m := dispatchGateServer(t, "waiting")
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.Silent = true
+
+	captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main",
+			"--watch", "--approve", "--yes", "--environment", "approval-2", "--timeout", "50ms"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError {
+		t.Error("expected HasError after the approve watch times out")
+	}
+}
+
+// withWatchProgram replaces the interactive view runner for one test.
+func withWatchProgram(t *testing.T, run func(*tea.Program) (tea.Model, error)) {
+	t.Helper()
+	orig := runWatchProgram
+	runWatchProgram = run
+	t.Cleanup(func() { runWatchProgram = orig })
+}
+
+func TestDispatchCommand_Watch_LiveViewFailureIsReported(t *testing.T) {
+	withWatchProgram(t, func(*tea.Program) (tea.Model, error) { return nil, errors.New("no tty") })
+	m := dispatchGateServer(t, "in_progress")
+	m.SetResponse(approveRunPath+"/jobs", testutils.MockResponse{
+		StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}},
+	})
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.Silent = true
+	var errOut strings.Builder
+	root := newTestRoot()
+	cmd := dispatchCommand(ctx)
+	root.AddCommand(cmd)
+	root.SetOut(io.Discard)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main", "--watch"})
+
+	captureStdout(t, func() {
+		if err := root.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError {
+		t.Error("expected HasError when the live view cannot run")
+	}
+	if !strings.Contains(errOut.String(), "could not open the live view (no tty)") || !strings.Contains(errOut.String(), "run 123 is still in progress") {
+		t.Errorf("stderr = %q, want the failure and the run named", errOut.String())
+	}
+}
+
+func TestDispatchCommand_Watch_LiveViewRunsForInProgressRun(t *testing.T) {
+	var ran bool
+	withWatchProgram(t, func(*tea.Program) (tea.Model, error) { ran = true; return watchModel{}, nil })
+	m := dispatchGateServer(t, "in_progress")
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.Silent = true
+
+	captureStdout(t, func() {
+		if err := execCmd(dispatchCommand(ctx), "dispatch", "--org", "acme", "-r", "repo1", "--workflow", "build.yml", "--ref", "main", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ran || ctx.HasError {
+		t.Errorf("ran=%v HasError=%v, want the live view run and no error", ran, ctx.HasError)
 	}
 }
 

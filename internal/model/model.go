@@ -47,6 +47,14 @@ type Tagger struct {
 	Email string `json:"email"`
 }
 
+// DispatchRun is the run GitHub reports for a workflow dispatch when asked via return_run_details.
+// All fields are zero when GitHub answers 204 No Content (older GitHub Enterprise Server).
+type DispatchRun struct {
+	RunID   int    `json:"workflow_run_id"`
+	RunURL  string `json:"run_url"`
+	HTMLURL string `json:"html_url"`
+}
+
 type PullRequestResponse struct {
 	PRNumber         int      `json:"number"`
 	TitleName        string   `json:"title"`

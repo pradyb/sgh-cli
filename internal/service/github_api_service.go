@@ -581,24 +581,33 @@ func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status
 	return runsResponse.WorkflowRuns, nil
 }
 
-// DispatchWorkflow triggers a workflow_dispatch event for a named workflow.
-// inputs is a map of input key→value pairs (may be nil).
-func DispatchWorkflow(ctx *appcontext.Context, orgName, repoName, workflowID, ref string, inputs map[string]string) error {
+// DispatchWorkflow triggers a workflow_dispatch event for a named workflow and returns the run it
+// created, if GitHub says which.
+func DispatchWorkflow(ctx *appcontext.Context, orgName, repoName, workflowID, ref string, inputs map[string]string) (model.DispatchRun, error) {
 	payload := map[string]interface{}{
-		"ref": ref,
+		"ref":                ref,
+		"return_run_details": true,
 	}
 	if len(inputs) > 0 {
 		payload["inputs"] = inputs
 	}
 	jsonBody, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return model.DispatchRun{}, err
 	}
-	_, err = invokeAPI(ctx, "POST",
+	body, err := invokeAPI(ctx, "POST",
 		fmt.Sprintf("%s/repos/%s/%s/actions/workflows/%s/dispatches", githubBaseURL, orgName, repoName, workflowID),
 		bytes.NewReader(jsonBody),
 	)
-	return err
+	if err != nil {
+		return model.DispatchRun{}, err
+	}
+	// The dispatch already succeeded; a 204 (empty body) or an unparseable body just means no run ID.
+	var run model.DispatchRun
+	if len(bytes.TrimSpace(body)) > 0 && json.Unmarshal(body, &run) != nil {
+		run = model.DispatchRun{}
+	}
+	return run, nil
 }
 
 func RerunWorkflowRun(ctx *appcontext.Context, orgName, repoName string, runID int) (bool, error) {

@@ -45,6 +45,39 @@ func TestDispatchWorkflow_Success(t *testing.T) {
 	}
 }
 
+func TestDispatchWorkflow_CarriesRunDetails(t *testing.T) {
+	mockServer := testutils.NewMockGitHubServer()
+	defer mockServer.Close()
+	mockServer.SetResponse("/repos/testorg/repo1/actions/workflows/build.yml/dispatches", testutils.MockResponse{
+		StatusCode: http.StatusOK,
+		Body: map[string]interface{}{
+			"workflow_run_id": 99,
+			"run_url":         "https://api.github.com/repos/testorg/repo1/actions/runs/99",
+			"html_url":        "https://github.com/testorg/repo1/actions/runs/99",
+		},
+	})
+	mockServer.SetResponse("/repos/testorg/repo2/actions/workflows/build.yml/dispatches", testutils.MockResponse{
+		StatusCode: http.StatusNoContent,
+	})
+	ctx := servicetest.NewMockContext(t, mockServer)
+	ctx.Silent = true
+
+	results := DispatchWorkflow(ctx, WorkflowDispatchRequest{
+		OrgName: "testorg", RepoNames: []string{"repo1", "repo2"}, WorkflowID: "build.yml", Ref: "main",
+	})
+
+	byRepo := map[string]WorkflowDispatchResult{}
+	for _, r := range results {
+		byRepo[r.RepositoryName] = r
+	}
+	if got := byRepo["repo1"]; got.RunID != 99 || got.HTMLURL != "https://github.com/testorg/repo1/actions/runs/99" || got.ErrorMessage != "" {
+		t.Errorf("repo1 = %+v, want run 99 with html url", got)
+	}
+	if got := byRepo["repo2"]; got.RunID != 0 || got.ErrorMessage != "" {
+		t.Errorf("repo2 (204) = %+v, want no run ID and no error", got)
+	}
+}
+
 func TestDispatchWorkflow_Error(t *testing.T) {
 	mockServer := testutils.NewMockGitHubServer()
 	defer mockServer.Close()

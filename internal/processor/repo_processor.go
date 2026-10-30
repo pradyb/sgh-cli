@@ -111,7 +111,7 @@ var RepoOperationConfig = map[OperationEnum]map[string]string{
 }
 
 type OperationResultType interface {
-	bool | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun | []model.BranchResponse | []model.TagResponse | []model.SecretScanningAlert | []model.IssueResponse
+	bool | model.DispatchRun | model.RefResponse | model.PullRequestResponse | []model.PullRequestResponse | model.ProtectedBranch | []model.ProtectedBranch | model.PostReleaseResponse | []model.PostReleaseResponse | model.CommitResponse | []model.CommitResponse | model.ReviewPullRequestResponse | []model.ReviewPullRequestResponse | model.MergeResponse | []model.MergeResponse | []model.WorkflowRun | []model.BranchResponse | []model.TagResponse | []model.SecretScanningAlert | []model.IssueResponse
 }
 
 type RepoOperationResult[R OperationResultType] struct {

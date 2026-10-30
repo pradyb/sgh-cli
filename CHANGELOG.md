@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`workflow dispatch` reports the run it created**: each dispatched repository now shows the run ID and URL, and `--json` output includes `run_id`, `run_url` and `html_url`. GitHub Enterprise Server versions that still answer `204 No Content` are handled: the dispatch succeeds and the output says the run ID wasn't returned (#70)
+- **`workflow dispatch --watch`**: follows each returned run until it completes, one repository at a time, with the same live view as `workflow view --watch`; `--interval` sets the polling rate (default 10, minimum 5) and `--timeout` gives up on a run after that long (per run; reports an error and exits non-zero). With `--json` it streams NDJSON: a `dispatched` line (`repository`, `run_id`) before each repository's events, and `dispatch_error` / `watch_skipped` lines for repositories that failed or returned no run ID. Repositories without a run ID are skipped with a warning (#70)
+- **`workflow dispatch --watch --approve`**: also decides each run's environment approval gates as they appear, using the same logic as `workflow approve --watch` (confirmation prompt per gate, or `--yes` with `--environment` so unseen gates are never approved blindly; `--json` requires `--yes`). The flag combination is validated before anything is dispatched, so an invalid combination never fires a workflow (#70)
+
 ### Fixed
+- **`workflow view --watch` and `workflow dispatch --watch` no longer exit 0 when the live view can't start** (e.g. no terminal): they now print the failure with the run's URL on stderr and exit non-zero. Before, the error was only logged and the command exited 0, which for `dispatch` meant a workflow had been fired and then left unwatched without a failing exit status (#70)
+- **`workflow dispatch --json` no longer mixes the progress bar and summary banner into stdout** when dispatching to several repositories, so the output is parseable (#70)
 - **`pr create --label` now applies the label**: the flag was accepted but silently dropped, so PRs were created unlabelled. The label is now added to each new PR after it is created, and `--dry-run` lists it. If the PR is created but labelling fails (e.g. the label doesn't exist), that repo is reported as failed with the PR number and URL so you can fix it by hand (#71)
 - **`pr create` no longer logs "Pull request created successfully" when repos failed**: it now warns with the count of failed repositories, and failed repos are listed under their own name instead of a blank one (#71)
 
