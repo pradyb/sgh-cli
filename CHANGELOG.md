@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`--json` / `--compact` output is no longer polluted by the progress bar and summary banner**: commands that run across repositories (`workflow list`, `pr list`, `branch list`, `tag list`, ...) printed the progress bar and the "N succeeded" banner to stdout even with `--json` or `--compact`, so the output couldn't be piped to `jq` or parsed. They are now suppressed in those modes (the "selected repositories" line too), in one place for every command (#77)
+
 ## [1.6.0] - 2026-10-30
 
 ### Added

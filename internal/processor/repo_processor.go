@@ -213,6 +213,13 @@ func ResolveRepositoryNames(ctx *context.Context, orgName string, repos, exclude
 	return filteredRepoNames, nil
 }
 
+// quiet reports whether the progress bar, repo list and summary banner must be suppressed: when
+// the caller asked (Silent, e.g. the TUI) and for --json / --compact, whose stdout has to stay
+// machine-readable.
+func quiet(ctx *context.Context) bool {
+	return ctx.Silent || ctx.JSON || ctx.Compact
+}
+
 func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, orgName string, repos, excludeRepos []string, operation OperationEnum, operationHandler RepoOperationHandler[R], resultHandler RepoOperationResultHandler[R], errorHandler RepoOperationErrorHandler) error {
 	repoNames := make([]string, 0)
 	message := RepoOperationConfig[operation]["message"]
@@ -225,7 +232,7 @@ func ProcessRepositoriesOperation[R OperationResultType](ctx *context.Context, o
 			return err
 		}
 		repoNames = append(repoNames, orgRepoNames...)
-		if !ctx.Silent {
+		if !quiet(ctx) {
 			ui.PrintSelectedRepos(message, orgName, nil)
 		}
 	} else {
@@ -270,7 +277,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 	message := RepoOperationConfig[operation]["message"]
 
 	var bar *ui.ProgressBar
-	if ctx.Silent {
+	if quiet(ctx) {
 		bar = ui.NewSilentProgressBar(len(repoNames))
 	} else {
 		bar = ui.NewProgressBar(len(repoNames), fmt.Sprintf("%s for org %s...", message, orgName))
@@ -331,7 +338,7 @@ func process[R OperationResultType](ctx *context.Context, orgName string, repoNa
 
 	totalDuration := time.Since(startTime)
 
-	if !ctx.Silent {
+	if !quiet(ctx) {
 		fmt.Println()
 		ui.PrintSummaryBanner(len(repoNames), successCount, errorCount, totalDuration)
 	}

@@ -138,9 +138,6 @@ func CreateCommand(ctx *context.Context) *cobra.Command {
 				RefBranchName:    refBranchName,
 				Message:          message,
 			}
-			if watch && ctx.JSON {
-				ctx.Silent = true // the progress bar and summary banner would land on stdout
-			}
 			responses := tag.CreateNewTags(ctx, req)
 			if !watch {
 				ui.PrintResponses(responses)
