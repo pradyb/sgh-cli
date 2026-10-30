@@ -242,10 +242,13 @@ type ReviewPullRequestResponse struct {
 }
 
 type RefResponse struct {
-	Ref    string `json:"ref"`
-	NodeID string `json:"node_id"`
-	Url    string `json:"url"`
-	Object struct {
+	// CommitSHA is the commit the new ref points at (a tag's Object.SHA is the tag object, not the
+	// commit, and push-triggered workflow runs report the commit). Set by the service, not by GitHub.
+	CommitSHA string `json:"-"`
+	Ref       string `json:"ref"`
+	NodeID    string `json:"node_id"`
+	Url       string `json:"url"`
+	Object    struct {
 		SHA  string `json:"sha"`
 		Type string `json:"type"`
 		Url  string `json:"url"`
@@ -274,6 +277,8 @@ type TagResponse struct {
 }
 
 type RefUIResponse struct {
+	// CommitSHA is set by tag creation, so a caller can find the runs the new tag triggered.
+	CommitSHA      string
 	RepositoryName string
 	Ref            string
 	Type           string

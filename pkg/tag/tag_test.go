@@ -128,6 +128,9 @@ func TestCreateNewTags_Success(t *testing.T) {
 	if got.ErrorMessage != "" {
 		t.Fatalf("unexpected error: %s", got.ErrorMessage)
 	}
+	if got.CommitSHA != "base-sha-1" {
+		t.Errorf("CommitSHA = %q, want the commit the tag points at (base-sha-1)", got.CommitSHA)
+	}
 	if got.RepositoryName != "repo1" || got.Ref != "v1.0.0" {
 		t.Errorf("response = %+v", got)
 	}

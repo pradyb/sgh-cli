@@ -60,7 +60,9 @@ func CreateNewTags(ctx *context.Context, req TagCreateRequest) []model.RefUIResp
 			return service.CreateNewTag(ctx, orgName, repoName, req.TagName, req.RefBranchName, req.Message)
 		},
 		func(repoName string, result processor.RepoOperationResult[model.RefResponse]) {
-			responses = append(responses, model.CreateNewCommonResponse(repoName, req.TagName, "CREATE_TAG", result.Result.Object.SHA, ""))
+			response := model.CreateNewCommonResponse(repoName, req.TagName, "CREATE_TAG", result.Result.Object.SHA, "")
+			response.CommitSHA = result.Result.CommitSHA
+			responses = append(responses, response)
 		},
 		func(repoName string, err error) {
 			responses = append(responses, model.CreateNewCommonResponse(repoName, req.TagName, "CREATE_TAG", "", fmt.Sprintf("failed to create tag: %v", err)))

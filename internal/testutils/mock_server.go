@@ -41,6 +41,7 @@ type RateLimitInfo struct {
 type MockRequest struct {
 	Method    string            `json:"method"`
 	Path      string            `json:"path"`
+	Query     string            `json:"query"`
 	Headers   map[string]string `json:"headers"`
 	Body      string            `json:"body"`
 	Timestamp time.Time         `json:"timestamp"`
@@ -178,6 +179,7 @@ func (m *MockGitHubServer) recordRequest(r *http.Request) {
 	m.requests = append(m.requests, MockRequest{
 		Method:    r.Method,
 		Path:      r.URL.Path,
+		Query:     r.URL.RawQuery,
 		Headers:   headers,
 		Body:      bodyStr,
 		Timestamp: time.Now(),

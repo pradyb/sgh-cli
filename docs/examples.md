@@ -43,6 +43,9 @@ sgh tag list --org my-org -r app1 -r app2
 sgh tag create --org my-org --tag v1.0.0 --head Release-1.0 --message 'Release v1.0.0'
 sgh tag create --org my-org --tag v2.1.0 --head main --message 'Version 2.1.0' -r app1 -r app2
 
+# ...and follow the release workflow each tag triggers
+sgh tag create --org my-org --tag v2.1.0 --head main --message 'Version 2.1.0' -r app1 --watch --timeout 30m
+
 sgh tag delete --org my-org --tag old-version -r legacy-app
 ```
 
@@ -95,6 +98,10 @@ sgh pr review --org my-org -r my-app --pr 42 --comment --body "Looks good overal
 sgh pr update --org my-org -r my-app --pr 123 --state closed
 sgh pr close  --org my-org -r my-app --pr 123
 sgh pr reopen --org my-org -r my-app --pr 123
+
+# Merge, then follow the CI/deploy run the merge starts on the base branch
+sgh pr merge --org my-org -r my-app --pr 42 --watch
+sgh pr merge --org my-org -r my-app --pr 42 --watch --json | jq .
 
 # Interactive selection UI
 sgh pr list --org my-org --interactive
@@ -174,7 +181,9 @@ sgh workflow view --org my-org -r my-app --run 123456789 --watch --json | jq .
 sgh workflow view --org my-org -r my-app --run 123456789 --watch --json --interval 5 >> run.ndjson
 
 sgh workflow rerun  --org my-org -r my-app --run 123456789
+sgh workflow rerun  --org my-org -r my-app --run 123456789 --watch   # follow the new attempt
 sgh workflow cancel --org my-org -r my-app --run 123456789
+sgh workflow cancel --org my-org -r my-app --run 123456789 --wait    # wait until it has actually stopped
 
 # Fan a workflow_dispatch out across repositories
 sgh workflow dispatch --org my-org --workflow deploy.yml --ref main

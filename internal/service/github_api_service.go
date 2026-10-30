@@ -257,6 +257,7 @@ func CreateNewTag(ctx *appcontext.Context, orgName, repoName, tagName, refBranch
 		logger.Flog.Error().Err(err).Msg("Error in unmarshal the tag response body")
 		return model.RefResponse{}, err
 	}
+	tagResponse.CommitSHA = refResponse.Object.SHA
 
 	return tagResponse, nil
 }
@@ -568,6 +569,25 @@ func ListWorkflowRuns(ctx *appcontext.Context, orgName, repoName, branch, status
 	}
 	if status != "" {
 		url = fmt.Sprintf("%s&status=%s", url, status)
+	}
+	response, err := invokeAPI(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	var runsResponse model.WorkflowRunsResponse
+	if err := json.Unmarshal(response, &runsResponse); err != nil {
+		logger.Flog.Error().Err(err).Msg("Error in unmarshal the workflow runs response body")
+		return nil, err
+	}
+	return runsResponse.WorkflowRuns, nil
+}
+
+// ListWorkflowRunsForCommit lists the runs GitHub started for one commit SHA, optionally narrowed
+// to one triggering event (e.g. "push"), newest first.
+func ListWorkflowRunsForCommit(ctx *appcontext.Context, orgName, repoName, headSHA, event string) ([]model.WorkflowRun, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs?per_page=100&head_sha=%s", githubBaseURL, orgName, repoName, headSHA)
+	if event != "" {
+		url = fmt.Sprintf("%s&event=%s", url, event)
 	}
 	response, err := invokeAPI(ctx, "GET", url, nil)
 	if err != nil {

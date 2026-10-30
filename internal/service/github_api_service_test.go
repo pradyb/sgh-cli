@@ -315,6 +315,7 @@ func TestCreateNewTag(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "refs/tags/v1.0.0", resp.Ref)
 		assert.Equal(t, "tag-object-sha", resp.Object.SHA)
+		assert.Equal(t, "base-sha", resp.CommitSHA, "the commit the tag points at, not the tag object")
 
 		requests := mockServer.GetRequests()
 		require.Len(t, requests, 3)
@@ -919,6 +920,51 @@ func TestDispatchWorkflow(t *testing.T) {
 		})
 
 		_, err := DispatchWorkflow(ctx, testOrgName, testRepoName, "ghost.yml", mainBranchName, nil)
+
+		require.Error(t, err)
+	})
+}
+
+func TestListWorkflowRunsForCommit(t *testing.T) {
+	t.Run("filters by commit and event", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body:       map[string]interface{}{"total_count": 1, "workflow_runs": []map[string]interface{}{{"id": 9, "head_sha": "abc"}}},
+		})
+
+		runs, err := ListWorkflowRunsForCommit(ctx, testOrgName, testRepoName, "abc", "push")
+
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, 9, runs[0].ID)
+		requests := mockServer.GetRequests()
+		require.Len(t, requests, 1)
+		assert.Contains(t, requests[0].Query, "head_sha=abc")
+		assert.Contains(t, requests[0].Query, "event=push")
+	})
+
+	t.Run("event is optional", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs", testutils.MockResponse{
+			StatusCode: http.StatusOK,
+			Body:       map[string]interface{}{"total_count": 0, "workflow_runs": []map[string]interface{}{}},
+		})
+
+		_, err := ListWorkflowRunsForCommit(ctx, testOrgName, testRepoName, "abc", "")
+
+		require.NoError(t, err)
+		assert.NotContains(t, mockServer.GetRequests()[0].Query, "event=")
+	})
+
+	t.Run("error", func(t *testing.T) {
+		mockServer, ctx := newTestCtx(t)
+		mockServer.SetResponse("/repos/testorg/test-repo/actions/runs", testutils.MockResponse{
+			StatusCode: http.StatusNotFound,
+			Body:       map[string]interface{}{"message": "Not Found"},
+		})
+
+		_, err := ListWorkflowRunsForCommit(ctx, testOrgName, testRepoName, "abc", "push")
 
 		require.Error(t, err)
 	})
