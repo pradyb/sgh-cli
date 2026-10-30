@@ -81,7 +81,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 - `branch rename --org <org> --old <name> --new <name>` — rename a branch
 - `branch delete --org <org> --branch <name>` — delete branches
 - `tag list --org <org> [--filter <regex>]` — list tags
-- `tag create --org <org> --tag <name> --head <ref> --message <msg>` — create tags
+- `tag create --org <org> --tag <name> --head <ref> --message <msg> [--watch] [--interval <sec>] [--timeout <duration>]` — create tags; `--watch` then follows the run(s) each new tag triggers (typically a release workflow), one repository at a time, like `workflow view --watch`. Runs are matched by the tag, so an earlier run for the same commit on a branch is never followed; a repository with no workflow for tag pushes is reported and skipped after a minute. `--watch --json` replaces the table with NDJSON: `tag_created` (`repository`, `sha`) or `tag_error`, then `run_found` and the usual job/step events and `run_done` per run
 - `tag delete --org <org> --tag <name>` — delete tags
 
 ### Issues
@@ -97,7 +97,7 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 - `pr view --org <org> -r <repo> --pr <num>` — view details, files, checks, reviews
 - `pr review --org <org> -r <repo> --pr <num> --approve|--comment|--request-changes` — review a PR
 - `pr update --org <org> -r <repo> --pr <num> --state open|closed` — update PR state
-- `pr merge --org <org> -r <repo> --pr <num>` — merge a PR
+- `pr merge --org <org> -r <repo> --pr <num> [--watch] [--interval <sec>] [--timeout <duration>]` — merge a PR; `--watch` then follows the CI/deploy run(s) the merge triggers on the base branch, found by the merge commit so a push by someone else is never followed (none within a minute is reported and exits cleanly). `--watch --json` streams NDJSON: `merged` (with the merge `sha`) or `merge_error`, then `run_found` and the usual job/step events and `run_done` per run
 - `pr close` / `pr reopen --org <org> -r <repo> --pr <num>` — close or reopen
 - `pr list --interactive` — interactive PR management
 
@@ -111,8 +111,8 @@ Run `sgh <command> --help` for the authoritative flag list of any command — th
 
 - `workflow list --org <org> [--running|--queued|--failed] [--branch <name>] [--workflow <name>]` — list runs
 - `workflow view --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--json]` — view or live-monitor a run, including any approval decisions and pending approval gates; `--watch` alone is an interactive, human-readable live view, `--watch --json` streams each job/step status transition as compact NDJSON (one JSON object per line) until the run completes
-- `workflow rerun --org <org> -r <repo> --run <id>` — re-trigger a run
-- `workflow cancel --org <org> -r <repo> --run <id>` — cancel an in-progress run
+- `workflow rerun --org <org> -r <repo> --run <id> [--watch] [--interval <sec>] [--timeout <duration>]` — re-trigger a run; `--watch` follows the rerun until it completes, starting once the new attempt is visible (a rerun keeps the run ID). `--watch --json` streams NDJSON: `rerun_requested` (or `rerun_error`), `run_found`, then the usual job/step events and `run_done`
+- `workflow cancel --org <org> -r <repo> --run <id> [--wait] [--interval <sec>] [--timeout <duration>]` — cancel an in-progress run; GitHub cancels asynchronously, so without `--wait` it only reports `cancel_requested`. `--wait` polls until the run has finished and reports how it ended (a run can finish another way before the cancel takes effect); `--wait --json` prints `cancel_requested` then `cancel_done` with the `conclusion`
 - `workflow dispatch --org <org> --workflow <file> --ref <branch> [--input key=value] [--watch] [--interval <sec>] [--timeout <duration>] [--approve] [--environment <name>...] [--yes] [--json]` — trigger a `workflow_dispatch` event; the run ID and URL GitHub returns for each repository are printed (and included in `--json`; older GitHub Enterprise Server returns none, which is reported rather than treated as a failure); `--watch` then follows each returned run one repository at a time, like `workflow view --watch`, giving up on a run after `--timeout` (per run, e.g. `30m`); `--watch --approve` also decides each run's environment approval gates as they appear, exactly like `workflow approve --watch` (asks for confirmation unless `--yes`; `--yes` requires `--environment`; `--json` requires `--yes`), and everything is validated before anything is dispatched; `--watch --json` streams NDJSON: a `dispatched` line with `repository` and `run_id` before each repository's events, plus `dispatch_error` / `watch_skipped` lines for repositories that failed or returned no run ID
 - `workflow approve --org <org> -r <repo> [--run <id>] [--environment <name>] [--reject] [--comment <text>] [--yes] [--watch] [--interval <sec>] [--timeout <duration>]` — approve (or `--reject`) the environment gates a run is waiting on; defaults to the latest waiting run and every gate you can review, asks for confirmation unless `--yes`; `--watch` stays attached and decides each new gate as it appears until the run completes, showing each job/step as it starts and finishes (`--watch --json` streams these, the gate events and a leading `watch_started` with the resolved `run_id` as NDJSON), polling every `--interval` seconds (default 10, minimum 5) and optionally giving up after `--timeout` (e.g. `30m`); `--watch --yes` additionally requires `--environment`
 
@@ -229,7 +229,7 @@ One rule governs every single-letter shorthand in the CLI:
 | `-R` | `--reviewer` | `pr list` | `-r` = `--repository` |
 | `-R` | `--run` | `workflow view/rerun/cancel` | `-r` = `--repository` |
 | `-R` | `--ref` | `post-release` | `-r` = `--repository` |
-| `-W` | `--watch` | `workflow view`, `workflow approve` | `-w` = global `--workers` |
+| `-W` | `--watch` | `workflow view/rerun/approve`, `pr merge`, `tag create` | `-w` = global `--workers` |
 | `-W` | `--workflow` | `workflow dispatch` | `-w` = global `--workers` |
 | `-V` | `--visibility` | `repo visibility` | `-v` = global `--verbose` |
 
@@ -250,9 +250,10 @@ One rule governs every single-letter shorthand in the CLI:
 | `--running`, `--queued`, `--failed` | `workflow list` |
 | `--branch <name>` | `workflow list` |
 | `--workflow <name>` | `workflow list` (partial match) |
-| `--watch`, `--interval` | `workflow view` (with `--json`, streams NDJSON job/step transitions instead of the interactive view) |
+| `--watch`, `--interval` | `workflow view` (with `--json`, streams NDJSON job/step transitions instead of the interactive view); also `workflow rerun`, `pr merge`, `tag create` (follow the run the action triggers; interval default 10, minimum 5) |
 | `--watch`, `--interval <sec>` | `workflow dispatch` (long form only: `-W` is `--workflow` here; follows each dispatched run in turn; interval default 10, minimum 5) |
-| `--timeout <duration>` | `workflow dispatch --watch` (give up on each watched run after this long; 0 = no timeout) |
+| `--timeout <duration>` | `workflow dispatch --watch`, `workflow rerun --watch`, `pr merge --watch`, `tag create --watch` (give up on each watched run after this long; 0 = no timeout) |
+| `--wait` | `workflow cancel` (wait until the run has finished; takes `--interval` and `--timeout` too) |
 | `--approve` | `workflow dispatch --watch` (also decide each run's environment gates as they appear) |
 | `--environment <name>` | `workflow dispatch --approve` (repeatable; long form only: `-e` is `--exclude-repository` here) |
 | `--input key=value` | `workflow dispatch` (repeatable) |

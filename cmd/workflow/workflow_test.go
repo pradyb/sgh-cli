@@ -1615,3 +1615,274 @@ func TestApproveCommand_Watch_ShowsProgressAndResolvedRunID(t *testing.T) {
 		t.Errorf("prompt should name the resolved run, got stderr:\n%s", stderr.String())
 	}
 }
+
+// --- workflow rerun --watch / workflow cancel --wait ---
+
+const (
+	rerunPath  = "/repos/acme/repo1/actions/runs/123/rerun"
+	cancelPath = "/repos/acme/repo1/actions/runs/123/cancel"
+)
+
+// withNoLookupWait makes the run lookups (rerun's new attempt, a push's run) poll 3 times without
+// really waiting.
+func withNoLookupWait(t *testing.T) {
+	t.Helper()
+	i, g, s := workflow.RunLookupInterval, workflow.RunLookupGrace, workflow.RunLookupSleep
+	workflow.RunLookupInterval, workflow.RunLookupGrace, workflow.RunLookupSleep = time.Second, 3*time.Second, func(time.Duration) {}
+	t.Cleanup(func() { workflow.RunLookupInterval, workflow.RunLookupGrace, workflow.RunLookupSleep = i, g, s })
+}
+
+func runState(status, conclusion string, attempt int) testutils.MockResponse {
+	return testutils.MockResponse{StatusCode: http.StatusOK, Body: map[string]interface{}{
+		"id": 123, "status": status, "conclusion": conclusion, "run_attempt": attempt,
+	}}
+}
+
+func emptyJobs() testutils.MockResponse {
+	return testutils.MockResponse{StatusCode: http.StatusOK, Body: map[string]interface{}{"total_count": 0, "jobs": []map[string]interface{}{}}}
+}
+
+// rerunServer: attempt 1 is read before the rerun, GitHub still reports it for one more poll, then
+// attempt 2 appears and has finished.
+func rerunServer(t *testing.T, states ...testutils.MockResponse) *testutils.MockGitHubServer {
+	t.Helper()
+	m := testutils.NewMockGitHubServer()
+	t.Cleanup(m.Close)
+	m.SetResponse(rerunPath, testutils.MockResponse{StatusCode: http.StatusCreated})
+	if len(states) == 0 {
+		states = []testutils.MockResponse{runState("completed", "failure", 1), runState("completed", "failure", 1), runState("completed", "success", 2)}
+	}
+	m.SetResponseSequence("/repos/acme/repo1/actions/runs/123", states)
+	m.SetResponse("/repos/acme/repo1/actions/runs/123/jobs", emptyJobs())
+	return m
+}
+
+func TestRerunCommand_WatchJSON_SkipsTheOldAttemptThenFollowsTheNewOne(t *testing.T) {
+	withNoLookupWait(t)
+	withNoViewWatchSleep(t)
+	m := rerunServer(t)
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	want := []string{`"kind":"rerun_requested","repository":"repo1","run_id":123`, `"kind":"run_found","repository":"repo1","run_id":123`, `"kind":"run_done","conclusion":"success"`}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d lines, want %d: %q", len(lines), len(want), out)
+	}
+	for i, l := range lines {
+		if !json.Valid([]byte(l)) || !strings.Contains(l, want[i]) {
+			t.Errorf("line %d = %q, want valid JSON containing %s", i, l, want[i])
+		}
+	}
+	if ctx.HasError {
+		t.Error("expected HasError to stay false")
+	}
+}
+
+func TestRerunCommand_Watch_Human(t *testing.T) {
+	withNoLookupWait(t)
+	ctx := servicetest.NewMockContext(t, rerunServer(t))
+	ctx.Silent = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "Watching repo1 run 123 (attempt 2)") || ctx.HasError {
+		t.Errorf("HasError=%v, output missing the watch line for attempt 2: %s", ctx.HasError, out)
+	}
+}
+
+func TestRerunCommand_Watch_NeverStartingExitsCleanly(t *testing.T) {
+	withNoLookupWait(t)
+	ctx := servicetest.NewMockContext(t, rerunServer(t, runState("completed", "failure", 1)))
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, `"kind":"watch_skipped"`) || strings.Contains(out, "run_done") || ctx.HasError {
+		t.Errorf("HasError=%v, want only a watch_skipped line after rerun_requested: %s", ctx.HasError, out)
+	}
+}
+
+func TestRerunCommand_Watch_RerunFailureIsAnError(t *testing.T) {
+	m := rerunServer(t)
+	m.SetResponse(rerunPath, testutils.MockResponse{StatusCode: http.StatusNotFound, Body: map[string]interface{}{"message": "Not Found"}})
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123", "--watch"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError || !strings.Contains(out, `"kind":"rerun_error"`) || strings.Contains(out, "run_found") {
+		t.Errorf("HasError=%v, want a rerun_error line and no watching: %s", ctx.HasError, out)
+	}
+}
+
+func TestRerunCommand_Watch_TimeoutGivesUp(t *testing.T) {
+	withNoLookupWait(t)
+	withNoViewWatchSleep(t)
+	m := rerunServer(t, runState("completed", "failure", 1), runState("in_progress", "", 2))
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(rerunCommand(ctx), "rerun", "--org", "acme", "-r", "repo1", "--run", "123", "--watch", "--timeout", "50ms"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError || strings.Contains(out, "run_done") {
+		t.Errorf("HasError=%v, want a timeout error and no run_done: %s", ctx.HasError, out)
+	}
+}
+
+func TestRerunCommand_InvalidWatchFlagsSendNothing(t *testing.T) {
+	for name, extra := range map[string][]string{
+		"interval too low":       {"--watch", "--interval", "2"},
+		"timeout without watch":  {"--timeout", "5m"},
+		"interval without watch": {"--interval", "20"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := rerunServer(t)
+			ctx := servicetest.NewMockContext(t, m)
+			args := append([]string{"rerun", "--org", "acme", "-r", "repo1", "--run", "123"}, extra...)
+
+			if err := execCmd(rerunCommand(ctx), args...); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !ctx.HasError || len(m.GetRequests()) != 0 {
+				t.Errorf("HasError=%v requests=%d, want an error and nothing sent", ctx.HasError, len(m.GetRequests()))
+			}
+		})
+	}
+}
+
+func cancelServer(t *testing.T, states ...testutils.MockResponse) *testutils.MockGitHubServer {
+	t.Helper()
+	m := testutils.NewMockGitHubServer()
+	t.Cleanup(m.Close)
+	m.SetResponse(cancelPath, testutils.MockResponse{StatusCode: http.StatusAccepted})
+	m.SetResponseSequence("/repos/acme/repo1/actions/runs/123", states)
+	m.SetResponse("/repos/acme/repo1/actions/runs/123/jobs", emptyJobs())
+	return m
+}
+
+func TestCancelCommand_Wait_ReportsCancelled(t *testing.T) {
+	withNoViewWatchSleep(t)
+	ctx := servicetest.NewMockContext(t, cancelServer(t, runState("in_progress", "", 1), runState("in_progress", "", 1), runState("completed", "cancelled", 1)))
+	ctx.Silent = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123", "--wait"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "✓ repo1: run 123 cancelled") || ctx.HasError {
+		t.Errorf("HasError=%v, output = %s", ctx.HasError, out)
+	}
+}
+
+func TestCancelCommand_Wait_RunFinishedAnotherWay(t *testing.T) {
+	withNoViewWatchSleep(t)
+	ctx := servicetest.NewMockContext(t, cancelServer(t, runState("in_progress", "", 1), runState("completed", "success", 1)))
+
+	out := captureStdout(t, func() {
+		if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123", "--wait"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "finished as 'success' (it completed before the cancel took effect)") {
+		t.Errorf("output should say the run finished as success: %s", out)
+	}
+}
+
+func TestCancelCommand_WaitJSON(t *testing.T) {
+	withNoViewWatchSleep(t)
+	ctx := servicetest.NewMockContext(t, cancelServer(t, runState("in_progress", "", 1), runState("completed", "cancelled", 1)))
+	ctx.JSON = true
+
+	out := captureStdout(t, func() {
+		if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123", "--wait"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], `"kind":"cancel_requested"`) || !strings.Contains(lines[1], `"kind":"cancel_done"`) || !strings.Contains(lines[1], `"conclusion":"cancelled"`) {
+		t.Errorf("want cancel_requested then cancel_done with the conclusion, got %q", out)
+	}
+}
+
+func TestCancelCommand_Wait_TimeoutIsAnError(t *testing.T) {
+	withNoViewWatchSleep(t)
+	ctx := servicetest.NewMockContext(t, cancelServer(t, runState("in_progress", "", 1)))
+	ctx.Silent = true
+
+	captureStdout(t, func() {
+		if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123", "--wait", "--timeout", "50ms"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !ctx.HasError {
+		t.Error("expected HasError when the run is still in progress at the timeout")
+	}
+}
+
+func TestCancelCommand_Wait_CancelFailureDoesNotWait(t *testing.T) {
+	m := cancelServer(t, runState("in_progress", "", 1))
+	m.SetResponse(cancelPath, testutils.MockResponse{StatusCode: http.StatusNotFound, Body: map[string]interface{}{"message": "Not Found"}})
+	ctx := servicetest.NewMockContext(t, m)
+	ctx.Silent = true
+
+	if err := execCmd(cancelCommand(ctx), "cancel", "--org", "acme", "-r", "repo1", "--run", "123", "--wait"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ctx.HasError {
+		t.Error("expected HasError when the cancel request failed")
+	}
+	for _, r := range m.GetRequests() {
+		if r.Method == http.MethodGet {
+			t.Errorf("unexpected poll after a failed cancel: %s", r.Path)
+		}
+	}
+}
+
+func TestCancelCommand_InvalidWaitFlagsSendNothing(t *testing.T) {
+	for name, extra := range map[string][]string{
+		"interval too low":      {"--wait", "--interval", "2"},
+		"timeout without wait":  {"--timeout", "5m"},
+		"interval without wait": {"--interval", "20"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := cancelServer(t, runState("in_progress", "", 1))
+			ctx := servicetest.NewMockContext(t, m)
+			args := append([]string{"cancel", "--org", "acme", "-r", "repo1", "--run", "123"}, extra...)
+
+			if err := execCmd(cancelCommand(ctx), args...); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !ctx.HasError || len(m.GetRequests()) != 0 {
+				t.Errorf("HasError=%v requests=%d, want an error and nothing sent", ctx.HasError, len(m.GetRequests()))
+			}
+		})
+	}
+}

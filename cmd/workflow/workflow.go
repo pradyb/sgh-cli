@@ -262,14 +262,7 @@ If --run is omitted, automatically picks the latest in-progress or most recent r
 // reporting it on stderr and setting HasError. Returns the last detail fetched (only
 // meaningful under --json).
 func followRun(cmd *cobra.Command, ctx *context.Context, req workflow.WorkflowRunRequest, initial model.WorkflowRunDetail, interval int, timeout time.Duration) model.WorkflowRunDetail {
-	parent := cmd.Context()
-	if parent == nil {
-		parent = stdctx.Background()
-	}
-	wctx, cancel := parent, stdctx.CancelFunc(func() {})
-	if timeout > 0 {
-		wctx, cancel = stdctx.WithTimeout(parent, timeout)
-	}
+	wctx, cancel := watchContext(cmd, timeout)
 	defer cancel()
 
 	detail := initial
@@ -409,17 +402,35 @@ func runWatchLoopJSON(wctx stdctx.Context, ctx *context.Context, req workflow.Wo
 func rerunCommand(ctx *context.Context) *cobra.Command {
 	var repoName string
 	var runID int
+	var watch bool
+	var watchInterval int
+	var watchTimeout time.Duration
 
 	rerunCmd := &cobra.Command{
 		Use:   "rerun",
 		Short: "Rerun a workflow run",
-		Long:  `Rerun a specific GitHub Actions workflow run in a repository.`,
+		Long: heredoc.Doc(`
+			Rerun a specific GitHub Actions workflow run in a repository.
+
+			With --watch, follow the rerun until it completes, like 'workflow view --watch'
+			(--watch --json streams NDJSON). A rerun keeps the run ID, so the watch starts once
+			the new attempt is visible; --timeout gives up on it after that long.
+		`),
 		Example: heredoc.Doc(`
 			$ sgh workflow rerun --org sample-org -r sample-repo1 --run 123456789
+			$ sgh workflow rerun --org sample-org -r sample-repo1 --run 123456789 --watch --timeout 30m
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if (watchTimeout != 0 || cmd.Flags().Changed("interval")) && !watch {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval and --timeout require --watch")
+				ctx.HasError = true
+				return
+			}
+			if watch && !ValidateFollowInterval(cmd, ctx, watchInterval) {
+				return
+			}
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
 			if len(resolvedNames) == 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
@@ -438,17 +449,40 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 				RepoName: resolvedRepo,
 				RunID:    runID,
 			}
+			// Read before rerunning: a rerun keeps the run ID, and the attempt number is how the
+			// watch tells the new attempt from the old, already-completed one.
+			var prevAttempt int
+			if watch {
+				prevAttempt = workflow.GetWorkflowRunDetail(ctx, req).Run.RunAttempt
+			}
 			response := workflow.RerunWorkflowRun(ctx, req)
 			if response.ErrorMessage != "" {
 				logger.Glog.Error().Msg(response.ErrorMessage)
-			} else {
+				if watch {
+					ctx.HasError = true
+					if ctx.JSON {
+						EmitFollowEvent("rerun_error", resolvedRepo, runID, "", response.ErrorMessage)
+					}
+				}
+				return
+			}
+			switch {
+			case watch && ctx.JSON:
+				EmitFollowEvent("rerun_requested", resolvedRepo, runID, "", "")
+			default:
 				ui.PrintWorkflowRuns([]model.WorkflowRun{response}, "", false)
+			}
+			if watch {
+				FollowRerun(cmd, ctx, req, prevAttempt, FollowOptions{Interval: watchInterval, Timeout: watchTimeout})
 			}
 		},
 	}
 
 	rerunCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 	rerunCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID")
+	rerunCmd.Flags().BoolVarP(&watch, "watch", "W", false, "follow the rerun until it completes")
+	rerunCmd.Flags().IntVar(&watchInterval, "interval", 10, "polling interval in seconds when using --watch (minimum 5)")
+	rerunCmd.Flags().DurationVar(&watchTimeout, "timeout", 0, "give up watching after this long when using --watch, e.g. 30m (0 = no timeout)")
 	rerunCmd.MarkFlagRequired("repository")
 	rerunCmd.MarkFlagRequired("run")
 
@@ -458,17 +492,35 @@ func rerunCommand(ctx *context.Context) *cobra.Command {
 func cancelCommand(ctx *context.Context) *cobra.Command {
 	var repoName string
 	var runID int
+	var wait bool
+	var waitInterval int
+	var waitTimeout time.Duration
 
 	cancelCmd := &cobra.Command{
 		Use:   "cancel",
 		Short: "Cancel a workflow run",
-		Long:  `Cancel a specific GitHub Actions workflow run in a repository.`,
+		Long: heredoc.Doc(`
+			Cancel a specific GitHub Actions workflow run in a repository.
+
+			GitHub accepts the request immediately and cancels asynchronously, so a successful
+			cancel only means "cancel_requested". With --wait, poll until the run has finished and
+			report how it ended (it may have completed before the cancel took effect).
+		`),
 		Example: heredoc.Doc(`
 			$ sgh workflow cancel --org sample-org -r sample-repo1 --run 123456789
+			$ sgh workflow cancel --org sample-org -r sample-repo1 --run 123456789 --wait
 		`),
 
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if (waitTimeout != 0 || cmd.Flags().Changed("interval")) && !wait {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval and --timeout require --wait")
+				ctx.HasError = true
+				return
+			}
+			if wait && !ValidateFollowInterval(cmd, ctx, waitInterval) {
+				return
+			}
 			resolvedNames := ctx.Config.ActualRepositoryNamesUsingFzf(orgName, []string{repoName})
 			if len(resolvedNames) == 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ repository not found: %s\n", repoName)
@@ -490,18 +542,66 @@ func cancelCommand(ctx *context.Context) *cobra.Command {
 			response := workflow.CancelWorkflowRun(ctx, req)
 			if response.ErrorMessage != "" {
 				logger.Glog.Error().Msg(response.ErrorMessage)
+				if wait {
+					ctx.HasError = true
+					if ctx.JSON {
+						EmitFollowEvent("cancel_error", resolvedRepo, runID, "", response.ErrorMessage)
+					}
+				}
+				return
+			}
+			if wait && ctx.JSON {
+				EmitFollowEvent("cancel_requested", resolvedRepo, runID, "", "")
 			} else {
 				ui.PrintWorkflowRuns([]model.WorkflowRun{response}, "", false)
+			}
+			if wait {
+				waitForCancel(cmd, ctx, req, FollowOptions{Interval: waitInterval, Timeout: waitTimeout})
 			}
 		},
 	}
 
 	cancelCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
 	cancelCmd.Flags().IntVarP(&runID, "run", "R", 0, "workflow run ID")
+	cancelCmd.Flags().BoolVar(&wait, "wait", false, "wait until the run has finished and report how it ended")
+	cancelCmd.Flags().IntVar(&waitInterval, "interval", 10, "polling interval in seconds when using --wait (minimum 5)")
+	cancelCmd.Flags().DurationVar(&waitTimeout, "timeout", 0, "give up waiting after this long when using --wait, e.g. 5m (0 = no timeout)")
 	cancelCmd.MarkFlagRequired("repository")
 	cancelCmd.MarkFlagRequired("run")
 
 	return cancelCmd
+}
+
+// waitForCancel polls a run whose cancellation was requested until it has finished, then reports
+// its conclusion. A run can finish for another reason before the cancel takes effect.
+func waitForCancel(cmd *cobra.Command, ctx *context.Context, req workflow.WorkflowRunRequest, o FollowOptions) {
+	wctx, cancel := watchContext(cmd, o.Timeout)
+	defer cancel()
+	detail := workflow.WatchViewRun(wctx, ctx, req, workflow.GetWorkflowRunDetail(ctx, req), workflow.WatchViewOptions{
+		Interval: time.Duration(o.Interval) * time.Second,
+		Sleep:    viewWatchSleep,
+	})
+	switch {
+	case detail.ErrorMessage != "":
+		ctx.HasError = true
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: %s\n", req.RepoName, detail.ErrorMessage)
+	case detail.IsInProgress():
+		ctx.HasError = true
+		fmt.Fprintf(cmd.ErrOrStderr(), "  ✗ %s: run %d was still in progress when waiting stopped (%s)\n", req.RepoName, req.RunID, wctxReason(wctx))
+	case ctx.JSON:
+		emitFollowEvent(followEvent{Kind: "cancel_done", Repository: req.RepoName, RunID: req.RunID, Conclusion: detail.Run.Conclusion})
+	case detail.Run.Conclusion == "cancelled":
+		fmt.Printf("  ✓ %s: run %d cancelled\n", req.RepoName, req.RunID)
+	default:
+		fmt.Printf("  ! %s: run %d finished as '%s' (it completed before the cancel took effect)\n", req.RepoName, req.RunID, detail.Run.Conclusion)
+	}
+}
+
+func wctxReason(c stdctx.Context) string {
+	if c.Err() == stdctx.DeadlineExceeded {
+		return "timed out"
+	}
+	return "interrupted"
 }
 
 func DispatchCommand(ctx *context.Context) *cobra.Command {
@@ -661,26 +761,13 @@ func printDispatchResults(cmd *cobra.Command, results []workflow.WorkflowDispatc
 	}
 }
 
-// dispatchWatchEvent is the NDJSON line `dispatch --watch --json` prints per repository before
-// that repository's watch events. Repositories are followed sequentially, so every event up to
-// the next run_done belongs to the repository named by the preceding line.
-type dispatchWatchEvent struct {
-	Kind       string `json:"kind"` // dispatched | dispatch_error | watch_skipped
-	Repository string `json:"repository"`
-	RunID      int    `json:"run_id,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-}
-
 // followDispatched follows each dispatched run sequentially: with approve it decides the run's
 // gates too (the same code as `workflow approve --watch`), otherwise it only watches. Repos that
 // failed to dispatch, or whose dispatch returned no run ID (204), are reported and skipped.
 // Stdout stays clean NDJSON under --json. ponytail: sequential, concurrent following needs an
 // interleaved-output design.
 func followDispatched(cmd *cobra.Command, ctx *context.Context, results []workflow.WorkflowDispatchResult, opt watchOptions, approve bool) {
-	emit := func(e dispatchWatchEvent) {
-		b, _ := json.Marshal(e)
-		fmt.Println(string(b))
-	}
+	emit := emitFollowEvent
 	if !ctx.JSON {
 		printDispatchResults(cmd, results)
 	}
@@ -689,17 +776,17 @@ func followDispatched(cmd *cobra.Command, ctx *context.Context, results []workfl
 		case r.ErrorMessage != "":
 			ctx.HasError = true
 			if ctx.JSON {
-				emit(dispatchWatchEvent{Kind: "dispatch_error", Repository: r.RepositoryName, Reason: r.ErrorMessage})
+				emit(followEvent{Kind: "dispatch_error", Repository: r.RepositoryName, Reason: r.ErrorMessage})
 			}
 		case r.RunID == 0:
 			if ctx.JSON {
-				emit(dispatchWatchEvent{Kind: "watch_skipped", Repository: r.RepositoryName, Reason: "run ID not returned by GitHub"})
+				emit(followEvent{Kind: "watch_skipped", Repository: r.RepositoryName, Reason: "run ID not returned by GitHub"})
 			} else {
 				fmt.Fprintf(cmd.ErrOrStderr(), "  ! %s: not watching, GitHub did not return a run ID\n", r.RepositoryName)
 			}
 		default:
 			if ctx.JSON {
-				emit(dispatchWatchEvent{Kind: "dispatched", Repository: r.RepositoryName, RunID: r.RunID})
+				emit(followEvent{Kind: "dispatched", Repository: r.RepositoryName, RunID: r.RunID})
 			}
 			if approve {
 				o := opt

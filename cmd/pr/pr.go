@@ -6,10 +6,12 @@ package pr
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
+	wf "github.com/pradyb/sgh-cli/cmd/workflow"
 	"github.com/pradyb/sgh-cli/internal/model"
 	"github.com/pradyb/sgh-cli/internal/processor"
 	"github.com/pradyb/sgh-cli/pkg/context"
@@ -17,6 +19,7 @@ import (
 	"github.com/pradyb/sgh-cli/pkg/pr"
 	"github.com/pradyb/sgh-cli/pkg/pr/prompt"
 	"github.com/pradyb/sgh-cli/pkg/ui"
+	"github.com/pradyb/sgh-cli/pkg/workflow"
 	"github.com/pradyb/sgh-cli/utils"
 )
 
@@ -393,18 +396,37 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	var repoName string
 	var title string
 	var body string
+	var watch bool
+	var watchInterval int
+	var watchTimeout time.Duration
 
 	mergeCmd := &cobra.Command{
 		Use:   "merge",
 		Short: "Merge a pull request",
-		Long:  `Merge a pull request on GitHub for given repo.`,
+		Long: heredoc.Doc(`
+			Merge a pull request on GitHub for given repo.
+
+			With --watch, follow the CI/deploy run(s) the merge triggers on the base branch, like
+			'workflow view --watch' (--watch --json streams NDJSON). The runs are found by the merge
+			commit, so a push by someone else is never followed; if none appears within a minute
+			(the repository may have no workflow for pushes) it says so and exits cleanly.
+		`),
 		Example: heredoc.Doc(`
 			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1
 			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge"
 			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --title "Post Release merge" --body "Merging release branch"
+			$ sgh pr merge --org sample-org -r sample-repo1 --pr 1 --watch --timeout 30m
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			orgName, _ := cmd.Flags().GetString("org")
+			if (watchTimeout != 0 || cmd.Flags().Changed("interval")) && !watch {
+				fmt.Fprintln(cmd.ErrOrStderr(), "  ✗ --interval and --timeout require --watch")
+				ctx.HasError = true
+				return
+			}
+			if watch && !wf.ValidateFollowInterval(cmd, ctx, watchInterval) {
+				return
+			}
 			if ctx.DryRun {
 				ui.PrintDryRunBanner()
 				details := map[string]string{"PR Number": fmt.Sprintf("%d", prNumber)}
@@ -422,7 +444,28 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 				Body:     body,
 			}
 			response := pr.MergePullRequest(ctx, req)
-			ui.PrintMergeResponses([]model.MergeResponse{response})
+			if !watch {
+				ui.PrintMergeResponses([]model.MergeResponse{response})
+				return
+			}
+			failed := response.ErrorMessage != "" || !response.Merged || response.SHA == ""
+			switch {
+			case ctx.JSON && response.ErrorMessage != "":
+				wf.EmitFollowEvent("merge_error", response.RepositoryName, 0, "", response.ErrorMessage)
+			case ctx.JSON && failed:
+				wf.EmitFollowEvent("merge_error", response.RepositoryName, 0, response.SHA, response.Message)
+			case ctx.JSON:
+				wf.EmitFollowEvent("merged", response.RepositoryName, 0, response.SHA, "")
+			default:
+				ui.PrintMergeResponses([]model.MergeResponse{response})
+			}
+			if failed {
+				ctx.HasError = true
+				return
+			}
+			wf.FollowCommitRuns(cmd, ctx, workflow.FindRunsRequest{
+				OrgName: orgName, RepoName: response.RepositoryName, HeadSHA: response.SHA, Event: "push",
+			}, wf.FollowOptions{Interval: watchInterval, Timeout: watchTimeout})
 		},
 	}
 
@@ -430,6 +473,9 @@ func MergeCommand(ctx *context.Context) *cobra.Command {
 	mergeCmd.Flags().StringVarP(&title, "title", "t", "", "custom commit title (optional, GitHub auto-generates if omitted)")
 	mergeCmd.Flags().StringVarP(&body, "body", "b", "", "extra detail to append to commit message (optional)")
 	mergeCmd.Flags().StringVarP(&repoName, "repository", "r", "", "repository name")
+	mergeCmd.Flags().BoolVarP(&watch, "watch", "W", false, "follow the CI/deploy run(s) the merge triggers until they complete")
+	mergeCmd.Flags().IntVar(&watchInterval, "interval", 10, "polling interval in seconds when using --watch (minimum 5)")
+	mergeCmd.Flags().DurationVar(&watchTimeout, "timeout", 0, "give up on each watched run after this long when using --watch, e.g. 30m (0 = no timeout)")
 
 	mergeCmd.MarkFlagRequired("repository")
 	mergeCmd.MarkFlagRequired("pr")
